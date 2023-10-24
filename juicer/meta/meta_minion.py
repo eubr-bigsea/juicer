@@ -58,14 +58,10 @@ class MetaMinion(Minion):
 
         signal.signal(signal.SIGTERM, self._terminate)
 
-        self.mgr = socketio.RedisManager(
-            config['juicer']['servers']['redis_url'],
-            'job_output')
+        self.mgr = None
 
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.job_future = None
-
-        self.meta_config = config['juicer'].get('meta', {})
 
         # self termination timeout
         self.active_messages = 0
@@ -74,6 +70,9 @@ class MetaMinion(Minion):
         self.target_minion = None
 
     def _emit_event(self, room, namespace):
+        self.mgr = socketio.RedisManager(
+            self.config['juicer']['servers']['redis_url'],
+            'job_output')
         def emit_event(name, message, status, identifier, **kwargs):
             log.debug(gettext.gettext('Emit %s %s %s %s'), name, message,
                       status, identifier)

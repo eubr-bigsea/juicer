@@ -54,7 +54,7 @@ import traceback
 con = duckdb.connect()
 {%- elif polars %}
 # turn on String Cache. See https://github.com/pola-rs/polars/issues/5367
-pl.toggle_string_cache(True)
+pl.enable_string_cache(True)
 {%- endif %}
 
 def _handle_errors(err):
@@ -78,10 +78,19 @@ def _handle_errors(err):
             (r"Strict conversion from (.+) to (.+) failed for values \[(.+)\]",
              gettext('Strict conversion from "{}" to "{}" failed for values [{}].')),
         ]
+    elif exc_type in (pl.exceptions.DuplicateError, ):
+         tests = [
+            (r"column with name '(.+?) has more than one occurrences",
+             gettext('Selection has multiple occurrences of "{}". '
+                 'Change the selection options to remove duplication.')),
+        ]
     elif exc_type in (pl.exceptions.SchemaError, ):
         tests = [
             (r"cannot call lst.join on Series with dtype (.+).Inner type must be (.+)",
              gettext('Cannot concat list elements if their data type is "{}". It must be "{}".')),
+            (r"invalid series dtype: expected `(.+)`, got `(.+)`",
+             gettext('At least one function has an incorrect argument data type '
+                    '(expected: {}, actual: {})')),
         ]
     elif exc_type in (AttributeError,):
         tests = [

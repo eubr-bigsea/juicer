@@ -255,7 +255,6 @@ class Operation(object):
         else:
             return parameters.get(name)
 
-
 # noinspection PyAbstractClass
 class ReportOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):

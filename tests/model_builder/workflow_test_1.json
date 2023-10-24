@@ -1,0 +1,389 @@
+{
+    "id": 1,
+    "name": "Iris Classification",
+    "enabled": true,
+    "created": "2023-04-25T13:57:50",
+    "updated": "2023-09-26T14:12:44",
+    "version": 1,
+    "platform": {
+        "id": 1,
+        "slug": "spark"
+    },
+    "user": {
+        "id": 1,
+        "name": "admin",
+        "login": "admin@lemonade.org.br",
+        "email": "admin@lemonade.org.br"
+    },
+    "forms": {
+        "$meta": {
+            "value": {
+                "label": "class",
+                "method": "custom",
+                "taskType": "classification"
+            }
+        },
+        "$grid": {
+            "value": {
+                "strategy": "grid",
+                "max_iterations": 20
+            }
+        }
+    },
+    "type": "MODEL_BUILDER",
+    "preferred_cluster_id": 1,
+    "tasks": [
+        {
+            "id": "7f75d6ec-48eb-4e4d-889d-d66edc72c4ba",
+            "name": "Read data",
+            "forms": {
+                "data_source": {
+                    "value": 15,
+                    "labelValue": "Iris dataset"
+                },
+                "color": {
+                    "value": "rgb(255, 255, 165)"
+                }
+            },
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 0,
+            "operation": {
+                "id": 2100,
+                "slug": "read-data"
+            }
+        },
+        {
+            "id": "3b6639e7-a9b2-4887-b3c7-0752f04716c3",
+            "name": "Sample",
+            "forms": {
+                "type": {
+                    "value": "value"
+                },
+                "value": {
+                    "value": "10000"
+                },
+                "color": {
+                    "value": "rgb(255, 255, 165)"
+                },
+                "fraction": {
+                    "value": "1"
+                },
+                "comment": {
+                    "value": null
+                },
+                "seed": {
+                    "value": null
+                }
+            },
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 1,
+            "operation": {
+                "id": 2110,
+                "slug": "sample"
+            }
+        },
+        {
+            "id": "3d4beb3f-5cba-4656-a228-9064b687cd0b",
+            "name": "Evaluate model",
+            "forms": {
+                "task_type": {
+                    "value": "multiclass-classification"
+                },
+                "multi_metric": {
+                    "value": "accuracy"
+                },
+                "bin_metric": {
+                    "value": "areaUnderROC"
+                },
+                "reg_metric": {
+                    "value": "rmse"
+                },
+                "clust_metric": {
+                    "value": "rmse"
+                }
+            },
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 2,
+            "operation": {
+                "id": 2351,
+                "slug": "evaluator"
+            }
+        },
+        {
+            "id": "d12d7a2e-079c-4377-906e-d77e21d6c8dd",
+            "name": "Split",
+            "forms": {
+                "strategy": {
+                    "value": "split"
+                },
+                "ratio": {
+                    "value": "0.8"
+                },
+                "color": {
+                    "value": "rgb(255, 255, 165)"
+                },
+                "seed": {
+                    "value": 3434
+                },
+                "folds": {
+                    "value": "10"
+                }
+            },
+            "version": 2,
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 4,
+            "operation": {
+                "id": 2350,
+                "slug": "split"
+            }
+        },
+        {
+            "id": "ebb35f41-d48f-4423-8c2f-9f27d9994ab1",
+            "name": "Feature reduction",
+            "forms": {
+                "color": {
+                    "value": "rgb(255, 255, 165)"
+                },
+                "method": {
+                    "value": "disabled"
+                },
+                "comment": {
+                    "value": null
+                },
+                "k": {
+                    "value": null
+                }
+            },
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 5,
+            "operation": {
+                "id": 2352,
+                "slug": "features-reduction"
+            }
+        },
+        {
+            "id": "e41323f2-a2cc-4285-b7f5-f33ebdeb32b1",
+            "name": "Grid",
+            "forms": {
+                "color": {
+                    "value": "rgb(255, 255, 165)"
+                },
+                "strategy": {
+                    "value": "grid"
+                },
+                "seed": {
+                    "value": 123
+                },
+                "max_iterations": {
+                    "value": 20
+                },
+                "random_grid": {
+                    "value": null
+                },
+                "max_search_time": {
+                    "value": null
+                },
+                "parallelism": {
+                    "value": null
+                }
+            },
+            "version": 4,
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 6,
+            "operation": {
+                "id": 2353,
+                "slug": "grid"
+            }
+        },
+        {
+            "id": "484e362b-d946-4ff2-ada8-5bacfc985d56",
+            "name": "Features",
+            "forms": {
+                "features": {
+                    "value": [
+                        {
+                            "id": 9845,
+                            "name": "sepallength",
+                            "type": "DECIMAL",
+                            "precision": 2,
+                            "scale": 1,
+                            "nullable": false,
+                            "enumeration": false,
+                            "key": false,
+                            "usage": "feature",
+                            "enable": false,
+                            "quantis": 10,
+                            "binarize_trasholder": 0.5,
+                            "feature_type": "numerical",
+                            "transform": "keep",
+                            "scaler": ""
+                        },
+                        {
+                            "id": 9846,
+                            "name": "sepalwidth",
+                            "type": "DECIMAL",
+                            "precision": 2,
+                            "scale": 1,
+                            "nullable": false,
+                            "enumeration": false,
+                            "key": false,
+                            "usage": "feature",
+                            "enable": false,
+                            "quantis": 10,
+                            "binarize_trasholder": 0.5,
+                            "feature_type": "numerical",
+                            "transform": "keep"
+                        },
+                        {
+                            "id": 9847,
+                            "name": "petallength",
+                            "type": "DECIMAL",
+                            "precision": 2,
+                            "scale": 1,
+                            "nullable": false,
+                            "enumeration": false,
+                            "key": false,
+                            "usage": "feature",
+                            "enable": false,
+                            "quantis": 10,
+                            "binarize_trasholder": 0.5,
+                            "feature_type": "numerical",
+                            "transform": "keep"
+                        },
+                        {
+                            "id": 9848,
+                            "name": "petalwidth",
+                            "type": "DECIMAL",
+                            "precision": 2,
+                            "scale": 1,
+                            "nullable": false,
+                            "enumeration": false,
+                            "key": false,
+                            "usage": "feature",
+                            "enable": false,
+                            "quantis": 10,
+                            "binarize_trasholder": 0.5,
+                            "feature_type": "numerical",
+                            "transform": "keep"
+                        },
+                        {
+                            "name": "class",
+                            "usage": "label",
+                            "enable": true,
+                            "feature_type": "categorical",
+                            "transform": "string_indexer",
+                            "missing_data": "remove"
+                        }
+                    ]
+                }
+            },
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 3,
+            "operation": {
+                "id": 2354,
+                "slug": "features"
+            }
+        },
+        {
+            "id": "0e41c364-e8da-4e54-9987-1c6cf5d7b1df",
+            "name": "Random Forest Classifier",
+            "forms": {
+                "max_depth": {
+                    "value": {
+                        "distribution": "uniform",
+                        "list": [
+                            1,
+                            20
+                        ],
+                        "max": null,
+                        "min": null,
+                        "quantity": null,
+                        "type": "list",
+                        "enabled": false
+                    }
+                },
+                "max_bins": {
+                    "value": {
+                        "type": "range",
+                        "distribution": "uniform",
+                        "max": 20, "min": 5, 
+                        "quantity": 2,
+                        "enabled": false
+                    }
+                },
+                "min_instances_per_node": {
+                    "value": {
+                        "type": "list",
+                        "list": [2, 3],
+                        "enabled": false
+                    }
+                },
+                "min_info_gain": {
+                    "value": {
+                        "type": "list",
+                        "list": [0.6, 0.3],
+                        "enabled": false
+                    }
+                },
+                "cache_node_ids": {
+                    "value": {
+                        "type": "list",
+                        "list": [
+                            false,
+                            true
+                        ],
+                        "enabled": false
+                    }
+                },
+                "check_point_interval": {
+                    "value": null
+                },
+                "loss_type": {
+                    "value": {
+                        "type": "list",
+                        "list": [
+                            "logistic"
+                        ],
+                        "enabled": false
+                    }
+                },
+                "seed": {
+                    "value": null
+                },
+                "subsampling_rate": {
+                    "value": null
+                },
+                "impurity": {
+                    "value": null
+                },
+                "num_trees": {
+                    "value": {
+                        "type": "list",
+                        "list": [2, 10, 12],
+                        "enabled": true
+                    }
+                },
+                "feature_subset_strategy": {
+                    "value": null
+                }
+            },
+            "version": 5,
+            "environment": "DESIGN",
+            "enabled": true,
+            "display_order": 7,
+            "operation": {
+                "id": 2361,
+                "name": "Random Forest",
+                "slug": "random-forest-classifier"
+            }
+        }
+
+    ]
+}

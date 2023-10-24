@@ -29,23 +29,23 @@ class AddColumnsOperation(sk.AddColumnsOperation):
             # Get all unique column names in both dataframes
             ok = set({input1}.columns).symmetric_difference(
                 set({input2}.columns))
-            
-            alias1 = [] 
+
+            alias1 = []
             for c in {input1}.columns:
                 if c in ok:
-                    alias1.append(pl.col(c)) 
+                    alias1.append(pl.col(c))
                 else:
                     alias1.append(pl.col(c).alias(f'{{c}}{s1}'))
-            alias2 = [] 
+            alias2 = []
             for c in {input2}.columns:
                 if c in ok:
-                    alias2.append(pl.col(c)) 
+                    alias2.append(pl.col(c))
                 else:
                     alias2.append(pl.col(c).alias(f'{{c}}{s2}'))
             # Lazy only allows {'vertical', 'diagonal'} concat strategy in 0.15.6
             {self.output} = pl.concat([
-                {input1}.select(alias1).collect(), 
-                {input2}.select(alias2).collect()], 
+                {input1}.select(alias1).collect(),
+                {input2}.select(alias2).collect()],
                 how='horizontal').lazy()
         """
         return dedent(code)
@@ -81,9 +81,9 @@ class AggregationOperation(sk.AggregationOperation):
         ])
         .collect()
         .pivot(index={{op.attributes}}, values=[
-            {%- for f in op.functions %}'{{f.alias}}',{% endfor %}], 
+            {%- for f in op.functions %}'{{f.alias}}',{% endfor %}],
             aggregate_fn='min', columns={{op.pivot}}).lazy()
-    )        
+    )
     {%- else %}
     {{op.output}} = ({{op.input}}.groupby(
         {{op.attributes}}).agg([
@@ -221,8 +221,7 @@ class CleanMissingOperation(sk.CleanMissingOperation):
             {{output}} = {{input}}
 
     {%- elif mode == "VALUE" %}
-        {{output}} = {{input}}.select([
-            pl.exclude({{columns}}), 
+        {{output}} = {{input}}.with_columns([
             {%- for col in columns %}
             pl.col('{{col}}').fill_null(value={{value}}),
             {%- endfor %}
@@ -230,7 +229,7 @@ class CleanMissingOperation(sk.CleanMissingOperation):
 
     {%- elif mode in ("MEAN", "MEDIAN", "MODE") %}
         {{output}} = {{input}}.select([
-            pl.exclude({{columns}}), 
+            pl.exclude({{columns}}),
             {%- for col in columns %}
             pl.col('{{col}}').fill_null(
                 value=pl.col('{{col}}').{{mode.lower()}}()),
@@ -481,7 +480,7 @@ class FilterOperation(sk.FilterOperation):
                     self.transpiler_utils.add_import(expression.imports)
             else:
                 raise ValueError(gettext('Parameter {} is required').format(
-                    'filter'))
+                    'expression'))
 
             ctx = {
                 'out': self.output,
@@ -525,92 +524,163 @@ class JoinOperation(sk.JoinOperation):
     """
 
     template = """
-        {%- if match_case %}
-        string_cols1 = {f'{c}{{suf_l}}' for (i, c) in 
-            enumerate({{in1}}.columns) if {{in1}}.dtypes[i] == pl.Utf8}
-        string_cols2 = {f'{c}{{suf_r}}' for (i, c) in 
-            enumerate({{in2}}.columns) if {{in2}}.dtypes[i] == pl.Utf8}
-        {%- endif %}
-
-        {%- if suf_l %}
-        keys1 = [f'{c}{{suf_l}}' for c in {{keys1}}]
+        {%- if prefix1 %}
+        keys1 = ({% for k in keys1 %}'{{prefix1}}{{k}}', {% endfor %})
+        {{in1}} = {{in1}}.select([
+            pl.col(c).alias(f'{{prefix1}}{c}')
+            for c in {{in1}}.columns
+        ])
         {%- else %}
         keys1 = {{keys1}}
-        {% endif %}
-
-        {%- if suf_r %}
-        keys2 = [f'{c}{{suf_r}}' for c in {{keys2}}]
-        {%- else %}
-        keys2 = {{keys2}}
-        {% endif %}
-
-        key_cols1 = [pl.col(c)
-            {%- if match_case %} 
-            if c not in string_cols1 
-            else pl.col(c).str.to_uppercase()
-            {%- endif %} for c in keys1]
-
-        key_cols2 = [pl.col(c)
-            {%- if match_case %} 
-            if c not in string_cols2 
-            else pl.col(c).str.to_uppercase()
-            {%- endif %} for c in keys2]
-
-        {%- if suf_l %}
-        # Add suffix
-        {{in1}} = {{in1}}.select([pl.col(c).alias(f'{c}{{suf_l}}') 
-            for c in {{in1}}.columns])
         {%- endif %}
 
-        {%- if suf_r %}
-        # Add suffix
-        {{in2}} = {{in2}}.select([pl.col(c).alias(f'{c}{{suf_r}}') 
-            for c in {{in2}}.columns])
+        {%- if prefix2 %}
+        keys2 = ({% for k in keys2 %}'{{prefix2}}{{k}}', {% endfor %})
+        {{in2}} = {{in2}}.select([
+            pl.col(c).alias(f'{{prefix2}}{c}')
+            for c in {{in2}}.columns
+        ])
+        {%- else %}
+        keys2 = {{keys2}}
+        {%- endif %}
+
+        {%- if match_case %}
+        # Identify Utf8 keys in order to convert to lower case
+        # and perform case-insensitive join.
+        string_cols1 = {c for (i, c) in
+            enumerate({{in1}}.columns)
+            if {{in1}}.dtypes[i] == pl.Utf8 and c in keys1}
+        string_cols2 = {c for (i, c) in
+            enumerate({{in2}}.columns)
+            if {{in2}}.dtypes[i] == pl.Utf8 and c in keys2}
+
+        keys1 = [pl.col(k)
+            if k not in string_cols1
+            else pl.col(k).str.to_lowercase()
+            for k in keys1]
+        keys2 = [pl.col(k)
+            if k not in string_cols2
+            else pl.col(k).str.to_lowercase()
+            for k in keys2]
         {%- endif %}
 
         # Perform the join
-        {%- if type == 'right' %}
-        # Polars does not support 'right' join
-        # See https://github.com/pola-rs/polars/issues/3934
-        # Invert the order to use left outer join
-        {{out}} = {{in2}}.join({{in1}}, right_on=key_cols1, left_on=key_cols2,
-            how='left')
-        # Revert columns' order
-        {{out}} = {{out}}.select(
-            [pl.col(c) if c not in keys1 
-                    else pl.col(keys2[keys1.index(c)]).alias(c)
-                for c in {{in1}}.columns] + 
-            [pl.col(c) for c in {{in2}}.columns
-                {%- if not keep_right_keys %} if c not in keys2 {%- endif %}])
-        {%- else %}
-        {{out}} = {{in1}}.join(
-            {{in2}}, left_on=key_cols1, right_on=key_cols2, how='{{type}}')
-        {% if keep_right_keys %}
-        # Keep the right keys
-        {{out}} = {{out}}.select(
-            [pl.col(c) for c in {{in1}}.columns] + 
-            [pl.col(c) 
-                if c not in keys2 else pl.col(keys1[keys2.index(c)]).alias(c) 
-                for c in {{in2}}.columns])
-        {%- endif %}
-        {%- endif %}
+        with pl.StringCache():
+            {%- if type == 'right' %}
+            # Polars does not support 'right' join
+            # See https://github.com/pola-rs/polars/issues/3934
+            # Invert the order to use left outer join
+            {{out}} = {{in2}}.join({{in1}}, right_on=key1, left_on=keys2,
+                how='left')
+            # Revert columns' order
+            {{out}} = {{out}}.select(
+                [pl.col(c) if c not in keys1
+                        else pl.col(keys2[keys1.index(c)]).alias(c)
+                    for c in {{in1}}.columns] +
+                [pl.col(c) for c in {{in2}}.columns
+                    {%- if not keep_right_keys %} if c not in keys2 {%- endif %}])
+            {%- else %}
+            {{out}} = {{in1}}.join(
+                {{in2}}, left_on=keys1, right_on=keys2, how='{{type}}')
+
+
+            # Select the resulting attributes
+            select = []
+            {%- if selection_type1 == 1 %}
+            select += {{in1}}.columns
+            {%- elif selection_type1 == 2 %}
+            select += [pl.col(k).alias(a)
+                for k, a in {{selected_attrs1}}
+            ]
+            {%- else %}
+            # No selection from 1st dataset
+            {%- endif %}
+
+            {%- if selection_type2 == 1 %}
+            select += [c for c in {{in2}}.columns if c not in keys2]
+            {%- elif selection_type2 == 2 %}
+            select += [pl.col(k).alias(a)
+                for k, a in {{selected_attrs2}}
+            ]
+            {%- else %}
+            # No selection from 2nd dataset
+            {%- endif %}
+
+            {{out}} = {{out}}.select(select)
+
+            {% if keep_right_keys %}
+            # Keep the right keys
+            # {{out}} = {{out}}.select(
+            #    [pl.col(c) for c in {{in1}}.columns] +
+            #    [pl.col(c)
+            #        if c not in keys2 else pl.col(keys1[keys2.index(c)]).alias(c)
+            #        for c in {{in2}}.columns])
+            {%- endif %}
+            {%- endif %}
     """
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
 
+    def _get_operator(self, value: str) -> str:
+        operators = {
+            'ne': '!=',
+            'gt': '>',
+            'lt': '<',
+            'ge': '>=',
+            'le': '<='
+        }
+        return operators.get(value, '==')
+
     def generate_code(self):
         if not self.has_code:
             return None
+        input_data1 = self.named_inputs['input data 1']
+        input_data2 = self.named_inputs['input data 2']
+
+        on_clause = [(f['first'], f['second'], self._get_operator(f.get('op', '=')))
+                for f in self.join_parameters.get('conditions')]
+
+        first_prefix = (self.join_parameters.get(
+            'firstPrefix', 'first') or 'first').strip()
+        second_prefix = (self.join_parameters.get(
+            'secondPrefix', 'second') or 'second').strip()
+
+        conditions = self.join_parameters.get('conditions')
+        keys1, keys2 = zip(*[
+            [x.get('first'), x.get('second')] for x in conditions])
+        selection_type1 = self.join_parameters.get('firstSelectionType')
+        selection_type2 = self.join_parameters.get('secondSelectionType')
+        select1 = self.join_parameters.get('firstSelect')
+        select2 = self.join_parameters.get('secondSelect')
+        prefix1 = self.join_parameters.get('firstPrefix')
+        prefix2 = self.join_parameters.get('secondPrefix')
+
+        selected_attrs1 = tuple([[attr.get('attribute'), attr.get('alias')]
+            for attr in (self.join_parameters.get('firstSelect', []) or [])
+            if attr.get('select')
+        ])
+        selected_attrs2 = tuple([[attr.get('attribute'), attr.get('alias')]
+            for attr in (self.join_parameters.get('secondSelect', []) or [])
+            if attr.get('select')
+        ])
 
         ctx = dict(
             out=self.output,
-            in1=self.named_inputs['input data 1'],
-            in2=self.named_inputs['input data 2'],
-            suf_l=self.suffixes[0], suf_r=self.suffixes[1],
-            keys1=self.left_attributes, keys2=self.right_attributes,
+            in1=input_data1,
+            in2=input_data2,
+            pref_l=first_prefix, pref_r=second_prefix,
+            keys1=keys1, keys2=keys2,
             match_case=self.match_case,
             type=self.join_type,
+            selection_type1=selection_type1,
+            selection_type2=selection_type2,
+            select1=select1,
+            select2=select2,
+            prefix1=prefix1,
+            prefix2=prefix2,
+            selected_attrs1=selected_attrs1,
+            selected_attrs2=selected_attrs2,
             keep_right_keys=not self.not_keep_right_keys)
 
         code = self.render_template(ctx)
@@ -676,7 +746,7 @@ class ReplaceValuesOperation(sk.ReplaceValuesOperation):
                             replacement = True
                         elif replacement in ('false', 'False', 0):
                             replacement = False
- 
+
                     to_select.append(
                         pl.when(pl.col(col) == value)
                         .then(replacement)
@@ -706,7 +776,7 @@ class SampleOrPartitionOperation(sk.SampleOrPartitionOperation):
         {%- elif type == 'head' %}
         {{output}} = {{input}}.head({{value}})
         {%- else %}
-        {{output}} = {{input}}.collect().sample(n={{value}}, 
+        {{output}} = {{input}}.collect().sample(n={{value}},
             shuffle=True, seed={{seed}}).lazy()
     {%- endif %}
     """
@@ -739,7 +809,7 @@ class SelectOperation(sk.SelectOperation):
     """
     template = """
         {%- if op.mode == 'exclude' %}
-        
+
         exclude = {{op.attributes}}
         {{op.output}} = {{op.input}}.select(pl.all().exclude(exclude))
 
@@ -816,7 +886,7 @@ class SortOperation(sk.SortOperation):
 
         code = f"""
             {self.output} = {input}.sort(
-                by={repr(self.columns)}, reverse={repr(reverse)}).lazy()
+                by={repr(self.columns)}, descending={repr(reverse)}).lazy()
         """
 
         return dedent(code)
@@ -838,8 +908,8 @@ class SplitKFoldOperation(sk.SplitKFoldOperation):
             .sample(frac=1, shuffle=True, seed={{op.random_state}})
             {%- endif %}
             .with_column(pl.lit(1).alias('{{op.alias}}'))
-            .select([pl.exclude('{{op.alias}}'), 
-                (pl.col('{{op.alias}}').cumsum().over('{{op.column}}') 
+            .select([pl.exclude('{{op.alias}}'),
+                (pl.col('{{op.alias}}').cumsum().over('{{op.column}}')
                     % {{op.n_splits}}).alias('{{op.alias}}')]).lazy()
         )
         {%- else %}
@@ -849,12 +919,12 @@ class SplitKFoldOperation(sk.SplitKFoldOperation):
             .sample(frac=1, shuffle=True, seed={{op.random_state}})
             {%- endif %}
             .with_row_count('{{op.alias}}')).lazy()
-        
+
         k = {{op.n_splits}}
         size = {{op.output}}.select(pl.count()).collect().to_pandas().iloc[0][0]
         fold_size = size // k
         remainder = size %  k
-        
+
         col = pl.col('{{op.alias}}')
         replaces = None
         for i in range(k):
@@ -875,7 +945,7 @@ class SplitKFoldOperation(sk.SplitKFoldOperation):
                     .then(pl.lit(i)))
 
         {{op.output}} = ({{op.output}}
-            .select([pl.exclude('{{op.alias}}'), 
+            .select([pl.exclude('{{op.alias}}'),
                 replaces.alias('{{op.alias}}')]).lazy()
         )
         {%- endif %}
