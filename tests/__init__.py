@@ -3,12 +3,9 @@ from __future__ import absolute_import
 
 import ast
 import gettext
+from itertools import zip_longest
 import os
-
-try:
-    from itertools import zip_longest
-except ImportError:
-    from itertools import izip_longest as zip_longest
+from textwrap import dedent
 
 locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
 t = gettext.translation('messages', locales_path, ["pt"],
@@ -16,14 +13,17 @@ t = gettext.translation('messages', locales_path, ["pt"],
 t.install()
 
 
-def format_code_comparison(node1, node2):
+def format_code_comparison(node1, node2, msg=None):
     lines_left = node1.split('\n')
     lines_right = node2.split('\n')
 
-    code = ['{:<4} {:<85} | {}'.format(i + 1, l[:81] if l else '',
-                                       r[:81] if r else '')
-            for i, (l, r) in enumerate(zip_longest(lines_left, lines_right))]
-    # return '\n>>>>>\n{}\n>>>>>\n{}\n-----'.format(node1, node2)
+    code = []
+    if msg:
+        code.append(msg)
+    code.extend(['{:<4} {:<85} | {}'.format(i + 1, l[:81] if l else '',
+                                            r[:81] if r else '')
+                 for i, (l, r) in enumerate(
+                     zip_longest(lines_left, lines_right))])
     return '\n' + '\n'.join(code)
 
 
@@ -33,8 +33,9 @@ current_line = current_offset = 0
 def compare_ast(node1, node2):
     global current_offset, current_line
     if type(node1) != type(node2):
-        return False, 'Different types: ({}) != ({}) [{}, {}]'.format(
-            type(node1), type(node2), node1, node2)
+        return (False,
+                f'Different types: ({type(node1)}) != ({type(node2)}) '
+                f'[{node1}, {node2}]')
     elif isinstance(node1, ast.AST):
         for kind, var in vars(node1).items():
             if kind == 'lineno':
@@ -45,8 +46,7 @@ def compare_ast(node1, node2):
                 var2 = vars(node2).get(kind)
                 result, msg = compare_ast(var, var2)
                 if not result:
-                    return False, '[{}:{}] {}'.format(current_line,
-                                                      current_offset, msg)
+                    return False, f'{current_line}:{current_offset}] {msg}'
         return True, ''
     elif isinstance(node1, list):
         if len(node1) != len(node2):
@@ -63,5 +63,17 @@ def compare_ast(node1, node2):
                 return False, msg
         return True, ''
     else:
-        return node1 == node2, 'Node comparison ({}) == ({})'.format(node1,
-                                                                     node2)
+        return node1 == node2, f'Node comparison ({node1}) == ({node2})'
+
+
+def debug_ast(code, expected_code):
+    sep = '-'
+    print(dedent(f"""
+    Code
+    {sep}
+    {code}
+    {sep}
+    Expected
+    {sep}
+    {expected_code}
+    """))

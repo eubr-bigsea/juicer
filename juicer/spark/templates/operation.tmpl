@@ -181,7 +181,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     {%- if instance.contains_results() %}
     df_types = (DataFrame, dataframe_util.LazySparkTransformationDataframe)
     outputs = [(name, out) for name, out in results.items()
-        if isinstance(out, df_types)]
+        if isinstance(out, df_types) and name[0:2] != '__']
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     for name, out in outputs:
         {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER' 

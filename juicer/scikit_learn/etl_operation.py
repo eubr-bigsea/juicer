@@ -730,6 +730,7 @@ class JoinOperation(Operation):
     JOIN_TYPE_PARAM = 'join_type'
     LEFT_ATTRIBUTES_PARAM = 'left_attributes'
     RIGHT_ATTRIBUTES_PARAM = 'right_attributes'
+    JOIN_PARAMS = 'join_parameters'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -737,26 +738,39 @@ class JoinOperation(Operation):
             parameters.get(self.KEEP_RIGHT_KEYS_PARAM, False) in (1, '1', True)
         self.match_case = parameters.get(self.MATCH_CASE_PARAM, False) in (
             1, '1', True)
-        self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
+        self.new_parameters_format = self.JOIN_PARAMS in parameters
+        if self.new_parameters_format: # New parameters format
+            self.join_parameters = parameters.get(self.JOIN_PARAMS, {})
 
-        # outer should not be allowed?
-        self.join_type = self.join_type.replace("_outer", "")
+            conditions = self.join_parameters.get('conditions', []) or []
+            fields_ok = all(['first' in f and 'second' in f for f in conditions])
 
-        if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
-                    self.RIGHT_ATTRIBUTES_PARAM in parameters]):
-            raise ValueError(
-                _("Parameters '{}' and '{}' must be informed for task {}").format
-                (self.LEFT_ATTRIBUTES_PARAM,
-                 self.RIGHT_ATTRIBUTES_PARAM,
-                 self.__class__))
+            self.join_type = self.join_parameters.get('joinType', 'inner') or 'inner'
 
-        self.has_code = len(self.named_inputs) == 2 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
-        self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
-        self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
+            if len(conditions) == 0 or not fields_ok:
+                    msg = _("Parameter '{}' must be informed for task {}")
+                    raise ValueError(msg.format('condition', self.__class__))
+        else:
+            self.join_type = parameters.get(self.JOIN_TYPE_PARAM, 'inner')
 
-        self.suffixes = parameters.get('aliases', '_l,_r')
-        self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
+            # outer should not be allowed?
+            self.join_type = self.join_type.replace("_outer", "")
+
+            if not all([self.LEFT_ATTRIBUTES_PARAM in parameters,
+                        self.RIGHT_ATTRIBUTES_PARAM in parameters]):
+                raise ValueError(
+                    _("Parameters '{}' and '{}' must be informed for task {}").format
+                    (self.LEFT_ATTRIBUTES_PARAM,
+                     self.RIGHT_ATTRIBUTES_PARAM,
+                     self.__class__))
+
+            self.has_code = len(self.named_inputs) == 2 and any(
+                [len(self.named_outputs) >= 1, self.contains_results()])
+            self.left_attributes = parameters.get(self.LEFT_ATTRIBUTES_PARAM)
+            self.right_attributes = parameters.get(self.RIGHT_ATTRIBUTES_PARAM)
+
+            self.suffixes = parameters.get('aliases', '_l,_r')
+            self.suffixes = [s for s in self.suffixes.replace(" ", "").split(',')]
         self.output = self.named_outputs.get('output data',
                                              'output_data_{}'.format(
                                                  self.order))
