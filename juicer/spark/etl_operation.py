@@ -189,9 +189,9 @@ class SampleOrPartitionOperation(Operation):
         if self.type == self.TYPE_PERCENT:
             if self.FRACTION_PARAM in parameters:
                 self.fraction = float(parameters[self.FRACTION_PARAM])
-                if not (0 <= self.fraction <= 100):
+                if not (0 < self.fraction <= 1):
                     msg = _("Parameter '{}' must be in " \
-                            "range [0, 100] for task {}") \
+                            "range (0, 100) (inclusive) for task {}") \
                         .format(self.FRACTION_PARAM, __name__)
                     raise ValueError(msg)
                 if self.fraction > 1.0:
@@ -202,6 +202,12 @@ class SampleOrPartitionOperation(Operation):
                         self.FRACTION_PARAM, self.__class__))
         elif self.type in [self.TYPE_VALUE, self.TYPE_HEAD]:
             self.value = int(parameters.get(self.VALUE_PARAM, 100))
+        elif self.type is None or self.type == '':
+            msg = gettext("Parameter '{}' must be informed for task {}")
+            raise ValueError(msg.format('type', self.__class__))
+        else:
+            msg = gettext("Invalid value for parameter '{}' for task {}")
+            raise ValueError(msg.format('type', self.__class__))
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
@@ -219,13 +225,11 @@ class SampleOrPartitionOperation(Operation):
                             wr=self.withReplacement,
                             fr=self.fraction, seed=self.seed))
         elif self.type == self.VALUE_PARAM:
-            # Spark 2.0.2 DataFrame API does not have takeSample implemented
-            # See [SPARK-15324]
             # This implementation may be inefficient!
-            code = ("{out} = {input}.orderBy(functions.rand({seed})).limit("
-                    "{limit})".format(out=self.output, input=input_data,
-                                      seed=self.seed, limit=self.value))
-            pass
+            code = (
+                f"{self.output} = {input_data}.sample(False, "
+                f"fraction={self.value}/{input_data}.count(), seed={self.seed})"
+            )
         elif self.type == self.TYPE_HEAD:
             code = "{out} = {input}.limit({limit})" \
                 .format(out=self.output, input=input_data, limit=self.value)
@@ -615,13 +619,13 @@ class SelectOperation(Operation):
         {%- elif op.mode == 'rename' %}
         {{op.output}} = {{op.input}}\\
             {%- for attr, alias in op.alias_dict.items() %}
-            .withColumnRenamed('{{attr}}', '{{alias}}'){%if not loop.last%}\{%endif%}
+            .withColumnRenamed('{{attr}}', '{{alias}}'){%if not loop.last%}\\{%endif%}
             {%- endfor %}
 
         {%- elif op.mode == 'duplicate' %}
         {{op.output}} = {{op.input}}\\
             {%- for attr, alias in op.alias_dict.items() %}
-            .withColumn('{{alias}}', functions.col('{{attr}}')){%if not loop.last%}\{%endif%}
+            .withColumn('{{alias}}', functions.col('{{attr}}')){%if not loop.last%}\\{%endif%}
             {%- endfor %}
         {%- endif %}
     """
@@ -1860,7 +1864,7 @@ class CastOperation(Operation):
         except ValueError as ve:
             msg = str(ve)
             if 'Unable to parse string' in msg:
-                expr = re.compile(r'.+string "(.+)" at position (\d+)')
+                expr = re.compile(r'.+string "(.+)" at position (\\d+)')
                 parts = expr.findall(msg)[0]
                 raise ValueError('{{errors.unable_to_parse}}'.format(*parts))
             else:
@@ -1901,7 +1905,8 @@ class CastOperation(Operation):
         return self.output
 
     def parse_date_format(self, fmt):
-        parts = re.split('([^\w\d"\'])', fmt)
+        import re
+        parts = re.split(r'([^\w\d"\'])', fmt)
         py_fmt = ''.join([JAVA_2_PYTHON_DATE_FORMAT.get(x, x)
             for x in parts])
         return py_fmt
