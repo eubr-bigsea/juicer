@@ -68,7 +68,7 @@ def get_common_imports() -> str:
         'global np', 'global pd', 'global base64',
         'global json', 'global datetime', 'global string',
         'global functools', 'global re',
-        'global hashlib', 'global itertools'
+        'global hashlib', 'global itertools', 'global pl'
     ])
 
 
