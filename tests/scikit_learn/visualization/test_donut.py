@@ -1,105 +1,91 @@
 from tests.scikit_learn import util
 from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
 
-import json
 import pytest
-import pandas as pd
-import polars as pl
-import plotly.express as px
-import plotly.colors
 
+from tests.scikit_learn.fixtures import *
 # Donut
 
-import pdb;pdb.set_trace()
-
-df = util.iris_polars()
-
-@pytest.fixture
-def get_df():
-    return util.iris_polars()
 
 @pytest.fixture
 def get_arguments():
     return {
-    'parameters': {
-        'type': 'donut',
-        'display_legend': "AUTO",
-        "x": [{
-            "binning": None,
-            "bins": 20,
-            "binSize": 10,
-            "emptyBins": "ZEROS",
-            "decimal_places": 2,
-            "group_others": True,
-            "sorting": "NATURAL",
-            "attribute": "class",
-            
-        }],
-        "palette": [
-            "#1F77B4",
-            "#FF7F0E",
-            "#2CA02C",
-            "#D62728",
-            "#9467BD",
-            "#8C564B",
-            "#E377C2",
-            "#7F7F7F",
-            "#BCBD22",
-            "#17BECF"
-        ],
-        "y": [{
-            "attribute": "class",
-            "aggregation": "COUNT",
-            "displayOn": "left",
-            "decimal_places": 2,
-            "strokeSize": 0,
-            "enabled": True
-        }],
-        "x_axis": {
-            "logScale": False,
-            "display": True,
-            "displayLabel": True,
-            "decimal_places": 2,
-        },
-        "y_axis": {
-            "logScale": False,
-            "display": True,
-            "displayLabel": True,
-            "decimal_places": 2,
-        },
-        'subgraph_orientation': "v",
-        
-        "task_id": "1"
-    },
-    'named_inputs': {
-        'input data': "iris",
-    },
-    'named_outputs': {
-        'output data': 'out'
-    }
-}
+        'parameters': {
+            'type': 'donut',
+            'display_legend': "AUTO",
+            "x": [{
+                "binning": None,
+                "bins": 20,
+                "binSize": 10,
+                "emptyBins": "ZEROS",
+                "decimal_places": 2,
+                "group_others": True,
+                "sorting": "NATURAL",
+                "attribute": "class",
 
-def emit_event(*args, **kwargs):
-    print(args, kwargs)
+            }],
+            "palette": [
+                "#1F77B4",
+                "#FF7F0E",
+                "#2CA02C",
+                "#D62728",
+                "#9467BD",
+                "#8C564B",
+                "#E377C2",
+                "#7F7F7F",
+                "#BCBD22",
+                "#17BECF"
+            ],
+            "y": [{
+                "attribute": "class",
+                "aggregation": "COUNT",
+                "displayOn": "left",
+                "decimal_places": 2,
+                "strokeSize": 0,
+                "enabled": True
+            }],
+            "x_axis": {
+                "logScale": False,
+                "display": True,
+                "displayLabel": True,
+                "decimal_places": 2,
+            },
+            "y_axis": {
+                "logScale": False,
+                "display": True,
+                "displayLabel": True,
+                "decimal_places": 2,
+            },
+            'subgraph_orientation': "v",
+
+            "task_id": "1"
+        },
+        'named_inputs': {
+            'input data': "iris",
+        },
+        'named_outputs': {
+            'output data': 'out'
+        }
+    }
+
 
 @pytest.fixture
 def generated_chart(get_arguments, get_df):
     instance = VisualizationOperation(**get_arguments)
-    vis_globals = dict(iris=get_df, emit_event=emit_event)
-    code ='\n'.join( ["import plotly.graph_objects as go","import plotly.express as px","import json",instance.generate_code(),])
+    vis_globals = dict(iris=get_df, emit_event=util.emit_event)
+    code = '\n'.join(["import plotly.graph_objects as go",
+                      "import plotly.express as px", "import json", instance.generate_code(), ])
     result = util.execute(code, vis_globals)
     generated_chart = result.get('d')
     data = generated_chart['data']
     layout = generated_chart['layout']
-    print(data)
-    return data,layout
 
+    return data, layout
 
-    
 
 def test_layout_domain(generated_chart):
     data, layout = generated_chart
-    domain = layout.get('domain')
+    domain = data[0].get('domain')
     assert domain is not None, "'domain' field not found in layout object"
     assert 'x' in domain, "'x' field not found in 'domain'"
     assert 'y' in domain, "'y' field not found in 'domain'"
@@ -107,13 +93,17 @@ def test_layout_domain(generated_chart):
     assert domain['y'] == [0.0, 1.0], "incorrect 'y' field value in 'domain'"
 
 # test 'hole' field
+
+
 def test_layout_hole(generated_chart):
     data, layout = generated_chart
-    hole = layout.get('hole')
+    hole = data[0].get('hole')
     assert hole is not None, "'hole' field not found in layout object"
     assert hole == 0.3, "incorrect 'hole' field value"
 
 # test 'hovertemplate' field
+
+
 def test_layout_hovertemplate(generated_chart):
     data, layout = generated_chart
     hovertemplate = data[0].get('hovertemplate')
@@ -121,13 +111,18 @@ def test_layout_hovertemplate(generated_chart):
     assert hovertemplate == 'class=%{label}<br>count(class)=%{value}<extra></extra>', "incorrect 'hovertemplate' field value"
 
 # test 'labels' field
+
+
 def test_layout_labels(generated_chart):
     data, layout = generated_chart
     labels = data[0].get('labels')
     assert labels is not None, "'labels' field not found in data] object"
-    assert labels == ['Iris-setosa', 'Iris-versicolor', 'Iris-virginica'], "incorrect 'labels' field value"
+    assert labels == ['Iris-setosa', 'Iris-versicolor',
+                      'Iris-virginica'], "incorrect 'labels' field value"
 
 # test 'legendgroup' field
+
+
 def test_layout_legendgroup(generated_chart):
     data, layout = generated_chart
     legendgroup = data[0].get('legendgroup')
@@ -135,6 +130,8 @@ def test_layout_legendgroup(generated_chart):
     assert legendgroup == '', "incorrect 'legendgroup' field value"
 
 # test 'name' field
+
+
 def test_layout_name(generated_chart):
     data, layout = generated_chart
     name = data[0].get('name')
@@ -142,6 +139,8 @@ def test_layout_name(generated_chart):
     assert name == '', "incorrect 'name' field value"
 
 # test 'showlegend' field
+
+
 def test_layout_showlegend(generated_chart):
     data, layout = generated_chart
     showlegend = data[0].get('showlegend')
@@ -149,6 +148,8 @@ def test_layout_showlegend(generated_chart):
     assert showlegend == True, "incorrect 'showlegend' field value"
 
 # test 'values' field
+
+
 def test_layout_values(generated_chart):
     data, layout = generated_chart
     values = data[0].get('values')
@@ -156,6 +157,8 @@ def test_layout_values(generated_chart):
     assert values == [50.0, 50.0, 50.0], "incorrect 'values' field value"
 
 # test 'type' field
+
+
 def test_layout_type(generated_chart):
     data, layout = generated_chart
     chart_type = data[0].get('type')
@@ -163,7 +166,7 @@ def test_layout_type(generated_chart):
     assert chart_type == 'pie', "incorrect 'type' field value"
 
 
-#layout
+# layout
 
 # test 'template' field
 def test_layout_template(generated_chart):
@@ -175,6 +178,8 @@ def test_layout_template(generated_chart):
     assert template['data']['scatter'][0]['type'] == 'scatter', "incorrect 'type' field value in 'scatter'"
 
 # test 'legend' field
+
+
 def test_layout_legend(generated_chart):
     data, layout = generated_chart
     legend = layout.get('legend')
@@ -182,6 +187,8 @@ def test_layout_legend(generated_chart):
     assert 'tracegroupgap' in legend, "'tracegroupgap' field not found in 'legend'"
 
 # test 'margin' field
+
+
 def test_layout_margin(generated_chart):
     data, layout = generated_chart
     margin = layout.get('margin')
@@ -192,14 +199,19 @@ def test_layout_margin(generated_chart):
     assert 'b' in margin, "'b' field not found in 'margin'"
 
 # test 'piecolorway' field
+
+
 def test_layout_piecolorway(generated_chart):
     data, layout = generated_chart
     piecolorway = layout.get('piecolorway')
     assert piecolorway is not None, "'piecolorway' field not found in layout object"
-    expected_colors = ['#1F77B4', '#FF7F0E', '#2CA02C', '#D62728', '#9467BD', '#8C564B', '#E377C2', '#7F7F7F', '#BCBD22', '#17BECF']
+    expected_colors = ['#1F77B4', '#FF7F0E', '#2CA02C', '#D62728',
+                       '#9467BD', '#8C564B', '#E377C2', '#7F7F7F', '#BCBD22', '#17BECF']
     assert piecolorway == expected_colors, "incorrect 'piecolorway' field value"
 
 # test 'extendpiecolors' field
+
+
 def test_layout_extendpiecolors(generated_chart):
     data, layout = generated_chart
     extendpiecolors = layout.get('extendpiecolors')
@@ -207,12 +219,11 @@ def test_layout_extendpiecolors(generated_chart):
     assert extendpiecolors == True, "incorrect 'extendpiecolors' field value"
 
 # test 'xaxis' field
+
+
 def test_layout_xaxis(generated_chart):
     data, layout = generated_chart
     xaxis = layout.get('xaxis')
     assert xaxis is not None, "'xaxis' field not found in layout object"
     assert 'categoryorder' in xaxis, "'categoryorder' field not found in 'xaxis'"
     assert xaxis['categoryorder'] == 'trace', "incorrect 'categoryorder' field value in 'xaxis'"
-
-
-
