@@ -112,20 +112,20 @@ dimensions = [
     {%- endfor %}
     
     {%- if op.subgraph and op.subgraph != '' %}
-    pl.col('{{op.subgraph.attribute}}'),
+    pl.col('{{op.subgraph.attribute}}'), # subgraph
     {%- endif %}
 
     {%- if op.animation and op.animation != '' %}
-    pl.col('{{op.animation.attribute}}'),
+    pl.col('{{op.animation.attribute}}'), # animation
     {%- endif %}
 
     {%- if type in ('scatter', 'bubble', 'pointcloud') %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
-    pl.col('{{op.color_attribute.attribute}}'),
+    pl.col('{{op.color_attribute.attribute}}'), #color
     {%- endif %}
 
     {%- if op.size_attribute and op.size_attribute.attribute%}
-    pl.col('{{op.size_attribute.attribute}}'),
+    pl.col('{{op.size_attribute.attribute}}'), #size
     {%- endif %}
     {%- endif %}
 ]

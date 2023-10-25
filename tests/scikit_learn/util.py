@@ -102,3 +102,6 @@ def pandas_2_polars(df: pd.DataFrame):
 
 def pandas_2_duckdb(df: pd.DataFrame):
     return None
+
+def emit_event(*args, **kwargs):
+    pass
