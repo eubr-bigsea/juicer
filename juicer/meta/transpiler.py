@@ -2,14 +2,27 @@
 
 import os
 from typing import Callable
+from gettext import gettext
 import juicer.meta.operations as ops
 from collections import namedtuple
 from juicer.transpiler import Transpiler
 
-ModelBuilderTemplateParams = namedtuple(
-    'ModelBuilderTemplateParams',
-    ['evaluator', 'estimators', 'grid', 'read_data', 'sample', 'reduction',
-        'split', 'features'])
+
+class ModelBuilderTemplateParams:
+    __all__ = ('evaluator', 'estimators', 'grid', 'read_data', 'sample', 
+               'reduction', 'split', 'features', 'enabled')
+    def __init__(self, evaluator=None, estimators=None, grid=None, 
+                 read_data=None, sample=None, reduction=None, split=None,
+                 features=None):
+        self.evaluator: ops.EvaluatorOperation = evaluator
+        self.estimators: list[ops.EstimatorMetaOperation] = estimators
+        self.grid: ops.GridOperation = grid
+        self.read_data: ops.ReadDataOperation = read_data
+        self.sample: ops.SampleOperation = sample
+        self.reduction: ops.FeaturesReductionOperation = reduction
+        self.split: ops.SplitOperation = split
+        self.features: ops.FeaturesOperation = features
+
 
 # noinspection SpellCheckingInspection
 
@@ -161,7 +174,6 @@ class MetaTranspiler(Transpiler):
                       'linear-regression', 'isotonic-regression', 
                       'gbt-regressor', 'random-forest-regressor', 
                       'generalized-linear-regressor', 'decision-tree-regressor'}
-
         param_dict = {'estimators': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
@@ -173,5 +185,6 @@ class MetaTranspiler(Transpiler):
                 param_dict['estimators'].append(op)
             else:
                 param_dict[slug] = op
-
+        if (not param_dict.get('estimators')):
+            raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
         return ModelBuilderTemplateParams(**param_dict)

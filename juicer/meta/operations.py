@@ -1,5 +1,6 @@
+import dataclasses
+from functools import reduce
 import json
-import pdb
 import re
 import unicodedata
 from collections import namedtuple
@@ -16,7 +17,24 @@ from juicer.service import limonero_service
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
-_pythonize_expr = re.compile('[\W_]+')
+convert_re = re.compile(r'np.linspace\((\d+), (\d+), \d+, dtype=int\)')
+@dataclasses.dataclass
+class HyperparameterInfo:
+    value: any
+    values_count: int
+    param_type: str
+    random_generator: any = None
+
+    def __str__(self):
+        if self.param_type == 'list':
+            return repr(self.value)
+        elif self.param_type == 'range':
+            return repr(self.value)
+        else:
+            return '<INVALID hyperparameter type>'
+
+
+_pythonize_expr = re.compile(r'[\W_]+')
 
 
 def strip_accents(s):
@@ -28,70 +46,129 @@ def pythonize(s):
     return _pythonize_expr.sub('_', strip_accents(s))
 
 
-def _as_list(values, transform, size=None):
-    if values:
-        if isinstance(values, list):
-            return FeatureInfo(values, None, 'simple_list')
-        elif isinstance(values, str):
-            return []
-        elif (values.get('type') == 'list' or (
-                values.get('type') != 'range' and values.get('list'))):
-            v = [transform(x) for x in values.get('list', []) if x is not None]
-            return FeatureInfo(v, values, 'list')
-        elif values.get('type') == 'range':
+def _as_list(input_values, transform=None, size=None, validate=None):
+    """
+    About log linear:
+    https://towardsdatascience.com/why-is-the-log-uniform-distribution-useful-for-hyperparameter-tuning-63c8d331698
+    """
+    if (input_values is None or not isinstance(input_values, dict) or 
+            False == input_values.get('enabled')):
+        return None
+    param_type = input_values.get('type')
+
+    def apply(values):
+        if param_type == 'list':
+            values = values.get('list')
+            return (values, f'np.random.choice({values})')
+        elif param_type == 'range':
             qty = size or values.get('quantity') or 3
             _min = values.get('min', 0)
             _max = values.get('max', 3)
             if values.get('distribution') == 'log_uniform':
-                return FeatureInfo(
-                    f'random.sample(np.log10(np.logspace('
-                    f'{_min}, {_max}, {qty})).tolist(), {qty})',
-                    values, 'function')
+                # Values must be greater than 0
+                _min2 = max(_min, 1e-10)
+                return (
+                    f'np.logspace('
+                    f'np.log10({_min2}), np.log10({_max}), {qty}).tolist()',
+                    f'np.random.uniform({_min}, {_max} + 1e-10)'
+                )
             else:
-                return FeatureInfo(
-                    f'random.sample(np.linspace('
-                    f'{_min}, {_max}, {qty}, dtype=int).tolist(), {qty})',
-                    values, 'function')
-        elif values.get('type') is None:
-            return []
-        else:
-            return FeatureInfo(
-                [transform(x) for x in values if x is not None], None)
-    else:
-        return []
+                return (
+                    f'np.linspace('
+                    f'{_min}, {_max}, {qty}, dtype=int).tolist()',
+                    f'np.random.randint({_min}, {_max} + 1)')
+
+    result, random_generator = apply(input_values)
+    if param_type == 'list' and len(result) == 0:
+        return None
+    if transform and param_type == 'list':
+        if validate:
+            _validate(validate, result)
+        transformed = [transform(x) for x in result if x is not None]
+        return HyperparameterInfo(
+            value=transformed, param_type='list', values_count=len(transformed),
+            random_generator=random_generator)
+
+    qty = size or input_values.get('quantity') or 3
+    return HyperparameterInfo(
+        value=result, param_type='range', values_count=qty,
+        random_generator=random_generator)
+
+    # if input_values:
+    #     if isinstance(input_values, list):
+    #         return FeatureInfo(input_values, None, 'simple_list')
+    #     elif isinstance(input_values, str):
+    #         return []
+    #     elif (input_values.get('type') == 'list' or (
+    #             input_values.get('type') != 'range' and input_values.get('list'))):
+    #         v = [transform(x) for x in input_values.get(
+    #             'list', []) if x is not None]
+    #         return FeatureInfo(v, input_values, 'list')
+    #     elif input_values.get('type') == 'range':
+    #         qty = size or input_values.get('quantity') or 3
+    #         _min = input_values.get('min', 0)
+    #         _max = input_values.get('max', 3)
+    #         if input_values.get('distribution') == 'log_uniform':
+    #             return FeatureInfo(
+    #                 f'random.sample(np.log10(np.logspace('
+    #                 f'{_min}, {_max}, {qty})).tolist(), {qty})',
+    #                 input_values, 'function')
+    #         else:
+    #             return FeatureInfo(
+    #                 f'random.sample(np.linspace('
+    #                 f'{_min}, {_max}, {qty}, dtype=int).tolist(), {qty})',
+    #                 input_values, 'function')
+    #     elif input_values.get('type') is None:
+    #         return []
+    #     else:
+    #         return FeatureInfo(
+    #             [transform(x) for x in input_values if x is not None], None)
+    # else:
+    #     return []
 
 
 def _as_boolean_list(values):
-    feat = _as_list(values, bool)
-    if feat == []:
-        return []  # Review how this occurs
-    return FeatureInfo(
-        [x for x in feat.value if isinstance(x, bool)],
-        feat.props, feat.type)
+    if values is None:
+        return None
+    values['list'] = [v for v in values['list'] if v in [False, True]]
+    return _as_list(values)
 
 
-def _as_int_list(values, grid_info):
+def _as_int_list(values, grid_info=None, validate=None):
+    return _as_list(values, int, validate=validate)
     size = None
     if 'value' in grid_info:
         value = grid_info.get('value')
         if value.get('strategy') == 'random':
             size = value.get('max_iterations')
-    print(grid_info, values)
     return _as_list(values, int, size)
 
 
-def _as_float_list(values, grid_info):
-    size = None
-    if 'value' in grid_info:
-        value = grid_info.get('value')
-        if value.get('strategy') == 'random':
-            size = value.get('max_iterations')
+def _as_float_list(values, grid_info, validate=None):
+    result = _as_list(values, transform=float, validate=validate)
+    return result
 
-    return _as_list(values, float, size)
+    # size = None
+    # if 'value' in grid_info:
+    #     value = grid_info.get('value')
+    #     if value.get('strategy') == 'random':
+    #         size = value.get('max_iterations')
+
+    # return _as_list(values, float, size)
 
 
-def _as_string_list(values):
-    return _as_list(values, str)
+def _as_string_list(values, validate=None):
+    result = _as_list(values, str, validate=validate)
+    return result
+
+
+def _validate(validate, result):
+    if result and validate:
+        invalid = validate(result)
+        if invalid:
+            raise ValueError(
+                gettext('Invalid value(s) for parameter: {}').format(
+                    repr(invalid)))
 
 
 class MetaPlatformOperation(Operation):
@@ -196,40 +273,50 @@ class TransformOperation(MetaPlatformOperation):
     number_re = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
     array_index_re = re.compile(r'(?:\D*?)(-?\d+)(?:\D?)')
     SLUG_TO_EXPR = {
-        #'extract-numbers': {'f': 'regexp_extract', 'args': [number_re, 1],
+        # 'extract-numbers': {'f': 'regexp_extract', 'args': [number_re, 1],
         #                    'transform': [str, None]},
         'extract-numbers': {'f': 'extract_numbers', 'args': [],
                             'transform': []},
         'extract-with-regex': {'f': 'regexp_extract', 'args': ['{regex}'],
                                'transform': [str]},
-        'replace-with-regex': {'f': 'regexp_replace', 'args': ['{regex}', '{replace}'],
-                               'transform': [str, lambda v: '' if v is None else v]},
+        'replace-with-regex': {
+            'f': 'regexp_replace', 'args': ['{regex}', '{replace}'],
+            'transform': [str, lambda v: '' if v is None else v]},
         'to-upper': {'f': 'upper'},
         'to-lower': {'f': 'lower'},
         'capitalize': {'f': 'initcap'},
         'remove-accents': {'f': 'strip_accents'},
-        'parse-to-date': {'f': 'to_date', 'args': ['{format}'], 'transform': [str]},
+        'parse-to-date': {
+            'f': 'to_date', 'args': ['{format}'], 'transform': [str]},
         'split': {'f': 'split'},
         'trim': {'f': 'trim'},
         'normalize': {'f': 'FIXME'},
-        'regexp_extract': {'f': 'regexp_extract', 'args': ['{delimiter}'], 'transform': [str]},
-        'round-number': {'f': 'round', 'args': ['{decimals}'], 'transform': [int]},
-        'split-into-words': {'f': 'split', 'args': ['{delimiter}'], 'transform': [str]},
-        'truncate-text': {'f': 'substring', 'args': ['0', '{characters}'], 'transform': [int, int]},
+        'regexp_extract': {
+            'f': 'regexp_extract', 'args': ['{delimiter}'], 'transform': [str]},
+        'round-number': {
+            'f': 'round', 'args': ['{decimals}'], 'transform': [int]},
+        'split-into-words': {
+            'f': 'split', 'args': ['{delimiter}'], 'transform': [str]},
+        'truncate-text': {'f': 'substring', 'args': ['0', '{characters}'],
+                          'transform': [int, int]},
 
         'ts-to-date': {'f': 'from_unixtime'},
 
         'date-to-ts': {'f': 'unix_timestamp'},
         'date-part': {},
-        'format-date': {'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
-        'truncate-date-to': {'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
+        'format-date': {
+            'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
+        'truncate-date-to': {
+            'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
 
         'invert-boolean': {'f': None, 'op': '~'},
 
         'extract-from-array': {'f': None, 'op': ''},
-        'concat-array': {'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
+        'concat-array': {
+            'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
         'sort-array': {'f': 'array_sort'},
-        'change-array-type': {'f': 'array_cast', 'args': ['{new_type}'], 'transform': [str]},
+        'change-array-type': {
+            'f': 'array_cast', 'args': ['{new_type}'], 'transform': [str]},
 
         'flag-empty': {'f': 'isnull', },
         'flag-with-formula': {'f': None},
@@ -259,8 +346,8 @@ class TransformOperation(MetaPlatformOperation):
 
             self.form_parameters = {}
             param_names = []
-            for i, (arg, transform) in enumerate(zip(info.get('args', []), info.get(
-                    'transform', []))):
+            for i, (arg, transform) in enumerate(zip(info.get('args', []),
+                                                     info.get('transform', []))):
                 if transform is not None:
                     if arg[0] == '{' and arg[-1] == '}':
                         self.form_parameters[arg[1:-1]] = transform(
@@ -300,8 +387,10 @@ class TransformOperation(MetaPlatformOperation):
                         'expression': f'{function_name}({attr}{final_args_str})',
                         'tree': {
                             'type': 'CallExpression',
-                            'arguments': [{'type': 'Identifier', 'name': attr}] + final_args,
-                            'callee': {'type': 'Identifier', 'name': function_name},
+                            'arguments': [{'type': 'Identifier', 'name': attr}
+                                          ] + final_args,
+                            'callee': {'type': 'Identifier',
+                                       'name': function_name},
                         }
                     })
         elif self.slug == 'invert-boolean':
@@ -390,7 +479,8 @@ class TransformOperation(MetaPlatformOperation):
                                 {'type': 'Literal',  'value': index,
                                     'raw': f'"{index}"'}
                             ],
-                            'callee': {'type': 'Identifier', 'name': 'element_at'},
+                            'callee': {'type': 'Identifier',
+                                       'name': 'element_at'},
                         }
                     })
 
@@ -518,7 +608,7 @@ class SampleOperation(MetaPlatformOperation):
         self.fraction = parameters.get('fraction')
         self.output_port_name = 'sampled data'
 
-        self.has_code = self.value > 0
+        self.has_code = self.value > 0 or self.fraction > 0
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -612,40 +702,40 @@ class ForceRangeOperation(MetaPlatformOperation):
                     'alias': attr,
                     'expression': expression,
                     'tree': {
-                        "type":"CallExpression",
-                        "arguments":[
+                        "type": "CallExpression",
+                        "arguments": [
                             {
-                                "type":"BinaryExpression",
+                                "type": "BinaryExpression",
                                 "operator": "|",
-                                "left":{
-                                    "type":"BinaryExpression",
-                                    "operator":"<",
-                                    "left":{
-                                        "type":"Identifier",
-                                        "name": attr
-                                     },
-                                     "right":{
-                                        "type":"Literal",
-                                        "value": self.start,
-                                        "raw": self.start
-                                     }
-                                },
-                                "right":{
-                                    "type":"BinaryExpression",
-                                    "operator":">",
-                                    "left":{
-                                        "type":"Identifier",
+                                "left": {
+                                    "type": "BinaryExpression",
+                                    "operator": "<",
+                                    "left": {
+                                        "type": "Identifier",
                                         "name": attr
                                     },
-                                    "right":{
-                                        "type":"Literal",
+                                    "right": {
+                                        "type": "Literal",
+                                        "value": self.start,
+                                        "raw": self.start
+                                    }
+                                },
+                                "right": {
+                                    "type": "BinaryExpression",
+                                    "operator": ">",
+                                    "left": {
+                                        "type": "Identifier",
+                                        "name": attr
+                                    },
+                                    "right": {
+                                        "type": "Literal",
                                         "value": self.end,
                                         "raw": self.end
                                     }
                                 }
                             },
                             {
-                                "type":"Literal",
+                                "type": "Literal",
                                 "value": None,
                                 "raw": None
                             },
@@ -653,9 +743,9 @@ class ForceRangeOperation(MetaPlatformOperation):
                                 "type": "Identifier",
                                 "name": attr
                             }
-                         ],
-                         "callee":{"type":"Identifier","name":"when"}}
-                    }
+                        ],
+                        "callee": {"type": "Identifier", "name": "when"}}
+                }
                 expressions.append(formula)
         else:
             for attr in self.attributes:
@@ -665,19 +755,19 @@ class ForceRangeOperation(MetaPlatformOperation):
                     'alias': attr,
                     'expression': expression,
                     'tree': {
-                        "type":"CallExpression",
-                        "arguments":[
+                        "type": "CallExpression",
+                        "arguments": [
                             {
-                                "type":"BinaryExpression",
-                                "operator":"<",
-                                "left":{
-                                   "type":"Identifier",
-                                   "name": attr
+                                "type": "BinaryExpression",
+                                "operator": "<",
+                                "left": {
+                                    "type": "Identifier",
+                                    "name": attr
                                 },
-                                "right":{
-                                   "type":"Literal",
-                                   "value": self.start,
-                                   "raw": self.start
+                                "right": {
+                                    "type": "Literal",
+                                    "value": self.start,
+                                    "raw": self.start
                                 }
                             },
                             {
@@ -686,20 +776,20 @@ class ForceRangeOperation(MetaPlatformOperation):
                                 "raw": self.start,
                             },
                             {
-                                "type":"BinaryExpression",
-                                "operator":">",
-                                "left":{
-                                    "type":"Identifier",
+                                "type": "BinaryExpression",
+                                "operator": ">",
+                                "left": {
+                                    "type": "Identifier",
                                     "name": attr
                                 },
-                                "right":{
-                                    "type":"Literal",
+                                "right": {
+                                    "type": "Literal",
                                     "value": self.end,
                                     "raw": self.end
                                 }
                             },
                             {
-                                "type":"Literal",
+                                "type": "Literal",
                                 "value": self.end,
                                 "raw": self.end
                             },
@@ -707,14 +797,15 @@ class ForceRangeOperation(MetaPlatformOperation):
                                 "type": "Identifier",
                                 "name": attr
                             }
-                         ],
-                         "callee":{"type":"Identifier","name":"when"}}
-                    }
+                        ],
+                        "callee": {"type": "Identifier", "name": "when"}}
+                }
                 expressions.append(formula)
         task_obj['forms'].update({
             "expression": {"value": expressions},
         })
         return json.dumps(task_obj)
+
 
 class FindReplaceOperation(MetaPlatformOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -728,7 +819,7 @@ class FindReplaceOperation(MetaPlatformOperation):
         self.nullify = parameters.get('nullify') in ('1', 1)
         if self.nullify:
             self.forms['replacement'] = {'value': None}
-        else: 
+        else:
             self.forms['replacement'] = {'value': parameters.get('replace')}
         self.forms['nullify'] = {'value': self.nullify}
         self.operation_id = 27
@@ -1143,6 +1234,9 @@ class ModelMetaOperation(Operation):
 
         self.has_code = True
 
+    def model_builder_code(self):
+        return self.generate_code()
+
 
 class EstimatorMetaOperation(ModelMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs, task_type):
@@ -1150,7 +1244,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.var = "CHANGE_VAR"
         self.name = "CHANGE_NAME"
-        self.hyperparameters = {}
+        self.hyperparameters: dict[str, HyperparameterInfo] = {}
         self.task_type = task_type
         self.grid_info = parameters.get('workflow').get(
             'forms', {}).get('$grid', {})
@@ -1165,23 +1259,24 @@ class EstimatorMetaOperation(ModelMetaOperation):
         variations = self.get_variations()
 
         if len(variations) > 0:
-            for i, (class_name, params) in enumerate(variations):
+            for i, (klass, params) in enumerate(variations):
+                operation_id = self.task.get('operation').get('id')
                 code.append(dedent(f"""
-                    {var}_{i} = {self.task_type}.{class_name}(**alg_params)
+                    {var}_{i} = {self.task_type}.{klass}(**common_params)
         
                     # Lemonade internal use
                     {var}_{i}.task_id = '{self.task.get('id')}'
-                    {var}_{i}.task_name = '{self.task.get('name')} ({class_name})'
-                    {var}_{i}.operation_id = '{self.task.get('operation').get('id')}'
+                    {var}_{i}.task_name = '{self.task.get('name')} ({klass})'
+                    {var}_{i}.operation_id = {operation_id}
                     """))
         else:
             code.append(dedent(f"""
-                {var} = {self.task_type}.{name}(**alg_params)
+                {var} = {self.task_type}.{name}(**common_params)
     
                 # Lemonade internal use
                 {var}.task_id = '{self.task.get('id')}'
                 {var}.task_name = '{self.task.get('name')}'
-                {var}.operation_id = '{self.task.get('operation').get('id')}'
+                {var}.operation_id = {self.task.get('operation').get('id')}
                 """))
         return '\n'.join(code).strip()
 
@@ -1193,27 +1288,104 @@ class EstimatorMetaOperation(ModelMetaOperation):
             var = f'{var}_{index}'
         if invalid is None:
             invalid = []
+
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
-        for name, value in self.hyperparameters.items():
-            if value is not None and value and hasattr(value, 'value') and len(value.value) > 0:
-                if name not in invalid:
+        max_iterations = self.grid_info.get('value', {}).get(
+            'max_iterations', 20)
+        self.template = """
+            grid_{{var}} = (tuning.ParamGridBuilder()
+                .baseOn({pipeline.stages: common_stages + [{{var}}] })
+                {%- for p, v in hyperparameters %}
+                .addGrid({{var}}.{{p}}, {{v.value}})
+                {%- endfor %}
+                .build()
+            )
+            {%- if strategy == 'random' %}
+            grid_{{var}} = []
+            found = 0
+            attemps = 0
+            for _ in range(2*{{max_iterations}}): #FIXME!! Double generation in order to fill when coliding
+                # Use seed!
+                params = []
+                for p, v in rand_{{var}}.items():
+                    params.append((p, random.choice(v)))
+                grid_{{var}}.append(dict(params))
+
+            {% endif -%}
+        """
+        return (dedent(self.render_template({
+            'strategy': grid_strategy,
+            'var': var, 'max_iterations': max_iterations,
+            'hyperparameters': [(p, v) for p, v in self.hyperparameters.items()
+                                if v]
+        }))).strip()
+        print('*' * 20)
+        if grid_strategy in ('grid', 'random'):
+            for name, value in self.hyperparameters.items():
+                if value is not None:
+                    code.append(f'.addGrid({var}.{name}, {value})')
+                continue
+                if value is not None and value and hasattr(value, 'value') and len(value.value) > 0:
+                    if name not in invalid:
+                        if grid_strategy == 'grid' or value.type == 'simple_list':
+                            v = self.parse(value)
+                            if v and v != '[]':
+                                code.append(
+                                    f'.addGrid({var}.{name}, {v})')
+                elif isinstance(value, dict):
                     if grid_strategy == 'grid' or value.type == 'simple_list':
-                        v = self.parse(value)
-                        if v and v != '[]':
-                            code.append(
-                                f'.addGrid({var}.{name}, {v})')
-            elif isinstance(value, dict):
-               if grid_strategy == 'grid' or value.type == 'simple_list':
-                   v = self.parse({'value': value})
-                   code.append(
-                           f'.addGrid({var}.{name}, {v})')
+                        v = self.parse({'value': value})
+                        code.append(
+                            f'.addGrid({var}.{name}, {v})')
 
+            if grid_strategy == 'grid':
+                code.append('.build()')
+            else:
+                code.append('._param_grid # Uses internal variable')
+        else:
+            raise ValueError(gettext('Invalid grid search strategy: {}').format(
+                grid_strategy))
+        return dedent('\n'.join(code))
 
-        code.append('.build()')
-        return '\\\n'.join(code)
+    def generate_random_hyperparameters_code(self, limit=10, seed=None):
 
-    def generate_random_hyperparameters_code(self):
+        n = min(limit, self.get_hyperparameter_count())
+
         code = []
+        if seed:
+            code.append(f'np.random.seed({seed})')
+        self.template = """
+            {%- if seed %}
+            np.random.seed({seed})
+            {%- endif %}
+            n = {{n}}
+            grid_{{var}} = []
+            # generated_param_values = set()
+            for i in range(n):
+                param_dict = {
+                {%- for name, value in params.items() %}
+                    {{var}}.{{name}}: {{value.random_generator}},
+                {%- endfor %}
+                }
+                #generated_param_values.add(tuple(param_dict.values())
+                grid_{{var}}.append(param_dict)
+            
+        """
+        ctx = {
+            'var': self.var, 'seed': seed, 'n': n,
+            'params': dict((k, v) for k, v in self.hyperparameters.items() if v)
+        }
+        return dedent(self.render_template(ctx))
+
+        code.append('grid = [')
+        for i in range(n):
+            code.append('    {')
+            for name, value in self.hyperparameters.items():
+                code.append(f'        {self.var}.{name}: ""')
+            code.append('    },')
+        code.append(']')
+        return dedent('\n'.join(code))
+
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         random_hyperparams = []
         for name, value in self.hyperparameters.items():
@@ -1266,20 +1438,59 @@ class EstimatorMetaOperation(ModelMetaOperation):
 
         return '\n'.join(code)
 
-    def parse(self, value):
+    def get_hyperparameter_count(self):
+        return reduce(lambda x, param: x * param.values_count,
+                      [v for v in self.hyperparameters.values() if v], 1)
+
+    def parse(self, v):
+        value = v
+        # if isinstance(v, FeatureInfo) and v.type == 'list':
+        #     return v.props.get('list')
+        # if isinstance(v, FeatureInfo) and v.type == 'function':
+        #     return value.value
+        # else:
+        #     value = v.get('value', {})
+        #     if value.get('type') == 'list':
+        #         return repr([x for x in value.get('list') if x is not None])
+        #     else:
+        #         raise ValueError(
+        #             gettext('Invalid parameter type: {} for {}'.format(
+        #                 value.get('type'), value)))
+        #
         if isinstance(value, list):
             return repr([x.value for x in value if x is not None and not isinstance(x, dict)])
         elif isinstance(value, FeatureInfo) and value.type == 'function':
             return value.value
         elif hasattr(value, 'type') and value.type == 'list':
-            new_value = [v for v in value.value if not isinstance(v, dict) and 
-                (not isinstance(v, str) or not '{' in v)]
+            new_value = [v for v in value.value if not isinstance(v, dict) and
+                         (not isinstance(v, str) or not '{' in v)]
             return repr(new_value)
+        elif isinstance(value, dict) and 'value' in value:
+            return repr(value.get('value'))
         return repr(value.value)
 
     def get_variations(self):
         return []
 
+    def ge(self, compare_to):
+        return lambda x: [v for v in x if v < compare_to]
+    
+    def gt(self, compare_to):
+        return lambda x: [v for v in x if v <= compare_to]
+
+    def between(self, start, end, include_start=True, include_end=True):
+        # Define the comparison operators based on inclusion options
+        start_comp = ((lambda a, b: a <= b) 
+            if include_start else (lambda a, b: a < b))
+        end_comp = ((lambda a, b: a <= b) if 
+            include_end else (lambda a, b: a < b))
+    
+        # Filter the input list based on the defined conditions
+        return (lambda x: [v for v in x if start_comp(start, v) 
+            and end_comp(v, end)])
+    
+    def in_list(self, *search_list):
+        return lambda x: [v for v in x if v not in search_list]
 
 class EvaluatorOperation(ModelMetaOperation):
     TYPE_TO_CLASS = {
@@ -1306,16 +1517,23 @@ class EvaluatorOperation(ModelMetaOperation):
 
     def generate_code(self):
         evaluator = self.TYPE_TO_CLASS[self.task_type]
-        meta_form = self.parameters.get('workflow').get(
-            'forms', {}).get('$meta', {}).get('value')
-        if meta_form.get('taskType') != 'clustering':
+        # meta_form = self.parameters.get('workflow').get(
+        #     'forms', {}).get('$meta', {}).get('value')
+
+        # if meta_form.get('taskType') != 'clustering':
+        #     label = 'labelCol=label'
+        # else:
+        #     label = ''  # clustering doesn't support it
+        if self.task_type in ('binary-classification', 'regression',
+                              'multiclass-classification'):
             label = 'labelCol=label'
         else:
             label = ''  # clustering doesn't support it
 
         code = dedent(
             f"""
-            evaluator = evaluation.{evaluator}(metricName='{self.metric}', {label})
+            evaluator = evaluation.{evaluator}(
+                metricName='{self.metric}', {label})
             evaluator.task_id = '{self.task_id}'
             evaluator.operation_id = {self.operation_id}
             """)
@@ -1329,20 +1547,31 @@ class FeaturesOperation(ModelMetaOperation):
         'quantis': 'quantis',
         'buckets': 'buckets'
     }
+    __slots__ = ('all_attributes', 'label', 'features', 'numerical_features',
+                 'categorical_features', 'textual_features', 'features_names'
+                 'features_and_label', 'task_type', 'supervisioned'
+                 )
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         ModelMetaOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        features = parameters.get('features')
-        self.all_attributes = [f for f in features if f.get('enabled')]
+        self.features_and_label = parameters.get('features', [])
+        meta_form = self.parameters.get('workflow').get(
+            'forms', {}).get('$meta', {}).get('value')
+        self.task_type = meta_form.get('taskType')
+        self.process_features_and_label()
+
+    def process_features_and_label(self):
+        self.all_attributes = [f for f in self.features_and_label
+                               if f.get('enabled')]
         self.features = []
         self.numerical_features = []
         self.categorical_features = []
         self.textual_features = []
         self.features_names = []
-
-        for f in features:
-            if f.get('usage') == 'unused':
+        self.label = None
+        for f in self.features_and_label:
+            if f.get('usage') == 'unused' or not f.get('usage'):
                 continue
             f['var'] = pythonize(f['name'])
             transform = f.get('transform')
@@ -1360,9 +1589,7 @@ class FeaturesOperation(ModelMetaOperation):
 
             f['final_name'] = final_name
 
-        meta_form = self.parameters.get('workflow').get(
-            'forms', {}).get('$meta', {}).get('value')
-        if meta_form.get('taskType') != 'clustering' and self.label is None:
+        if self.task_type != 'clustering' and self.label is None:
             raise ValueError(gettext(
                 'Missing required parameter: {}').format('label'))
         if len(self.features) == 0:
@@ -1383,18 +1610,78 @@ class FeaturesOperation(ModelMetaOperation):
 
     def generate_code(self):
         code = []
-        for f in self.features + [self.label]:
+        label = self.label.get('name') if self.label else ''
+
+        for f in self.features_and_label:
+            usage = f.get('usage')
+            if usage == 'unused' or not usage:
+                continue
             name = f.get('name')
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
             scaler = f.get('scaler')
+            is_numerical = data_type == 'numerical'
 
-            if data_type == 'numerical':
+            if f.get('feature_type') not in ('numerical', 'categorical',
+                                             'textual', 'vector'):
+                raise ValueError(gettext(
+                    "Invalid feature type '{}' for attribute '{}'."
+                ).format(transform, f.get('name')))
+
+            if f.get('usage') not in ('label', 'feature', 'unused'):
+                raise ValueError(gettext(
+                    "Invalid feature usage '{}' for attribute '{}'."
+                ).format(f.get('usage'), f.get('name')))
+
+            final_name = name
+            # Handle missing
+            # if f.get('name') == 'sepallength':
+            #    import pdb; pdb.set_trace()
+            if missing == 'constant' and transform != 'not_null':
+                cte = f.get('constant')
+                if cte is None:
+                    raise ValueError(gettext(
+                        "Missing constant value for attribute '{}'."
+                    ).format(f.get('name')))
+                if data_type == 'categorical':
+                    stmt = (f"SELECT *, COALESCE({f['name']}, '{cte}') AS "
+                            f"{f['var']}_na FROM __THIS__")
+                elif is_numerical:
+                    stmt = (f"SELECT *, COALESCE({f['name']}, {cte}) AS "
+                            f"{f['var']}_na FROM __THIS__")
+
+                code.append(dedent(f"""
+                    {f['var']}_na = feature.SQLTransformer(
+                        statement="{stmt}")
+                    features_stages.append({f['var']}_na) """))
+                f['na_name'] = f['name']
+                final_name = name + '_na'
+            elif missing == 'remove' and transform != 'not_null':
+                stmt = f"SELECT * FROM __THIS__ WHERE ({f['name']}) IS NOT NULL"
+                code.append(dedent(f"""
+                    {f['var']}_del_nulls = feature.SQLTransformer(
+                        statement="{stmt}")
+                    features_stages.append({f['var']}_del_nulls) """))
+                f['na_name'] = f['name']
+                final_name = name
+            elif missing in ('median', 'media') and is_numerical:
+                # import pdb; pdb.set_trace()
+                code.append(dedent(f"""
+                    {name}_imp = feature.Imputer(
+                        strategy='{missing}',
+                        inputCols=['{name}'],
+                        outputCols=['{name}_na'])
+                    features_stages.append({name}_na)
+                """).strip())
+                final_name = name + '_na'
+
+            if is_numerical:
                 if transform in ('keep', '', None):
-                    final_name = name
+                    #final_name = name
+                    ...
                 elif transform == 'binarize':
-                    final_name = name + '_binz'
+                    final_name = final_name + '_bin'
                     threshold = self.parameters.get('threshold', 0.0)
                     code.append(dedent(f"""
                         {f['var']}_bin = feature.Binarizer(
@@ -1402,7 +1689,7 @@ class FeaturesOperation(ModelMetaOperation):
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_bin) """))
                 elif transform in ('quantiles', 'quantis'):
-                    final_name = name + '_qtles'
+                    final_name = final_name + '_qtles'
                     num_buckets = f.get('quantis', 2)
                     code.append(dedent(f"""
                         {f['var']}_qtles = feature.QuantileDiscretizer(
@@ -1413,7 +1700,7 @@ class FeaturesOperation(ModelMetaOperation):
                     splits = ', '.join([str(x) for x in sorted(
                         [float(x) for x in f.get('buckets')])])
                     if splits:
-                        final_name = name + '_bkt'
+                        final_name = final_name + '_bkt'
                         code.append(dedent(f"""
                             {f['var']}_qtles = feature.Bucketizer(
                                 splits=[-float('inf'), {splits}, float('inf')],
@@ -1422,9 +1709,10 @@ class FeaturesOperation(ModelMetaOperation):
                             features_stages.append({f['var']}_qtles) """))
                     else:
                         final_name = None
-                if scaler:
+                if scaler and transform in ('keep', '', None):
+                    # import pdb; pdb.set_trace()
                     old_final_name = final_name
-                    final_name = name + '_scl'
+                    final_name = final_name + '_scl'
                     if scaler == 'min_max':
                         scaler_cls = 'MinMaxScaler'
                     elif scaler == 'standard':
@@ -1445,41 +1733,50 @@ class FeaturesOperation(ModelMetaOperation):
                 if final_name is not None:
                     self.features_names.append(final_name)
             elif data_type == 'categorical':
-                if missing == 'constant' and transform != 'not_null':
-                    cte = f.get('constant')
-                    stmt = f"SELECT *, COALESCE({f['name']}, '{cte}') AS {f['var']}_na FROM __THIS__"
-                    code.append(dedent(f"""
-                        {f['var']}_na = feature.SQLTransformer(
-                            statement="{stmt}")
-                        features_stages.append({f['var']}_na) """))
-                elif missing == 'remove' and transform != 'not_null':
-                    stmt = f"SELECT * FROM __THIS__ WHERE NOT ISNULL({f['name']})"
-                    code.append(dedent(f"""
-                        {f['var']} = feature.SQLTransformer(
-                            statement="{stmt}")
-                        features_stages.append({f['var']}) """))
-                    f['na_name'] = f['name']
+                # if missing == 'constant' and transform != 'not_null':
+                #     cte = f.get('constant')
+                #     if cte is None:
+                #         raise ValueError(gettext(
+                #             "Missing constant value for attribute '{}'."
+                #             ).format(f.get('name')))
+                #     stmt = f"SELECT *, COALESCE({f['name']}, '{cte}') AS {f['var']}_na FROM __THIS__"
+                #     code.append(dedent(f"""
+                #         {f['var']}_na = feature.SQLTransformer(
+                #             statement="{stmt}")
+                #         features_stages.append({f['var']}_na) """))
+                # elif missing == 'remove' and transform != 'not_null':
+                #     stmt = f"SELECT * FROM __THIS__ WHERE ({f['name']}) IS NOT NULL"
+                #     code.append(dedent(f"""
+                #         {f['var']}_del_nulls = feature.SQLTransformer(
+                #             statement="{stmt}")
+                #         features_stages.append({f['var']}_del_nulls) """))
+                #     f['na_name'] = f['name']
 
+                if transform not in ('string_indexer', 'one_hot_encoder',
+                                     'not_null', 'hashing'):
+                    raise ValueError(gettext(
+                        "Invalid transformation '{}' for attribute '{}'."
+                    ).format(transform, f.get('name')))
                 if transform == 'not_null':
-                    final_name = name + '_na'
-                    stmt = f"SELECT *, INT(ISNULL({f['na_name']})) AS {f['var']}_na FROM __THIS__"
+                    final_name = final_name + '_na'
+                    stmt = f"SELECT *, INT(ISNULL({f['var']})) AS {f['var']}_na FROM __THIS__"
                     code.append(dedent(f"""
                         {f['var']}_na = feature.SQLTransformer(
                             statement='{stmt}')
                         features_stages.append({f['var']}_na) """))
 
                 else:  # transform in ('string_indexer', '', None):
-                    final_name = name + '_inx'
                     code.append(dedent(f"""
                         {f['var']}_inx = feature.StringIndexer(
-                            inputCol='{f['na_name']}',
-                            outputCol='{final_name}',
+                            inputCol='{final_name}',
+                            outputCol='{final_name}_inx',
                             handleInvalid='skip')
                         features_stages.append({f['var']}_inx) """))
+                    final_name = final_name + '_inx'
 
                 if transform == 'one_hot_encoder':
                     old_final_name = final_name
-                    final_name = name + '_ohe'
+                    final_name = final_name + '_ohe'
                     code.append(dedent(f"""
                         {f['var']}_ohe = feature.OneHotEncoder(
                             inputCol='{old_final_name}',
@@ -1487,15 +1784,21 @@ class FeaturesOperation(ModelMetaOperation):
                         features_stages.append({f['var']}_ohe) """))
 
                 self.features_names.append(final_name)
-        code.append(f"label = '{self.features_names[-1]}'")
-        self.features_names = self.features_names[:-1]
+            if f['usage'] == 'label':
+                label = final_name
+
+        supervisioned = self.task_type in ('regression', 'classification')
+        if supervisioned:
+            code.append(f"label = '{label}'")
+            self.features_names.remove(label)
 
         return '\n'.join(code).strip()
 
     def get_final_features_names(self):
-        return self.features_names
+        return self.features_names or []
 
     def generate_code_for_missing_data_handling(self):
+        """ Used by visualization builder only """
         code = []
 
         by_constant = []
@@ -1573,21 +1876,23 @@ class FeaturesReductionOperation(ModelMetaOperation):
             self.has_code = False
 
     def generate_code(self):
-        code = dedent(f"""
-            pca_va = feature.VectorAssembler(
-                inputCols=numerical_features, outputCol='pca_input_features',
-                handleInvalid='skip')
-            feature_reducer = feature.PCA(k={self.k},
+        code = ''
+        if self.has_code:
+            code = dedent(f"""
+                pca_va = feature.VectorAssembler(
+                    inputCols=numerical_features, outputCol='pca_input_features',
+                    handleInvalid='skip')
+                feature_reducer = feature.PCA(k={self.k},
                                           inputCol='pca_input_features',
                                           outputCol='pca_features')
-        """)
+            """)
         return code.strip()
 
 
 class SplitOperation(ModelMetaOperation):
     STRATEGY_TO_CLASS = {
         'split': 'CustomTrainValidationSplit',
-        'cross_validation': 'CustomCrossValidation',
+        'cross_validation': 'CustomTrainValidationSplit',
     }
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -1596,22 +1901,33 @@ class SplitOperation(ModelMetaOperation):
         self.strategy = parameters.get('strategy', 'split')
         self.seed = parameters.get('seed', 'None') or 'None'
         self.ratio = parameters.get('ratio', 0.8) or 0.8
+        self.folds = parameters.get('folds', 10) or 10
 
     def generate_code(self):
         if self.strategy == 'split':
             code = dedent(f"""
             train_ratio = {self.ratio} # Between 0.01 and 0.99
             executor = CustomTrainValidationSplit(
-                pipeline, evaluator, grid, train_ratio, seed={self.seed})
+                pipeline, evaluator, grid, train_ratio, seed={self.seed},
+                strategy='{self.strategy}')
             """)
         elif self.strategy == 'cross_validation':
             code = dedent(f"""
+            executor = CustomTrainValidationSplit(
+                pipeline, evaluator, grid, seed={self.seed},
+                strategy='{self.strategy}', folds={self.folds})
             """)
 
         return code.strip()
 
 
 class GridOperation(ModelMetaOperation):
+    """
+    See: 
+    https://medium.com/storebrand-tech/random-search-in-spark-ml-5370dc908bd7
+    https://towardsdatascience.com/hyperparameters-part-ii-random-search-on-spark-77667e68b606
+    """
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         ModelMetaOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
@@ -1627,11 +1943,12 @@ class GridOperation(ModelMetaOperation):
         code = []
 
         if self.strategy == 'grid':
-            if self.random_grid:
-                seed = f'.Random({self.seed})' if self.seed else ''
-                code.append(f'random{seed}.shuffle(grid)')
-            if self.max_iterations > 0:
-                code.append(f'grid = grid[:{self.max_iterations}]')
+            pass
+        elif self.strategy == 'random':
+            seed = f'.Random({self.seed})' if self.seed else ''
+            code.append(f'random{seed}.shuffle(grid)')
+        if self.max_iterations > 0:
+            code.append(f'grid = grid[:{self.max_iterations}]')
 
         return '\n'.join(code)
 
@@ -1647,16 +1964,21 @@ class KMeansOperation(ClusteringOperation):
         ClusteringOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.var = 'kmeans'
-        self.types = parameters.get('type', ['kmeas'])
+        self.types = _as_string_list(
+            parameters.get('type', ['kmeans']), 
+            self.in_list('kmeans', 'bisecting'))
 
         self.hyperparameters = {
             'k': _as_int_list(
-                parameters.get('number_of_clusters'), self.grid_info),
+                parameters.get('number_of_clusters'), self.grid_info, 
+                self.gt(1)),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
-            'initMode': _as_string_list(parameters.get('init_mode')),
+            'initMode': _as_string_list(parameters.get('init_mode'), 
+                    self.in_list('random', 'k-means||')),
             'maxIter ': _as_int_list(
-                parameters.get('max_iterations'), self.grid_info),
-            'distanceMeasure': _as_string_list(parameters.get('distance')),
+                parameters.get('max_iterations'), self.grid_info, self.ge(0)),
+            'distanceMeasure': _as_string_list(parameters.get('distance'), 
+                self.in_list('euclidean', 'cosine')),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
         self.name = 'KMeans'
@@ -1699,32 +2021,32 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
+
         self.hyperparameters = {
-            'bootstrap': parameters.get('bootstrap'),
-            'cacheNodeIds': _as_boolean_list(parameters.get('cache_node_ids')),
+            'cacheNodeIds': _as_boolean_list(
+                parameters.get('cache_node_ids')),
             'checkpointInterval':
-            _as_int_list(parameters.get(
-                'checkpoint_interval'), self.grid_info),
-            'featureSubsetStrategy':
-                _as_string_list(parameters.get('feature_subset_strategy')),
-            'impurity': _as_string_list(parameters.get('impurity')),
-            'leafCol': parameters.get('leaf_col'),
-            'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
+                _as_int_list(parameters.get(
+                    'checkpoint_interval'), self.grid_info, 
+                    self.ge(1)),
+            'impurity': _as_string_list(parameters.get('impurity'),
+                self.in_list('entropy', 'gini')),
+            # 'leafCol': parameters.get('leaf_col'),
+            'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info,
+                self.ge(2)),
             'maxDepth': _as_int_list(
-                parameters.get('max_depth'), self.grid_info),
-            'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
+                parameters.get('max_depth'), self.grid_info, self.ge(0)),
+            # 'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
             'minInfoGain': _as_float_list(
                 parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode':
             _as_int_list(parameters.get(
-                'min_instances_per_node'), self.grid_info),
-            'minWeightFractionPerNode':
-                parameters.get('min_weight_fraction_per_node'),
-            'numTrees': _as_int_list(
-                parameters.get('num_trees'), self.grid_info),
-            'seed': parameters.get('seed'),
-            'subsamplingRate': parameters.get('subsampling_rate'),
-            'weightCol': parameters.get('weight_col')
+                'min_instances_per_node'), self.grid_info, self.ge(1)),
+            #'minWeightFractionPerNode':
+            #    parameters.get('min_weight_fraction_per_node'),None, 
+            #    self.between(0, 0.5, include_end=False)
+            'seed': _as_int_list(parameters.get('seed'), None),
+            # 'weightCol': parameters.get('weight_col')
         }
         self.var = 'decision_tree'
         self.name = 'DecisionTreeClassifier'
@@ -1734,24 +2056,37 @@ class GBTClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
-        self.hyperparameters = {
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval': parameters.get('checkpoint_interval'),
-            'lossType': parameters.get('loss_type'),
-            'maxBins': parameters.get('max_bins'),
-            'maxDepth': _as_int_list(
-                parameters.get('max_depth'), self.grid_info),
-            'maxIter': _as_int_list(
-                parameters.get('max_iter'), self.grid_info),
-            'minInfoGain': _as_float_list(
-                parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode': _as_int_list(
-                parameters.get('min_instances_per_node'), self.grid_info),
-            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
-            'subsamplingRate': parameters.get('subsampling_rate'),
 
-        }
+        params = {
+            'cacheNodeIds': 'cache_node_ids',
+            'checkpointInterval': 'checkpoint_interval',
+            'lossType': 'loss_type',
+            'maxBins': 'max_bins', 'maxDepth': 'max_depth',
+            'maxIter': 'max_iter', 'minInfoGain': 'min_info_gain',
+            'minInstancesPerNode': 'min_instances_per_node',
+            'seed': 'seed', 'stepSize': 'step_size',
+            'subsamplingRate': 'subsampling_rate'}
+
+        self.hyperparameters = dict([
+            (p, _as_list(parameters.get(v))) for p, v in params.items()])
+        # self.hyperparameters = {
+        #     'cacheNodeIds': _as_list(parameters.get('cache_node_ids'), None),
+        #     'checkpointInterval': _as_list(parameters.get('checkpoint_interval')),
+        #     'lossType': _as_list(parameters.get('loss_type')),
+        #     'maxBins': _as_list(parameters.get('max_bins')),
+        #     'maxDepth': _as_int_list(
+        #         parameters.get('max_depth'), self.grid_info),
+        #     'maxIter': _as_int_list(
+        #         parameters.get('max_iter'), self.grid_info),
+        #     'minInfoGain': _as_float_list(
+        #         parameters.get('min_info_gain'), self.grid_info),
+        #     'minInstancesPerNode': _as_int_list(
+        #         parameters.get('min_instances_per_node'), self.grid_info),
+        #     'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+        #     'stepSize': parameters.get('step_size'),
+        #     'subsamplingRate': parameters.get('subsampling_rate'),
+
+        # }
         self.var = 'gbt_classifier'
         self.name = 'GBTClassifier'
 
@@ -1761,10 +2096,19 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'modelType': _as_string_list(parameters.get('model_type')),
-            'smoothing': _as_float_list(parameters.get('smoothing'), self.grid_info),
-            'thresholds': _as_float_list(parameters.get('thresholds'), self.grid_info),
-            'weightCol': parameters.get('weight_attribute'),
+            'modelType': _as_string_list(
+                parameters.get('model_type'),
+                lambda x: [v for v in x if v not in
+                           ['multinomial', 'bernoulli', 'gaussian']]),
+            'smoothing': _as_float_list(
+                parameters.get('smoothing'),
+                self.grid_info,
+                lambda x: [v for v in x if v < 0]
+            ),
+            # FIXME: implement in the interface
+            # 'thresholds': _as_float_list(parameters.get('thresholds'),
+            #                             self.grid_info),
+            'weightCol': _as_string_list(parameters.get('weight_attribute')),
         }
         self.var = 'nb_classifier'
         self.name = 'NaiveBayes'
@@ -1774,13 +2118,23 @@ class PerceptronClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
+
+        layers = None
+        if parameters.get('layers'):
+            value = tuple(int(x.strip()) for x in parameters.get('layers').split(','))
+            layers =  HyperparameterInfo(
+                value=(value,), param_type='list', 
+                values_count=1,
+                random_generator='random_generator')
+
         self.hyperparameters = {
-            'layers': parameters.get('layers'),
+            'layers': layers,
             'blockSize': _as_int_list(
                 parameters.get('block_size'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-            'solver': parameters.get('solver'),
+            'solver': _as_string_list(parameters.get('solver'),
+                self.in_list('l-bfgs', 'gd'))
         }
         self.var = 'mlp_classifier'
         self.name = 'MultilayerPerceptronClassifier'
@@ -1791,10 +2145,10 @@ class RandomForestClassifierOperation(ClassificationOperation):
         ClassificationOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'impurity': parameters.get('impurity'),
-            'cacheNodeIds': parameters.get('cache_node_ids'),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'cacheNodeIds': _as_boolean_list(parameters.get('cache_node_ids')),
             'checkpointInterval':
-                parameters.get('checkpoint_interval'),
+                _as_int_list(parameters.get('checkpoint_interval')),
             'featureSubsetStrategy':
                 _as_string_list(parameters.get('feature_subset_strategy')),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
@@ -1803,11 +2157,11 @@ class RandomForestClassifierOperation(ClassificationOperation):
             'minInfoGain': _as_float_list(
                 parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
+                _as_list(parameters.get('min_instances_per_node')),
             'numTrees': _as_int_list(
                 parameters.get('num_trees'), self.grid_info),
-            'seed': parameters.get('seed'),
-            'subsamplingRate': parameters.get('subsampling_rate'),
+            'seed': _as_list(parameters.get('seed')),
+            'subsamplingRate': _as_list(parameters.get('subsampling_rate')),
         }
         self.var = 'rand_forest_cls'
         self.name = 'RandomForestClassifier'
@@ -1867,22 +2221,38 @@ class LinearRegressionOperation(RegressionOperation):
 
         seed = 0
         max_iter = 5
-
         self.hyperparameters = {
-            'aggregationDepth': parameters.get('aggregation_depth'),
-            'elasticNetParam': _as_float_list(parameters.get('elastic_net'), self.grid_info),
-            'epsilon': _as_float_list(parameters.get('epsilon'), self.grid_info),
+            'aggregationDepth':
+                _as_int_list(parameters.get('aggregation_depth'), None,
+                             self.ge(2)),
+            'elasticNetParam':
+                _as_float_list(parameters.get('elastic_net'), self.grid_info,
+                               self.between(0, 1)),
+            'epsilon':
+                _as_float_list(parameters.get('epsilon'), self.grid_info,
+                               self.gt(1)),
             'fitIntercept': _as_boolean_list(parameters.get('fit_intercept')),
-            'loss': _as_string_list(parameters.get('loss')),
-            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info),
-            'solver': _as_string_list(parameters.get('solver')),
+            'loss': _as_string_list(parameters.get('loss'), 
+                                    self.in_list('huber', 'squaredError')),
+            'maxIter': _as_int_list(
+                parameters.get('max_iter'), self.grid_info,  self.ge(0)),
+            'regParam': _as_float_list(parameters.get('reg_param'), 
+                                       self.grid_info, self.ge(0)),
+            'solver': _as_string_list(parameters.get('solver'), 
+                                      self.in_list('auto', 'normal', 'l-bfgs')),
             'standardization': _as_boolean_list(parameters.get('standardization')),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
             'weightCol': parameters.get('weight'),
         }
         self.var = 'linear_reg'
         self.name = 'LinearRegression'
+
+    def get_constrained_params(self):
+        result = []
+        # result.append(
+        #        f'{{{self.var}.epsilon: {repr(family)}, '
+        #        f'{self.var}.loss: "huber"')
+        return result
 
 
 class IsotonicRegressionOperation(RegressionOperation):
@@ -2011,9 +2381,9 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
 class VisualizationOperation(MetaPlatformOperation):
 
-    DEFAULT_PALETTE = ['#636EFA', '#EF553B', 
-        '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
-        '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
+    DEFAULT_PALETTE = ['#636EFA', '#EF553B',
+                       '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
+                       '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
     CHART_MAP_TYPES = ('scattermapbox', )
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2033,41 +2403,45 @@ class VisualizationOperation(MetaPlatformOperation):
             self.x_axis = None
             self.y_axis = None
             self.latitude = self.get_required_parameter(parameters, 'latitude')
-            self.longitude = self.get_required_parameter(parameters, 'longitude')
+            self.longitude = self.get_required_parameter(
+                parameters, 'longitude')
 
         self.parameters = parameters
 
     def generate_code(self):
         task_obj = self._get_task_obj()
         task_obj['forms'].update({
-            k: {'value': getattr(self, k)} for k in 
-                ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
+            k: {'value': getattr(self, k)} for k in
+            ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
         task_obj['forms']['y']['value'] = [
-                y for y in task_obj['forms']['y']['value']
-                if y.get('enabled')
+            y for y in task_obj['forms']['y']['value']
+            if y.get('enabled')
         ]
         if len(task_obj['forms']['y']['value']) == 0:
-            raise ValueError(gettext('There is no series or none is enabled'))        
+            raise ValueError(gettext('There is no series or none is enabled'))
         for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
-                'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
-                 'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
-                 'animation', 'height', 'width', 'opacity', 'fill_opacity',
-                 'color_attribute', 'size_attribute', 'number_format', 'text_attribute',
-                 'style', 'tooltip_info', 'zoom', 'center_latitude', 'center_longitude',
-                 'marker_size', 'limit', 'filter']:
+                  'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
+                  'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
+                  'animation', 'height', 'width', 'opacity', 'fill_opacity',
+                  'color_attribute', 'size_attribute', 'number_format', 'text_attribute',
+                  'style', 'tooltip_info', 'zoom', 'center_latitude', 'center_longitude',
+                  'marker_size', 'limit', 'filter']:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}
         return json.dumps(task_obj)
 
+
 class BatchMetaOperation(Operation):
     """ Base class for batch execution operations """
+
     def __init__(self, parameters,  named_inputs, named_outputs):
-       super().__init__(parameters, named_inputs, named_outputs)
+        super().__init__(parameters, named_inputs, named_outputs)
 
     def generate_code(self) -> str:
         return ''
+
 
 class ConvertDataSourceFormat(BatchMetaOperation):
     LIMONERO_TO_SPARK_DATA_TYPES = {
@@ -2102,7 +2476,6 @@ class ConvertDataSourceFormat(BatchMetaOperation):
 
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
-
 
     template = """
         {%- if infer_schema == 'FROM_LIMONERO' %}
@@ -2144,7 +2517,7 @@ class ConvertDataSourceFormat(BatchMetaOperation):
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
-        
+
         self.data_source_id = self.get_required_parameter(
             parameters, 'data_source')
         self.target_format = self.get_required_parameter(
@@ -2172,8 +2545,8 @@ class ConvertDataSourceFormat(BatchMetaOperation):
                 gettext('Unsupported format: {}').format(
                     metadata.get('format')))
 
-        header = (metadata.get('is_first_line_header', False) 
-            not in ('0', 0, 'false', False))
+        header = (metadata.get('is_first_line_header', False)
+                  not in ('0', 0, 'false', False))
         null_values = [v.strip() for v in parameters.get(
             self.NULL_VALUES_PARAM, '').split(",")]
 
@@ -2182,7 +2555,7 @@ class ConvertDataSourceFormat(BatchMetaOperation):
             self.SEPARATOR_PARAM,
             metadata.get('attribute_delimiter', ',')) or ','
         quote = parameters.get(self.QUOTE_PARAM,
-                                    metadata.get('text_delimiter'))
+                               metadata.get('text_delimiter'))
         if quote == '\'':
             quote = '\\\''
         if sep in self.SEPARATORS:
@@ -2193,8 +2566,8 @@ class ConvertDataSourceFormat(BatchMetaOperation):
         encoding = metadata.get('encoding', 'UTF-8') or 'UTF-8'
 
         if metadata.get('treat_as_missing'):
-            null_values.extend([x.strip() for x in 
-                metadata.get('treat_as_missing').split(',')])
+            null_values.extend([x.strip() for x in
+                                metadata.get('treat_as_missing').split(',')])
         null_option = ''.join(
             [f".option('nullValue', '{n}')" for n in
              set(null_values)]) if null_values else ""
@@ -2215,8 +2588,6 @@ class ConvertDataSourceFormat(BatchMetaOperation):
                 else:
                     data_type = f'{data_type}()'
                 attr['data_type'] = data_type
-
-
 
         ctx = {
             'attributes': metadata.get('attributes'),
