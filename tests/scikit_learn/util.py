@@ -12,7 +12,7 @@ from juicer.transpiler import TranspilerUtils
 from typing import List, Dict
 from juicer.operation import Operation
 
-DATA_SETS = ['iris', 'titanic', 'wine', 'tips', 'funel', 'iris2']
+DATA_SETS = ['iris', 'titanic', 'wine']
 DATA_DIRECTORY = 'data'
 
 
