@@ -3,7 +3,6 @@ from __future__ import unicode_literals, absolute_import
 
 import gc
 import gettext
-import imp
 import importlib
 import json
 import logging.config
