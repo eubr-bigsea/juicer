@@ -2,13 +2,16 @@ import pytest
 from tests.scikit_learn.util import read
 import polars as pl
 import importlib
+from tests.scikit_learn import util
 
+# @pytest.fixture(scope="session")
+# def iris(request):
+#     columns, size = request.param
+#     return read('iris', columns, size)
 
 @pytest.fixture(scope="session")
-def iris(request):
-    columns, size = request.param
-    return read('iris', columns, size)
-
+def iris():
+    return read('iris')
 
 def wine(columns=None, size=None):
     return read('wine', columns, size)
@@ -45,3 +48,7 @@ def get_parametrize(module_name: str, op_name: str):
         'ids': ['pandas',  # 'duckdb',
                 'polars', ]
     }
+
+@pytest.fixture(scope='session')
+def get_df():
+    return util.iris_polars()

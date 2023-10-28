@@ -4,11 +4,8 @@ Utilities for testing scikit-learn usage in Lemonade.
 import os
 
 import pandas as pd
-try:
-    import duckdb
-    import polars as pl
-except ImportError as ie:
-    print('Missing imports', ie)
+import duckdb
+import polars as pl
 
 from juicer.scikit_learn.util import get_label_data, get_X_train_data
 from juicer.transpiler import TranspilerUtils
@@ -37,6 +34,20 @@ def read(name, columns=None, size=None):
 def iris(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('iris', columns, size)
 
+def iris_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('iris', columns, size))
+
+def iris2_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('iris2', columns, size))
+
+def titanic_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('titanic', columns, size))
+
+def funel_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('funel', columns, size))
+
+def tips_polars(columns: List[str] = None, size: int = None) -> pl.DataFrame:
+    return pandas_2_polars(read('tips', columns, size))
 
 def wine(columns: List[str] = None, size: int = None) -> pd.DataFrame:
     return read('wine', columns, size)
@@ -57,7 +68,7 @@ def get_common_imports() -> str:
         'global np', 'global pd', 'global base64',
         'global json', 'global datetime', 'global string',
         'global functools', 'global re',
-        'global hashlib', 'global itertools'
+        'global hashlib', 'global itertools', 'global pl'
     ])
 
 
@@ -87,10 +98,7 @@ def execute(code: str, arguments: Dict[any, any]):
         # 'import pdb;pdb.set_trace()',
         code
     ])
-    # 'print()
-    # print('=' * 10, ' testing code ', '=' * 10)
-    # 'print(final_code)
-
+    
     result = {}
     exec(final_code, arguments, result)
     return result
@@ -100,3 +108,6 @@ def pandas_2_polars(df: pd.DataFrame):
 
 def pandas_2_duckdb(df: pd.DataFrame):
     return None
+
+def emit_event(*args, **kwargs):
+    pass
