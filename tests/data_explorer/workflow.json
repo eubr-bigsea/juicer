@@ -1,0 +1,277 @@
+{
+  "id": 1000,
+  "name": "Titanic test",
+  "enabled": true,
+  "created": "2023-09-19T18:30:49",
+  "updated": "2023-10-27T21:34:09",
+  "version": 10,
+  "is_template": false,
+  "is_system_template": false,
+  "is_public": false,
+  "deployment_enabled": false,
+  "publishing_enabled": false,
+  "type": "DATA_EXPLORER",
+  "preferred_cluster_id": 1,
+  "tasks": [
+    {
+      "id": "857e55c5-f140-4a28-a709-5e1d8a0fef21",
+      "name": "Read data",
+      "left": 0,
+      "top": 0,
+      "z_index": 0,
+      "forms": {
+        "data_source": {
+          "value": 1000,
+          "labelValue": "Titanic"
+        },
+        "display_sample": {
+          "value": "0"
+        },
+        "$meta": {
+          "value": {
+            "previewable": true
+          }
+        }
+      },
+      "version": 2,
+      "environment": "DESIGN",
+      "enabled": true,
+      "display_order": 0,
+      "operation": {
+        "id": 2100,
+        "name": "Read data",
+        "slug": "read-data"
+      }
+    },
+    {
+      "id": "a49a197b-979b-461b-a934-4c167aae8753",
+      "name": "Sample",
+      "left": 0,
+      "top": 0,
+      "z_index": 0,
+      "forms": {
+        "type": {
+          "value": "head",
+          "internalValue": "head"
+        },
+        "value": {
+          "value": "30000",
+          "internalValue": "30000"
+        },
+        "seed": {
+          "value": 0,
+          "internalValue": 0
+        },
+        "color": {
+          "value": "rgb(255, 255, 165)",
+          "internalValue": "rgb(255, 255, 165)"
+        },
+        "fraction": {
+          "value": "1",
+          "internalValue": "1"
+        },
+        "$meta": {
+          "value": {
+            "previewable": true
+          }
+        },
+        "comment": {
+          "value": null
+        }
+      },
+      "version": 2,
+      "environment": "DESIGN",
+      "enabled": true,
+      "width": 0,
+      "height": 0,
+      "display_order": 1,
+      "operation": {
+        "id": 2110,
+        "name": "Sample",
+        "slug": "sample"
+      }
+    },
+    {
+      "id": "e114b246-7584-401d-bd7a-c0c9223a7e97",
+      "name": "Selecionar atributos",
+      "left": 0,
+      "top": 0,
+      "z_index": 0,
+      "forms": {
+        "mode": {
+          "value": "exclude",
+          "internalValue": "exclude"
+        },
+        "attributes": {
+          "value": [
+            {
+              "attribute": "dt_inter_min"
+            },
+            {
+              "attribute": "dt_obito"
+            },
+            {
+              "attribute": "dt_proc_max"
+            },
+            {
+              "attribute": "dt_proc_min"
+            },
+            {
+              "attribute": "dt_tto_min"
+            },
+            {
+              "attribute": "dt_ultima_apac"
+            },
+            {
+              "attribute": "pa_dtnasc"
+            },
+            {
+              "attribute": "pre_dt_obito_1m"
+            },
+            {
+              "attribute": "pre_dt_obito_3m"
+            },
+            {
+              "attribute": "ap_dtiden"
+            }
+          ],
+          "internalValue": [
+            {
+              "attribute": "dt_inter_min"
+            },
+            {
+              "attribute": "dt_obito"
+            },
+            {
+              "attribute": "dt_proc_max"
+            },
+            {
+              "attribute": "dt_proc_min"
+            },
+            {
+              "attribute": "dt_tto_min"
+            },
+            {
+              "attribute": "dt_ultima_apac"
+            },
+            {
+              "attribute": "pa_dtnasc"
+            },
+            {
+              "attribute": "pre_dt_obito_1m"
+            },
+            {
+              "attribute": "pre_dt_obito_3m"
+            },
+            {
+              "attribute": "ap_dtiden"
+            }
+          ]
+        },
+        "color": {
+          "value": "rgb(255, 255, 165)"
+        },
+        "comment": {
+          "value": null
+        }
+      },
+      "version": 2,
+      "environment": "DESIGN",
+      "enabled": true,
+      "width": 0,
+      "height": 0,
+      "display_order": 3,
+      "operation": {
+        "id": 2163,
+        "name": "Selecionar atributos",
+        "slug": "select"
+      }
+    },
+    {
+      "id": "55129a03-f294-4a6e-a123-9c3e3d6d3b49",
+      "name": "Filtrar",
+      "left": 0,
+      "top": 0,
+      "z_index": 0,
+      "forms": {
+        "formula": {
+          "value": [
+            {
+              "alias": "",
+              "expression": "cidpri_min == \"C340\"",
+              "error": null,
+              "tree": {
+                "type": "BinaryExpression",
+                "operator": "==",
+                "left": {
+                  "type": "Identifier",
+                  "name": "cidpri_min"
+                },
+                "right": {
+                  "type": "Literal",
+                  "value": "C340",
+                  "raw": "\"C340\""
+                }
+              }
+            }
+          ],
+          "internalValue": [
+            {
+              "alias": "",
+              "expression": "cidpri_min == \"C340\"",
+              "error": null,
+              "tree": {
+                "type": "BinaryExpression",
+                "operator": "==",
+                "left": {
+                  "type": "Identifier",
+                  "name": "cidpri_min"
+                },
+                "right": {
+                  "type": "Literal",
+                  "value": "C340",
+                  "raw": "\"C340\""
+                }
+              }
+            }
+          ]
+        },
+        "attributes": {
+          "value": [
+            "cid_tto_min"
+          ]
+        },
+        "color": {
+          "value": "rgb(255, 255, 165)"
+        },
+        "comment": {
+          "value": null
+        }
+      },
+      "version": 2,
+      "environment": "DESIGN",
+      "enabled": true,
+      "width": 0,
+      "height": 0,
+      "display_order": 2,
+      "operation": {
+        "id": 2106,
+        "name": "Filtrar",
+        "slug": "filter"
+      }
+    }
+  ],
+  "flows": [],
+  "variables": [],
+  "platform": {
+    "id": 1000,
+    "name": "Platforma Meta",
+    "slug": "meta"
+  },
+  "user": {
+    "id": 1,
+    "name": "Administrador Lemonade",
+    "login": "waltersf@gmail.com"
+  },
+  "specification": "2.4.0"
+}

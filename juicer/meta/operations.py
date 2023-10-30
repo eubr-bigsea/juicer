@@ -51,7 +51,7 @@ def _as_list(input_values, transform=None, size=None, validate=None):
     About log linear:
     https://towardsdatascience.com/why-is-the-log-uniform-distribution-useful-for-hyperparameter-tuning-63c8d331698
     """
-    if (input_values is None or not isinstance(input_values, dict) or 
+    if (input_values is None or not isinstance(input_values, dict) or
             False == input_values.get('enabled')):
         return None
     param_type = input_values.get('type')
@@ -209,7 +209,6 @@ class MetaPlatformOperation(Operation):
     def _get_task_obj(self):
         order = self.task.get('display_order', 0)
         wf_type = self.parameters.get('workflow').get('type')
-
         result = {
             "id": self.new_id,
             "display_order": self.task.get('display_order', 0),
@@ -227,7 +226,7 @@ class MetaPlatformOperation(Operation):
                     "display_sample": {"value": f"{self.last}"},
                     "sample_size": {"value": self.parameters[
                         'transpiler'].sample_size},
-                    "display_text": {"value": "1"}
+                    "display_text": {"value": "0"}
                 }
                 })
         else:
@@ -270,6 +269,7 @@ class ReadDataOperation(MetaPlatformOperation):
 
 
 class TransformOperation(MetaPlatformOperation):
+    TARGET_OP = 7
     number_re = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
     array_index_re = re.compile(r'(?:\D*?)(-?\d+)(?:\D?)')
     SLUG_TO_EXPR = {
@@ -332,6 +332,9 @@ class TransformOperation(MetaPlatformOperation):
         self.slug = op.get('slug')
 
         self.attributes = self.get_required_parameter(parameters, 'attributes')
+        if not self.attributes:
+            raise ValueError(gettext('Missing required parameter: {}').format(
+                'attributes'))
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -488,7 +491,7 @@ class TransformOperation(MetaPlatformOperation):
             expressions.extend(self.parameters.get('formula'))
 
         task_obj['forms']['expression'] = {'value': expressions}
-        task_obj['operation'] = {'id': 7}
+        task_obj['operation'] = {'id': self.TARGET_OP}
         return json.dumps(task_obj)
 
 
@@ -599,6 +602,8 @@ class GroupOperation(MetaPlatformOperation):
 
 
 class SampleOperation(MetaPlatformOperation):
+    TARGET_OP = 28
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
@@ -623,7 +628,7 @@ class SampleOperation(MetaPlatformOperation):
                          else None},
             'seed': {'value': self.seed},
         })
-        task_obj['operation'] = {"id": 28}
+        task_obj['operation'] = {"id": self.TARGET_OP}
         return json.dumps(task_obj)
 
     def model_builder_code(self):
@@ -1481,23 +1486,24 @@ class EstimatorMetaOperation(ModelMetaOperation):
 
     def ge(self, compare_to):
         return lambda x: [v for v in x if v < compare_to]
-    
+
     def gt(self, compare_to):
         return lambda x: [v for v in x if v <= compare_to]
 
     def between(self, start, end, include_start=True, include_end=True):
         # Define the comparison operators based on inclusion options
-        start_comp = ((lambda a, b: a <= b) 
-            if include_start else (lambda a, b: a < b))
-        end_comp = ((lambda a, b: a <= b) if 
-            include_end else (lambda a, b: a < b))
-    
+        start_comp = ((lambda a, b: a <= b)
+                      if include_start else (lambda a, b: a < b))
+        end_comp = ((lambda a, b: a <= b) if
+                    include_end else (lambda a, b: a < b))
+
         # Filter the input list based on the defined conditions
-        return (lambda x: [v for v in x if start_comp(start, v) 
-            and end_comp(v, end)])
-    
+        return (lambda x: [v for v in x if start_comp(start, v)
+                           and end_comp(v, end)])
+
     def in_list(self, *search_list):
         return lambda x: [v for v in x if v not in search_list]
+
 
 class EvaluatorOperation(ModelMetaOperation):
     TYPE_TO_CLASS = {
@@ -1972,20 +1978,20 @@ class KMeansOperation(ClusteringOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.var = 'kmeans'
         self.types = _as_string_list(
-            parameters.get('type', ['kmeans']), 
+            parameters.get('type', ['kmeans']),
             self.in_list('kmeans', 'bisecting'))
 
         self.hyperparameters = {
             'k': _as_int_list(
-                parameters.get('number_of_clusters'), self.grid_info, 
+                parameters.get('number_of_clusters'), self.grid_info,
                 self.gt(1)),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
-            'initMode': _as_string_list(parameters.get('init_mode'), 
-                    self.in_list('random', 'k-means||')),
+            'initMode': _as_string_list(parameters.get('init_mode'),
+                                        self.in_list('random', 'k-means||')),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
-            'distanceMeasure': _as_string_list(parameters.get('distance'), 
-                self.in_list('euclidean', 'cosine')),
+            'distanceMeasure': _as_string_list(parameters.get('distance'),
+                                               self.in_list('euclidean', 'cosine')),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
         self.name = 'KMeans'
@@ -2034,13 +2040,13 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
                 parameters.get('cache_node_ids')),
             'checkpointInterval':
                 _as_int_list(parameters.get(
-                    'checkpoint_interval'), self.grid_info, 
+                    'checkpoint_interval'), self.grid_info,
                     self.ge(1)),
             'impurity': _as_string_list(parameters.get('impurity'),
-                self.in_list('entropy', 'gini')),
+                                        self.in_list('entropy', 'gini')),
             # 'leafCol': parameters.get('leaf_col'),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info,
-                self.ge(2)),
+                                    self.ge(2)),
             'maxDepth': _as_int_list(
                 parameters.get('max_depth'), self.grid_info, self.ge(0)),
             # 'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
@@ -2049,8 +2055,8 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
             'minInstancesPerNode':
             _as_int_list(parameters.get(
                 'min_instances_per_node'), self.grid_info, self.ge(1)),
-            #'minWeightFractionPerNode':
-            #    parameters.get('min_weight_fraction_per_node'),None, 
+            # 'minWeightFractionPerNode':
+            #    parameters.get('min_weight_fraction_per_node'),None,
             #    self.between(0, 0.5, include_end=False)
             'seed': _as_int_list(parameters.get('seed'), None),
             # 'weightCol': parameters.get('weight_col')
@@ -2128,9 +2134,10 @@ class PerceptronClassifierOperation(ClassificationOperation):
 
         layers = None
         if parameters.get('layers'):
-            value = tuple(int(x.strip()) for x in parameters.get('layers').split(','))
-            layers =  HyperparameterInfo(
-                value=(value,), param_type='list', 
+            value = tuple(int(x.strip())
+                          for x in parameters.get('layers').split(','))
+            layers = HyperparameterInfo(
+                value=(value,), param_type='list',
                 values_count=1,
                 random_generator='random_generator')
 
@@ -2141,7 +2148,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
             'solver': _as_string_list(parameters.get('solver'),
-                self.in_list('l-bfgs', 'gd'))
+                                      self.in_list('l-bfgs', 'gd'))
         }
         self.var = 'mlp_classifier'
         self.name = 'MultilayerPerceptronClassifier'
@@ -2239,13 +2246,13 @@ class LinearRegressionOperation(RegressionOperation):
                 _as_float_list(parameters.get('epsilon'), self.grid_info,
                                self.gt(1)),
             'fitIntercept': _as_boolean_list(parameters.get('fit_intercept')),
-            'loss': _as_string_list(parameters.get('loss'), 
+            'loss': _as_string_list(parameters.get('loss'),
                                     self.in_list('huber', 'squaredError')),
             'maxIter': _as_int_list(
                 parameters.get('max_iter'), self.grid_info,  self.ge(0)),
-            'regParam': _as_float_list(parameters.get('reg_param'), 
+            'regParam': _as_float_list(parameters.get('reg_param'),
                                        self.grid_info, self.ge(0)),
-            'solver': _as_string_list(parameters.get('solver'), 
+            'solver': _as_string_list(parameters.get('solver'),
                                       self.in_list('auto', 'normal', 'l-bfgs')),
             'standardization': _as_boolean_list(parameters.get('standardization')),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
