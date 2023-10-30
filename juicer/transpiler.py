@@ -100,6 +100,7 @@ class Transpiler(object):
         self.verbosity = 10
         self.target_meta = {}
         self.sample_style = 'ORIGINAL'
+        self.transpiler_utils = TranspilerUtils(self)
 
     def _assign_operations(self):
         raise NotImplementedError()
@@ -167,7 +168,6 @@ class Transpiler(object):
 
     def get_instances(self, opt: GenerateCodeParams):
         instances = OrderedDict()
-        transpiler_utils = TranspilerUtils(self)
         graph = opt.graph
 
         audit_events = []
@@ -252,7 +252,7 @@ class Transpiler(object):
                 'task': task,
                 'task_id': task['id'],
                 'transpiler': self,  # Allows operation to notify transpiler
-                'transpiler_utils': transpiler_utils,
+                'transpiler_utils': self.transpiler_utils,
                 'user': opt.workflow['user'],
                 # Some operations require the complete workflow data
                 'workflow': opt.workflow,
@@ -335,7 +335,6 @@ class Transpiler(object):
         self.target_meta = workflow.get('target_meta_platform',
             {'id': 1, 'name': 'spark'})
 
-        transpiler_utils = TranspilerUtils(self)
         env_setup = {
             'autopep8': autopep8,
             'dependency_controller': DependencyController(
@@ -349,7 +348,7 @@ class Transpiler(object):
             'now': datetime.datetime.now(), 'user': workflow['user'],
             'plain': opt.plain,
             'export_notebook': opt.export_notebook,
-            'transpiler': transpiler_utils,
+            'transpiler': self.transpiler_utils,
             'workflow_name': workflow['name'],
             'workflow': workflow,
             'target_platform_id': self.target_meta.get('id'),
