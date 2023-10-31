@@ -606,8 +606,9 @@ class SampleOperation(MetaPlatformOperation):
         self.value = int(parameters.get('value', 0) or 0)
         self.seed = parameters.get('seed')
         self.fraction = parameters.get('fraction')
+        if self.fraction is not None:
+            self.fraction = float(self.fraction)
         self.output_port_name = 'sampled data'
-
         self.has_code = (
             (self.value is not None and self.value > 0) or 
                 (self.fraction is not None and self.fraction > 0))
@@ -617,7 +618,9 @@ class SampleOperation(MetaPlatformOperation):
         task_obj['forms'].update({
             'type': {'value': self.type},
             'value': {'value': self.value},
-            'fraction': {'value': self.fraction},
+            'fraction': {'value': 
+                         100 * self.fraction if self.fraction is not None 
+                         else None},
             'seed': {'value': self.seed},
         })
         task_obj['operation'] = {"id": 28}
@@ -631,6 +634,8 @@ class SampleOperation(MetaPlatformOperation):
     def visualization_builder_code(self):
         params = {}
         params.update(self.parameters)
+        if 'fraction' in params:
+            params['fraction'] *= 100 # Implementation requires values in percent
         params['type'] = 'value'
         params['value'] = self.parameters.get('value', 50)
         dro = SampleOrPartitionOperation(params, {'input data': 'df'},
