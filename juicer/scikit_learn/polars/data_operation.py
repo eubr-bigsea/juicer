@@ -336,7 +336,7 @@ class SaveOperation(sk.SaveOperation):
                         identifier='{{task_id}}')
                 else:
                     {%- if scheme == 'hdfs' and not protect %}
-                        hdfs.delete(path, False)
+                        hdfs.delete_file(path)
                     {%- elif scheme == 'file' or protect %}
                         os.remove(path)
                         parent_dir = os.path.dirname(path)
