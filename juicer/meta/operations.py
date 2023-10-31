@@ -608,7 +608,9 @@ class SampleOperation(MetaPlatformOperation):
         self.fraction = parameters.get('fraction')
         self.output_port_name = 'sampled data'
 
-        self.has_code = self.value > 0 or self.fraction > 0
+        self.has_code = (
+            (self.value is not None and self.value > 0) or 
+                (self.fraction is not None and self.fraction > 0))
 
     def generate_code(self):
         task_obj = self._get_task_obj()
