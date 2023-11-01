@@ -3,6 +3,7 @@ import collections
 import datetime
 import decimal
 import io
+import itertools
 import json
 import math
 import re
@@ -19,7 +20,8 @@ from six import text_type
 from gettext import gettext
 
 # https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
-_: Callable[[str], str] 
+_: Callable[[str], str]
+
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
@@ -105,6 +107,7 @@ class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
             return obj.isoformat()
         return default_encoder_sklearn(obj)
 
+
 class CustomEncoderSkLearn(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, decimal.Decimal):
@@ -114,6 +117,7 @@ class CustomEncoderSkLearn(json.JSONEncoder):
         elif isinstance(obj, set):
             return default_encoder(list(obj))
         return default_encoder_sklearn(obj)
+
 
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -334,6 +338,7 @@ def emit_sample_data_explorer(task_id, df, emit_event, name, size=50,
     emit_sample_sklearn_explorer(task_id, pandas_df, emit_event, name,
                         size, notebook, describe, infer, use_types, page)
 
+
 def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
 
@@ -354,7 +359,6 @@ def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook
         else:
             return f'"{str(t)}"'
 
-
     result.append(', "types": [' + (', '.join([
         get_generic_type(t)
         for t in df.dtypes])) + ']')
@@ -369,6 +373,7 @@ def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook
                message=' '.join(result), meaning='sample',
                type='OBJECT', title=_('Sample data for {}').format(name),
                task={'id': task_id})
+
 
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
@@ -410,6 +415,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                message=content.generate(),
                type='HTML', title=_('Sample data for {}').format(name),
                task={'id': task_id})
+
 
 def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
@@ -554,6 +560,7 @@ def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, noteboo
                type='OBJECT', title=_('Sample data for {}').format(name),
                task={'id': task_id})
 
+
 def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                         describe=False, infer=False, use_types=None, page=1):
     from juicer.spark.reports import SimpleTableReport
@@ -598,13 +605,13 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
 
 def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                       msg: dict) -> None:
-    
+
     stats = ['median', 'nunique']
     # import plotly.express as px
     import polars as pl
     if isinstance(df, pl.LazyFrame):
         df = df.collect(streaming=True)
-    print('Analyse attribute', '*' * 20, isinstance(df, pl.DataFrame))
+    # print('Analyse attribute', '*' * 20, isinstance(df, pl.DataFrame))
     if isinstance(df, pd.DataFrame):
         from pandas.api.types import is_numeric_dtype
 
@@ -700,72 +707,94 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             else df
         analysis_type = 'table'
         if attribute is None:  # Statistics for the entire dataframe
-            metrics = [polars_df.mean, polars_df.var, polars_df.std, 
-                polars_df.min, polars_df.max, 
+            metrics = [polars_df.mean, polars_df.var, polars_df.std,
+                polars_df.min, polars_df.max,
                 functools.partial(polars_df.quantile, .25),
-                polars_df.median, 
+                polars_df.median,
                 functools.partial(polars_df.quantile, .75),
             ]
             result = pl.concat([_cast(m()) for m in metrics])
-            names = ['mean', 'var', 'std', 'min', 'max', 
-                '25%', 'median', '75%', ]
+            names = [gettext('mean'), gettext('var'), gettext('std'), 
+                     gettext('min'), gettext('max'), gettext('25%'), 
+                     gettext('median'), gettext('75%'), ]
+
             result = result.select(
                 [pl.col(c).cast(pl.Utf8) for c in result.columns]
-                ).transpose(include_header=False,
-                                      column_names=names)
-            result = pl.concat([result,
+                ).transpose(include_header=False, column_names=names)
+            df_uniq = (
                 polars_df.select(
                      [pl.when(dtype == pl.List).then(-1).otherwise(
                         pl.col(col).n_unique()).alias(col)
-                        for (col, dtype) in zip(polars_df.columns, polars_df.dtypes)])
-                         .transpose(column_names=['unique'])],
-                # polars_df.select(pl.n_unique(
-                #     [col for col in polars_df.columns]))
-                #         .transpose(column_names=['unique'])],
-                how='horizontal')
+                        for (col, dtype) in
+                        zip(polars_df.columns, polars_df.dtypes)])
+                        .transpose(column_names=['unique']))
+
+            result = pl.concat([result, df_uniq], how='horizontal')
+
             result.insert_at_idx(
-                0, pl.Series('attribute', polars_df.columns)
+                0, pl.Series(gettext('attribute'), polars_df.columns)
             )
-            cast_types = [pl.Utf8, pl.Float64, pl.Float64, pl.Float64, 
+            cast_types = [pl.Utf8, pl.Float64, pl.Float64, pl.Float64,
                 pl.Utf8, pl.Utf8, pl.Float64, pl.Float64, pl.Float64, pl.Int64]
             result = result.with_columns([
-                pl.col(c).cast(cast_types[i]).round(4).alias(c) 
+                pl.col(c).cast(cast_types[i]).round(4).alias(c)
                 if cast_types[i] == pl.Float64
-                else pl.col(c) 
+                else pl.col(c)
                     for i, c in enumerate(result.columns)
             ])
-            result = result.write_json(None, row_oriented=False)
+            obj_result = json.loads(result.write_json(None, row_oriented=False))
+            # Computes correlation
+            import polars.selectors as cs
+            attr_names = df.select(cs.numeric()).columns
+            pairs = list(itertools.product(attr_names, attr_names))
+            correlation = [round(x, 4) for x in df.select([
+                pl.corr(*v, method="spearman").alias(str(v)) for v in pairs])
+                .row(0)
+            ]
+            attr_count = len(attr_names)
+            final_corr = [correlation[i:i + attr_count] for i in 
+                     range(0, attr_count**2, attr_count)]
+            numeric = [s.is_numeric() or s.is_boolean() for s in df]
+            
+            result = json.dumps({
+                'table': obj_result,
+                'correlation': final_corr,
+                'attributes': list(zip(df.columns, numeric)),
+                'numeric': [s.name for s in df if s.is_numeric()]
+            })
+
 
         elif msg.get('cluster'):
-            lsh = MinHashLSH(
-                threshold=msg.get('threshold', msg.get('similarity', 0.8)),
-                num_perm=128)
-            min_hashes = {}
-            words = pandas_df[attribute].drop_duplicates().astype('str')
+            lsh=MinHashLSH(
+                threshold = msg.get('threshold', msg.get('similarity', 0.8)),
+                num_perm = 128)
+            min_hashes={}
+            words=pandas_df[attribute].drop_duplicates().astype('str')
             print('*' * 30)
             print(words)
             print('*' * 30)
             for c, i in enumerate(words):
-                min_hash = MinHash(num_perm=128)
+                min_hash=MinHash(num_perm = 128)
                 for d in ngrams(i, 3):
                     min_hash.update("".join(d).encode('utf-8'))
                 lsh.insert(c, min_hash)
-                min_hashes[c] = min_hash
-            similar = []
+                min_hashes[c]=min_hash
+            similar=[]
             for k, i in enumerate(min_hashes.keys()):
-                q = lsh.query(min_hashes[k])
+                q=lsh.query(min_hashes[k])
                 if len(q) > 1:
                     similar.append([words.iloc[i] for i in q])
-            result = json.dumps(similar[:20])
-            analysis_type = 'cluster'
-        else:
-            series = df.get_column(attribute)
+            result=json.dumps(similar[:20])
+            analysis_type='cluster'
+        else:  # statistics for a single attribute
+            series=df.get_column(attribute)
             if series.is_numeric() and series.dtype != pl.Boolean:
-                df = df.with_columns([pl.col(attribute).cast(pl.Float64)])
-                series = df.get_column(attribute)
-                names = ['mean', 'var', 'std', 'min', 'max', 
-                    '25%', 'median', '75%', 'unique', 'skew', 'kurtosis', 'count', 'nulls']
-                metrics = [polars_df.mean, polars_df.var, polars_df.std, 
+                df=df.with_columns([pl.col(attribute).cast(pl.Float64)])
+                series=df.get_column(attribute)
+                names=[gettext(n) for n in
+                         ['mean', 'var', 'std', 'min', 'max',  '25%', 'median',
+                          '75%', 'unique', 'skew', 'kurtosis', 'count', 'nulls']]
+                metrics= [polars_df.mean, polars_df.var, polars_df.std,
                     polars_df.min, polars_df.max, 
                     functools.partial(polars_df.quantile, .25),
                     polars_df.median, 
@@ -780,7 +809,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                         pl.col(attribute).null_count().alias('nulls'),
                         ]).transpose(column_names=[attribute])
                 result = pl.concat([result, extra], how='vertical')
-                info = {'stats': {n:v for n, v in zip(names, result.get_column(attribute))}}
+                info = {'stats': {n:v for n, v in 
+                                  zip(names, result.get_column(attribute))}}
                 info['histogram'] = [x.tolist() for x in np.histogram(
                      series.drop_nulls(), bins=40)]
                 q1 = info['stats']['25%']
@@ -807,21 +837,26 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                     .tolist()
                 )
 
-            else:
-                names = ['count', 'nulls', 'min', 'max', 'mode', 'unique']
+            else: # Non-numeric attributes
+                names = [gettext(n) for n in 
+                         ['count', 'nulls', 'min', 'max', 'mode', 'unique']]
                 metrics = [
                     polars_df.min, polars_df.max
                 ]
                 extra = polars_df.select([
                         pl.col(attribute).count().alias('count'),
                         pl.col(attribute).null_count().alias('nulls'),
-                        pl.col(attribute).drop_nulls().cast(pl.Utf8).min().alias('min'),
-                        pl.col(attribute).drop_nulls().cast(pl.Utf8).max().alias('max'),
-                        pl.col(attribute).drop_nulls().cast(pl.Utf8).mode().alias('mode'),
+                        pl.col(attribute).drop_nulls().cast(
+                            pl.Utf8).min().alias('min'),
+                        pl.col(attribute).drop_nulls().cast(
+                            l.Utf8).max().alias('max'),
+                        pl.col(attribute).drop_nulls().cast(
+                            pl.Utf8).mode().alias('mode'),
                         pl.col(attribute).n_unique().alias('unique'),
                         ])
                 result = extra
-                info = {'stats': {n:v for n, v in zip(names, extra.to_numpy().tolist()[0] )}}
+                info = {'stats': {n:v for n, v in 
+                                  zip(names, extra.to_numpy().tolist()[0] )}}
 
                 info['histogram'] = list(zip(*df.select(attribute)
                     .drop_nulls()
