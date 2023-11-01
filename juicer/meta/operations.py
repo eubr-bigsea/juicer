@@ -353,9 +353,11 @@ class TransformOperation(MetaPlatformOperation):
                                                      info.get('transform', []))):
                 if transform is not None:
                     if arg[0] == '{' and arg[-1] == '}':
-                        self.form_parameters[arg[1:-1]] = transform(
-                            self.parameters.get(arg[1:-1]))
-                        param_names.append(arg[1:-1])
+                        param_name = arg[1:-1]
+                        self.form_parameters[param_name] = transform(
+                            self.get_required_parameter(self.parameters, 
+                                                        param_name))
+                        param_names.append(param_name)
                     else:
                         self.form_parameters[f'param_{i}'] = transform(arg)
                         param_names.append(f'param_{i}')

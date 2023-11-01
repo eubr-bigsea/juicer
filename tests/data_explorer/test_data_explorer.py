@@ -147,15 +147,35 @@ def test_sample_success(transpiler: MetaTranspiler):
 # endregion
 # region Transform operation
 @pytest.mark.parametrize(
-    'slug, lixo', [('extract-numbers', False), ])
+    'slug, expected, function_params', [
+        ('to-upper', 'upper({0})', None),
+        ('to-lower', 'lower({0})', None),
+        ('capitalize', 'initcap({0})', None),
+        ('remove-accents', 'strip_accents({0})', None),
+        #('concat', 'concat({0})', None),
+        ('trim', 'trim({0})', None),
+        ('truncate-text', 'substring({0}, 0, 10)', {'characters': 10}),
+        ('split', 'split({0})', None),
+        ('split-into-words', 'split({0}, " ")', {'delimiter': '" "'}),
+        #('split-url', 'split({0})', {'delimiter': ' '}),
+        ('parse-to-date', 'to_date({0}, \'dd/MM/yyyy\')', 
+         {'format': "'dd/MM/yyyy'"}),
+        ('extract-numbers', 'extract_numbers({0})', None),
+        ('extract-with-regex', 'regexp_extract({0}, "\\d+")', 
+         {'regex': r'"\d+"'}),
+        ('replace-with-regex', 'regexp_replace({0}, "\\d+", "0")', 
+         {'regex': r'"\d+"', 'replace': '"0"'}),
+    ])
 def test_transform_string_functions_success(
-        slug: str, lixo: any, transpiler: MetaTranspiler):
+        slug: str, expected: any, function_params: any, 
+            transpiler: MetaTranspiler):
     task_id = str(uuid.uuid4())
     task_name = "sample"
     display_order = 1
 
+    attributes = ["boat"]
     params = {
-        "attributes": ["boat", "embarked"],
+        "attributes": attributes,
         "display_sample": "1",
         "task": {"id": task_id, "name": task_name,
                  "display_order": display_order,
@@ -164,12 +184,42 @@ def test_transform_string_functions_success(
         "workflow": {"type": "DATA_EXPLORER"},
         "transpiler": transpiler
     }
+    if function_params:
+        params.update(function_params)
+        ...
+
     op = TransformOperation(params, {}, {'output data': 'df'})
     result = json.loads(op.generate_code())
     assert result['operation']['id'] == op.TARGET_OP
-    print(result['forms']['expression'])
+    # print(result['forms']['expression'])
+    assert (result['forms']['expression']['value'][0]['expression'] ==
+            expected.format(attributes[0]))
 
+def test_transform_string_functions_missing_parameter_failure( 
+            transpiler: MetaTranspiler):
+    
+    task_id = str(uuid.uuid4())
+    task_name = "sample"
+    display_order = 1
 
+    attributes = ["boat"]
+    params = {
+        "attributes": attributes,
+        "display_sample": "1",
+        "task": {"id": task_id, "name": task_name,
+                 "display_order": display_order,
+                 "enabled": True,
+                 "operation": {"slug": 'truncate-text'}},
+        "workflow": {"type": "DATA_EXPLORER"},
+        "transpiler": transpiler
+    }
+    
+    op = TransformOperation(params, {}, {'output data': 'df'})
+    with pytest.raises(ValueError) as ve:
+        json.loads(op.generate_code())
+    
+    assert 'Missing required parameter: characters' in str(ve)
+    
 def test_transform_missing_attributes_failure(transpiler: MetaTranspiler):
     task_id = str(uuid.uuid4())
     task_name = "sample"
