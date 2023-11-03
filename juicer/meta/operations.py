@@ -2282,7 +2282,7 @@ class GBTRegressorOperation(RegressionOperation):
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'maxIter': parameters.get('max_iter'),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInfoGain':  _as_float_list(parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode': _as_int_list(parameters.get('min_instance'), self.grid_info),
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
