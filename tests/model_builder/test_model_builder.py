@@ -8,7 +8,8 @@ import pytest
 
 from juicer.meta.meta_minion import MetaMinion
 from juicer.meta.operations import (
-    LinearRegressionOperation, NaiveBayesClassifierOperation, KMeansOperation)
+    LinearRegressionOperation, NaiveBayesClassifierOperation, KMeansOperation, GBTRegressorOperation, 
+    IsotonicRegressionOperation, GeneralizedLinearRegressionOperation)
 from juicer.meta.transpiler import (
     ModelBuilderTemplateParams as ModelBuilderParams)
 from juicer.transpiler import GenerateCodeParams
@@ -689,6 +690,145 @@ def test_kmeans_hyperparams_success():
     print(km.generate_random_hyperparameters_code())
 
 # TODO: test all estimators (classifiers, regressors, cluster types)
+# endregion
+
+# region regression tests
+def test_GBT_regression_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'GBT'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    gbt = GBTRegressorOperation(params, {}, {})
+    assert gbt.name == 'GBTRegressor'
+    assert gbt.var == 'gbt_reg'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
+    '''
+
+def test_gbt_regressor_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'cache_node_ids': {'type': 'boolean', 'enabled': True},
+        'checkpoint_interval': {'type': 'int', 'min': 1, 'max': 10, 'enabled': True},
+        'feature_subset_strategy': {'type': 'string', 'enabled': True},
+        'impurity': {'type': 'string', 'enabled': True},
+        'leaf_col': {'type': 'string', 'enabled': True},
+        'loss_type': {'type': 'string', 'enabled': True},
+        'max_bins': {'type': 'int', 'min': 1, 'max': 100, 'enabled': True},
+        'max_depth': {'type': 'int', 'min': 1, 'max': 10, 'enabled': True},
+        'max_iter': {'type': 'int', 'min': 1, 'max': 100, 'enabled': True},
+    }
+
+    gbt_reg = GBTRegressorOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_gbt_reg = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [gbt_reg] }})
+            .addGrid(gbt_reg.cacheNodeIds, [True, False])
+            .addGrid(gbt_reg.checkpointInterval, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+            .addGrid(gbt_reg.featureSubsetStrategy, ['all', 'sqrt'])
+            .addGrid(gbt_reg.impurity, ['variance', 'squared', 'absolute'])
+            .addGrid(gbt_reg.leafCol, ['leaf'])
+            .addGrid(gbt_reg.lossType, ['squared', 'absolute'])
+            .addGrid(gbt_reg.maxBins, [1, 10, 50, 100])
+            .addGrid(gbt_reg.maxDepth, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+            .addGrid(gbt_reg.maxIter, [1, 10, 50, 100])
+            .build()
+        )""")
+    
+    code = gbt_reg.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert gbt_reg.get_hyperparameter_count() == 10
+
+    print(code)
+    print(gbt_reg.generate_random_hyperparameters_code())
+
+
+def test_isotonic_regression_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'isotonic': {'type': 'boolean', 'enabled': True},
+        'weight': {'type': 'string', 'enabled': True}
+    }
+
+    isotonic_reg = IsotonicRegressionOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_isotonic_reg = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [isotonic_reg] }})
+            .addGrid(isotonic_reg.isotonic, [True, False])
+            .build()
+        )""")
+    
+    code = isotonic_reg.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert isotonic_reg.get_hyperparameter_count() == 1
+
+    print(code)
+    print(isotonic_reg.generate_random_hyperparameters_code())
+
+
+def test_generalized_linear_regression_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'family_link': ['gaussian:identity'],
+        'elastic_net': {'type': 'range', 'min': 0, 'max': 1, 'size': 6, 'distribution': 'log_uniform'},
+        'solver': {'type': 'list', 'list': ['normal', 'l-bfgs'], 'enabled': True},
+    }
+
+    glr = GeneralizedLinearRegressionOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_gen_linear_reg = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [gen_linear_reg] }})
+            .addGrid(gen_linear_reg.regParam, 
+                np.logspace(np.log10(1e-10), np.log10(1), 3).tolist())
+            .addGrid(gen_linear_reg.solver, ['normal', 'l-bfgs'])
+            .build()
+        )""")
+
+    code = glr.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert glr.get_hyperparameter_count() == 2
+
+    print(code)
+    print(glr.get_constrained_params())
+
+
+
 # endregion
 
 # region Temporary tests
