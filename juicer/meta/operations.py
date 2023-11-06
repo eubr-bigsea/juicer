@@ -2,6 +2,7 @@ import dataclasses
 from functools import reduce
 import json
 import re
+from typing import List
 import unicodedata
 from collections import namedtuple
 from gettext import gettext
@@ -242,6 +243,7 @@ class MetaPlatformOperation(Operation):
 
 
 class ReadDataOperation(MetaPlatformOperation):
+    TARGET_OP = 16
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
@@ -267,62 +269,67 @@ class ReadDataOperation(MetaPlatformOperation):
     def visualization_builder_code(self):
         return self.model_builder_code()
 
+@dataclasses.dataclass
+class TransformParam:
+    function: str
+    args: List[any] = dataclasses.field(default_factory=list) 
+    transform: List[callable] = dataclasses.field(default_factory=list) 
 
 class TransformOperation(MetaPlatformOperation):
     TARGET_OP = 7
     number_re = r'([\d]+[.,\d]+|[\d]*[.][\d]+|[\d]+)'
     array_index_re = re.compile(r'(?:\D*?)(-?\d+)(?:\D?)')
     SLUG_TO_EXPR = {
-        # 'extract-numbers': {'f': 'regexp_extract', 'args': [number_re, 1],
-        #                    'transform': [str, None]},
-        'extract-numbers': {'f': 'extract_numbers', 'args': [],
-                            'transform': []},
-        'extract-with-regex': {'f': 'regexp_extract', 'args': ['{regex}'],
-                               'transform': [str]},
-        'replace-with-regex': {
-            'f': 'regexp_replace', 'args': ['{regex}', '{replace}'],
-            'transform': [str, lambda v: '' if v is None else v]},
-        'to-upper': {'f': 'upper'},
-        'to-lower': {'f': 'lower'},
-        'capitalize': {'f': 'initcap'},
-        'remove-accents': {'f': 'strip_accents'},
-        'parse-to-date': {
-            'f': 'to_date', 'args': ['{format}'], 'transform': [str]},
-        'split': {'f': 'split'},
-        'trim': {'f': 'trim'},
-        'normalize': {'f': 'FIXME'},
-        'regexp_extract': {
-            'f': 'regexp_extract', 'args': ['{delimiter}'], 'transform': [str]},
-        'round-number': {
-            'f': 'round', 'args': ['{decimals}'], 'transform': [int]},
-        'split-into-words': {
-            'f': 'split', 'args': ['{delimiter}'], 'transform': [str]},
-        'truncate-text': {'f': 'substring', 'args': ['0', '{characters}'],
-                          'transform': [int, int]},
-
-        'ts-to-date': {'f': 'from_unixtime'},
-
-        'date-to-ts': {'f': 'unix_timestamp'},
-        'date-part': {},
-        'format-date': {
-            'f': 'date_format', 'args': ['{format}'], 'transform': [str]},
-        'truncate-date-to': {
-            'f': 'date_trunc', 'args': ['{format}'], 'transform': [str]},
-
-        'invert-boolean': {'f': None, 'op': '~'},
-
-        'extract-from-array': {'f': None, 'op': ''},
-        'concat-array': {
-            'f': 'array_join', 'args': ['{delimiter}'], 'transform': [str]},
-        'sort-array': {'f': 'array_sort'},
-        'change-array-type': {
-            'f': 'array_cast', 'args': ['{new_type}'], 'transform': [str]},
-
-        'flag-empty': {'f': 'isnull', },
-        'flag-with-formula': {'f': None},
+        # 'extract-numbers': Transform()'regexp_extract', [number_re, 1],
+        #                    [str, None]),
+        'extract-numbers': TransformParam('extract_numbers', [], []),
+        'extract-with-regex': TransformParam('regexp_extract', ['{regex}'], 
+                                             [str]),
+        'replace-with-regex': TransformParam(
+            'regexp_replace', ['{regex}', '{replace}'], 
+            [str, lambda v: '' if v is None else v]),
+        'to-upper': TransformParam('upper', None, None),
+        'to-lower': TransformParam('lower', None, None),
+        'capitalize': TransformParam('initcap', None, None),
+        'remove-accents': TransformParam('strip_accents', None, None),
+        'parse-to-date': TransformParam('to_date', ['{format}'], [str]),
+        'split': TransformParam('split', None, None),
+        'trim': TransformParam('trim', None, None),
+        'normalize': TransformParam('FIXME', None, None),
+        'regexp_extract': TransformParam('regexp_extract', ['{delimiter}'], 
+                                         [str]),
+        'round-number': TransformParam('round', ['{decimals}'], [int]),
+        'split-into-words': TransformParam('split', ['{delimiter}'], [str]),
+        'truncate-text': TransformParam('substring', ['0', '{characters}'], 
+                                        [int, int]),
+        'ts-to-date': TransformParam('from_unixtime', None, None),
+        'date-to-ts': TransformParam('unix_timestamp', None, None),
+        'date-part': TransformParam('None', None, None),
+        'format-date': TransformParam('date_format', ['{format}'], [str]),
+        'truncate-date-to': TransformParam('date_trunc', ['{format}'], [str]),
+        #'invert-boolean': TransformParam('None', None, None),
+        #'extract-from-array': TransformParam('None', None, None),
+        'concat-array': TransformParam('array_join', ['{delimiter}'], [str]),
+        'sort-array': TransformParam('array_sort', None, None),
+        'change-array-type': TransformParam('array_cast', ['{new_type}'], 
+                                            [str]),
+        'flag-empty': TransformParam('isnull', None, None),
+        #'flag-with-formula': TransformParam('None', None, None),
     }
+    SUPPORTED_FUNCTIONS = list(SLUG_TO_EXPR.keys()) + [
+        'invert-boolean', 'date-add', 'date-part', 'extract-from-array', 
+        'flag-with-formula']
     ALIASES = {
         'flag-empty': '_na'
+    }
+    DATE_COMPONENT_2_FN = {
+        'second': 'seconds',
+        'minute': 'minutes',
+        'hour': 'hours',
+        'day': 'days',
+        'week': 'weeks',
+        'month': 'months',
+        'year': 'years',
     }
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -331,6 +338,9 @@ class TransformOperation(MetaPlatformOperation):
         op = parameters.get('task').get('operation')
         self.slug = op.get('slug')
 
+        if self.slug not in self.SUPPORTED_FUNCTIONS:
+            raise ValueError(gettext('Invalid function {} in transformation')
+                             .format(self.slug))
         self.attributes = self.get_required_parameter(parameters, 'attributes')
         if not self.attributes:
             raise ValueError(gettext('Missing required parameter: {}').format(
@@ -339,18 +349,18 @@ class TransformOperation(MetaPlatformOperation):
     def generate_code(self):
         task_obj = self._get_task_obj()
 
-        info = self.SLUG_TO_EXPR[self.slug]
-
+        if self.slug in self.SLUG_TO_EXPR:
+            info = self.SLUG_TO_EXPR[self.slug]
+            function_name = info.function
+        else:
+            function_name = None
         alias = self.ALIASES.get(self.slug, '')
-
-        function_name = info.get('f')
         expressions = []
-        if function_name:
-
+        if function_name is not None:
             self.form_parameters = {}
             param_names = []
-            for i, (arg, transform) in enumerate(zip(info.get('args', []),
-                                                     info.get('transform', []))):
+            for i, (arg, transform) in enumerate(zip(info.args or [], 
+                                                     info.transform or [])):
                 if transform is not None:
                     if arg[0] == '{' and arg[-1] == '}':
                         param_name = arg[1:-1]
@@ -361,11 +371,8 @@ class TransformOperation(MetaPlatformOperation):
                     else:
                         self.form_parameters[f'param_{i}'] = transform(arg)
                         param_names.append(f'param_{i}')
-            # import sys
-            #print(self.form_parameters, file=sys.stderr)
-
             # Convert the parameters
-            args = info.get('args', [])
+            args = info.args or []
             function_args = [
                 (arg.format(**self.form_parameters)
                  if isinstance(arg, str) else str(arg)) for arg in args]
@@ -375,7 +382,7 @@ class TransformOperation(MetaPlatformOperation):
 
             if function_args:
                 final_args_str = ', ' + ', '.join(function_args)
-                transform = info['transform']
+                transform = info.transform
                 for i, arg in enumerate(function_args):
                     # if isinstance(args[i], str):
                     #     value = arg
@@ -417,17 +424,9 @@ class TransformOperation(MetaPlatformOperation):
             else:
                 source = self.parameters.get('value_attribute').get(0)
 
-            component_to_function = {
-                'second': 'seconds',
-                'minute': 'minutes',
-                'hour': 'hours',
-                'day': 'days',
-                'week': 'weeks',
-                'month': 'months',
-                'year': 'years',
-            }
+            
             component = self.parameters.get('component', 'day')
-            f = component_to_function.get(component)
+            f = self.DATE_COMPONENT_2_FN.get(component)
             for attr in self.attributes:
                 expressions.append(
                     {
@@ -444,16 +443,7 @@ class TransformOperation(MetaPlatformOperation):
 
         elif self.slug == 'date-part':
             component = self.parameters.get('component', 'day')
-            component_to_function = {
-                'second': 'second',
-                'minute': 'minute',
-                'hour': 'hour',
-                'day': 'dayofmonth',
-                'week': 'weekofyear',
-                'month': 'month',
-                'year': 'year',
-            }
-            f = component_to_function.get(component)
+            f = self.DATE_COMPONENT_2_FN.get(component)
             for attr in self.attributes:
                 expressions.append(
                     {
@@ -1168,6 +1158,7 @@ class ConcatRowsOperation(MetaPlatformOperation):
 
 
 class JoinOperation(MetaPlatformOperation):
+    TARGET_OP = 18
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
