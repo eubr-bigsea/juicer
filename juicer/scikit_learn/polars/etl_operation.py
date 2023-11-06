@@ -554,11 +554,11 @@ class JoinOperation(sk.JoinOperation):
             enumerate({{in2}}.columns)
             if {{in2}}.dtypes[i] == pl.Utf8 and c in keys2}
 
-        keys1 = [pl.col(k)
+        col_keys1 = [pl.col(k)
             if k not in string_cols1
             else pl.col(k).str.to_lowercase()
             for k in keys1]
-        keys2 = [pl.col(k)
+        col_keys2 = [pl.col(k)
             if k not in string_cols2
             else pl.col(k).str.to_lowercase()
             for k in keys2]
@@ -570,7 +570,7 @@ class JoinOperation(sk.JoinOperation):
             # Polars does not support 'right' join
             # See https://github.com/pola-rs/polars/issues/3934
             # Invert the order to use left outer join
-            {{out}} = {{in2}}.join({{in1}}, right_on=key1, left_on=keys2,
+            {{out}} = {{in2}}.join({{in1}}, right_on=col_key1, left_on=col_keys2,
                 how='left')
             # Revert columns' order
             {{out}} = {{out}}.select(
@@ -581,7 +581,7 @@ class JoinOperation(sk.JoinOperation):
                     {%- if not keep_right_keys %} if c not in keys2 {%- endif %}])
             {%- else %}
             {{out}} = {{in1}}.join(
-                {{in2}}, left_on=keys1, right_on=keys2, how='{{type}}')
+                {{in2}}, left_on=col_keys1, right_on=col_keys2, how='{{type}}')
 
 
             # Select the resulting attributes
