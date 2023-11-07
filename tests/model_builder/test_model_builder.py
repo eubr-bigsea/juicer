@@ -9,7 +9,8 @@ import pytest
 from juicer.meta.meta_minion import MetaMinion
 from juicer.meta.operations import (
     LinearRegressionOperation, NaiveBayesClassifierOperation, KMeansOperation, GBTRegressorOperation, 
-    IsotonicRegressionOperation, GeneralizedLinearRegressionOperation)
+    IsotonicRegressionOperation, GeneralizedLinearRegressionOperation, DecisionTreeRegressorOperation,
+    RandomForestRegressorOperation)
 from juicer.meta.transpiler import (
     ModelBuilderTemplateParams as ModelBuilderParams)
 from juicer.transpiler import GenerateCodeParams
@@ -827,7 +828,102 @@ def test_generalized_linear_regression_hyperparams_success():
     print(code)
     print(glr.get_constrained_params())
 
+def test_decision_tree_regressor_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
 
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'max_bins': {'type': 'list', 'list': [2, 4, 6, 9], 'enabled': True},
+        'max_depth': {'type': 'list', 'list': [2, 4, 6, 9], 'enabled': True},
+        'min_info_gain': {'type': 'range', 'min': 0, 'max': 1, 'size': 6, 'distribution': 'uniform'},
+        'min_instances_per_node': 2,  
+    }
+
+    dt_regressor = DecisionTreeRegressorOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_dt_reg = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [dt_reg] }})
+            .addGrid(dt_reg.maxBins, [2, 4, 6, 9])
+            .addGrid(dt_reg.maxDepth, [2, 4, 6, 9])
+            .addGrid(dt_reg.minInfoGain, np.linspace(0, 1, 6).tolist())
+            .build()
+        )""")
+
+    code = dt_regressor.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert dt_regressor.get_hyperparameter_count() == 3  
+    '''
+    print(code)
+    print(dt_regressor.get_constrained_params())
+    '''
+
+def test_random_forest_regressor_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'bootstrap': True,
+        'cache_node_ids': True,
+        'checkpoint_interval': 10,
+        'feature_subset_strategy': {'type': 'list', 'list': ['auto', 'all'], 'enabled': True},
+        'impurity': 'variance',
+        'leaf_col': 'leaf',
+        'max_bins': {'type': 'list', 'list': [2, 4, 6, 9], 'enabled': True},
+        'max_depth': {'type': 'list', 'list': [2, 4, 6, 9], 'enabled': True},
+        'max_memory_in_m_b': 1024,
+        'min_info_gain': {'type': 'range', 'min': 0, 'max': 1, 'size': 6, 'distribution': 'uniform'},
+        'min_instances_per_node': 2,
+        'min_weight_fraction_per_node': 0.1,
+        'num_trees': {'type': 'list', 'list': [10, 20, 30], 'enabled': True},
+        'seed': 123,
+        'subsampling_rate': 0.8,
+        'weight_col': 'weight'
+    }
+
+    rf_regressor = RandomForestRegressorOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_rand_forest_reg = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [rand_forest_reg] }})
+            .addGrid(rand_forest_reg.bootstrap, [True])
+            .addGrid(rand_forest_reg.cacheNodeIds, [True])
+            .addGrid(rand_forest_reg.checkpointInterval, [10])
+            .addGrid(rand_forest_reg.featureSubsetStrategy, ['auto', 'all'])
+            .addGrid(rand_forest_reg.impurity, ['variance'])
+            .addGrid(rand_forest_reg.leafCol, ['leaf'])
+            .addGrid(rand_forest_reg.maxBins, [2, 4, 6, 9])
+            .addGrid(rand_forest_reg.maxDepth, [2, 4, 6, 9])
+            .addGrid(rand_forest_reg.maxMemoryInMB, [1024])
+            .addGrid(rand_forest_reg.minInfoGain, np.linspace(0, 1, 6).tolist())
+            .addGrid(rand_forest_reg.minInstancesPerNode, [2])
+            .addGrid(rand_forest_reg.minWeightFractionPerNode, [0.1])
+            .addGrid(rand_forest_reg.numTrees, [10, 20, 30])
+            .addGrid(rand_forest_reg.seed, [123])
+            .addGrid(rand_forest_reg.subsamplingRate, [0.8])
+            .addGrid(rand_forest_reg.weightCol, ['weight'])
+            .build()
+        )""")
+
+    code = rf_regressor.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert rf_regressor.get_hyperparameter_count() == 16 
+    '''
+    print(code)
+    print(rf_regressor.get_constrained_params())
+    '''
 
 # endregion
 
