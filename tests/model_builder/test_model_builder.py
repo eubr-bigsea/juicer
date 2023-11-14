@@ -11,7 +11,8 @@ from juicer.meta.operations import (
     LinearRegressionOperation, NaiveBayesClassifierOperation, KMeansOperation, GBTRegressorOperation, 
     IsotonicRegressionOperation, GeneralizedLinearRegressionOperation, DecisionTreeRegressorOperation,
     RandomForestRegressorOperation,DecisionTreeClassifierOperation,GBTClassifierOperation, 
-    PerceptronClassifierOperation, RandomForestClassifierOperation)
+    PerceptronClassifierOperation, RandomForestClassifierOperation, SVMClassifierOperation, 
+    LogisticRegressionOperation)
 from juicer.meta.transpiler import (
     ModelBuilderTemplateParams as ModelBuilderParams)
 from juicer.transpiler import GenerateCodeParams
@@ -1071,6 +1072,7 @@ def test_random_forest_classifier_hyperparams_success():
     operation_id = 2366
 
     params = {
+        'workflow': {'forms': {}},
         'task': {
             'id': task_id,
             'operation': {'id': operation_id}
@@ -1114,6 +1116,94 @@ def test_random_forest_classifier_hyperparams_success():
     '''
     print(code)
     print(random_forest_classifier.get_constrained_params())
+    '''
+
+def test_svm_classifier_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2367
+
+    params = {
+        'task': {
+            'workflow': {'forms': {}},
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'max_iter': {'type': 'int', 'enabled': True},
+        'standardization': {'type': 'int', 'enabled': True},
+        'threshold': {'type': 'float', 'enabled': True},
+        'tol': {'type': 'float', 'enabled': True},
+        'weight_attr': {'type': 'list', 'list': ['attr1', 'attr2'], 'enabled': True}
+    }
+
+    svm_classifier = SVMClassifierOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_svm_classifier = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [svm_classifier] }})
+            .addGrid(svm_classifier.maxIter, [1, 2, 3])  
+            .addGrid(svm_classifier.standardization, [1, 2, 3])  
+            .addGrid(svm_classifier.threshold, [0.1, 0.2, 0.3])  
+            .addGrid(svm_classifier.tol, [0.01, 0.02, 0.03])  
+            .addGrid(svm_classifier.weightCol, ['attr1', 'attr2'])  
+            .build()
+        )""")
+
+    code = svm_classifier.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code)
+
+    assert svm_classifier.get_hyperparameter_count() == 5
+    '''
+    print(code)
+    print(svm_classifier.get_constrained_params())
+    '''
+
+def test_logistic_regression_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2368
+
+    params = {
+        'task': {
+            'workflow': {'forms': {}},
+            'id': task_id,
+            'operation': {'id': operation_id}
+        },
+        'weight_col': {'type': 'list', 'list': ['attr1', 'attr2'], 'enabled': True},
+        'family': {'type': 'list', 'list': ['binomial', 'multinomial'], 'enabled': True},
+        'aggregation_depth': {'type': 'int', 'enabled': True},
+        'elastic_net_param': {'type': 'float', 'enabled': True},
+        'fit_intercept': {'type': 'boolean', 'enabled': True},
+        'max_iter': {'type': 'int', 'enabled': True},
+        'reg_param': {'type': 'float', 'enabled': True},
+        'tol': {'type': 'float', 'enabled': True},
+        'threshold': {'type': 'float', 'enabled': True},
+        'thresholds': {'type': 'list', 'list': ['test'], 'enabled': True}
+    }
+
+    lr = LogisticRegressionOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_lr = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [lr] }})
+            .addGrid(lr.weightCol, ['attr1', 'attr2'])  
+            .addGrid(lr.family, ['binomial', 'multinomial'])  
+            .addGrid(lr.aggregationDepth, [1, 2, 3])  
+            .addGrid(lr.elasticNetParam, [0.1, 0.2, 0.3])  
+            .addGrid(lr.fitIntercept, [True, False])  
+            .addGrid(lr.maxIter, [10, 20, 30]) 
+            .addGrid(lr.regParam, [0.01, 0.02, 0.03])  
+            .addGrid(lr.tol, [0.001, 0.002, 0.003])  
+            .addGrid(lr.threshold, [0.1, 0.2, 0.3])  
+            .addGrid(lr.thresholds, ['test'])  
+            .build()
+        )""")
+
+    code = lr.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code)
+
+    assert lr.get_hyperparameter_count() == 10
+    '''
+    print(code)
+    print(lr.get_constrained_params())
     '''
 
 
