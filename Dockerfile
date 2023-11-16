@@ -41,7 +41,7 @@ ENV SPARK_BASE_URL=https://archive.apache.org/dist/spark
 RUN SPARK_LATEST_VERSION=$(\
       curl -sL ${SPARK_BASE_URL} | \
       grep -Eo "spark-${SPARK_VERSION}\.[0-9]{1}" | \
-      head -1 \
+      tail -1 \
     ) \
   && SPARK_HADOOP_PKG=${SPARK_LATEST_VERSION}-bin-hadoop${HADOOP_VERSION} \
   && SPARK_HADOOP_URL=${SPARK_BASE_URL}/${SPARK_LATEST_VERSION}/${SPARK_HADOOP_PKG}.tgz \
@@ -71,7 +71,7 @@ COPY . $JUICER_HOME
 RUN pybabel compile -d $JUICER_HOME/juicer/i18n/locales
 
 COPY ./entrypoint.sh /opt/
-RUN mkdir /usr/local/juicer/jars/ && ln -s $HADOOP_HOME /opt/hadoop 
+RUN mkdir -p /usr/local/juicer/jars/ && ln -s $HADOOP_HOME /opt/hadoop 
 RUN curl -Lo $JUICER_HOME/jars/spark-lof_2.11-1.0.jar https://github.com/dccspeed/spark-lof/raw/master/dist/spark-lof_2.11-1.0.jar
 RUN curl -Lo $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eubr-bigsea/lemonade-spark-ext/raw/master/dist/lemonade-spark-ext-1.0.jar
 ENV PATH=$PATH:$HADOOP_HOME/bin
@@ -80,5 +80,5 @@ RUN echo "export CLASSPATH=$(hadoop classpath --glob):/usr/local/juicer/jars/spa
     echo "export HADOOP_HOME=$HADOOP_HOME" >> /etc/profile.d/juicer.sh && \
     echo "export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop" >> /etc/profile.d/juicer.sh && \
     chmod a+x /etc/profile.d/juicer.sh
-ENTRYPOINT []
-CMD ["/bin/sh", "-c", "export CLASSPATH=$(hadoop classpath --glob) && /opt/entrypoint.sh" ]
+    
+ENTRYPOINT ["/opt/entrypoint.sh"]
