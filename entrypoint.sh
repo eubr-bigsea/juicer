@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+source /etc/profile.d/juicer.sh
+
 # echo commands to the terminal output
 set -ex
 
