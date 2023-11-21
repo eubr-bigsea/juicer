@@ -2222,8 +2222,8 @@ class FactorizationMachinesClassifierOperation(ClassificationOperation):
             'tol': _as_float_list(parameters.get('tol'), self.grid_info),
             'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
             'seed': _as_int_list(parameters.get('seed'), None),
-            'threshold': _as_float_list(parameters.get('threshold'), None),
-            'weightCol': _as_string_list(parameters.get('weight_attr')),
+            'thresholds': _as_float_list(parameters.get('threshold'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
         }
         self.var = 'fm_classifier'
         self.name = 'FMClassifier'
@@ -2399,6 +2399,28 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                 f'{self.var}.link: {repr(link)}}}')
         return result
 
+class FactorizationMachinesRegressionOperation(RegressionOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        RegressionOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_int_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tol'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+            #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
+            #'alphabetAsc')),
+
+        }
+        self.var = 'fm_reg'
+        self.name = 'FMRegressor'
 
 class VisualizationOperation(MetaPlatformOperation):
 
