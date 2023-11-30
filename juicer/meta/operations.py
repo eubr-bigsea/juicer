@@ -2418,6 +2418,7 @@ class FactorizationMachinesRegressionOperation(RegressionOperation):
             #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
             #'alphabetAsc')),
 
+            
         }
         
         self.var = 'fm_reg'
