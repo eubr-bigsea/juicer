@@ -2419,6 +2419,7 @@ class FactorizationMachinesRegressionOperation(RegressionOperation):
             #'alphabetAsc')),
 
         }
+        
         self.var = 'fm_reg'
         self.name = 'FMRegressor'
 
