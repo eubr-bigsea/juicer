@@ -140,6 +140,8 @@ class MetaTranspiler(Transpiler):
             'generalized-linear-regressor':
                 ops.GeneralizedLinearRegressionOperation,
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
+            'fm-classifier': ops.FactorizationMachinesClassifierOperation,
+            'fm-regression': ops.FactorizationMachinesRegressionOperation,
         }
 
 
