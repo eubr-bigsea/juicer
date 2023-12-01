@@ -2214,6 +2214,27 @@ class SVMClassifierOperation(ClassificationOperation):
         self.var = 'svm_cls'
         self.name = 'LinearSVC'
 
+class FactorizationMachinesClassifierOperation(ClassificationOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClassificationOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            'thresholds': _as_float_list(parameters.get('threshold'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+        }
+        self.var = 'fm_classifier'
+        self.name = 'FMClassifier'
+
 
 class RegressionOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2289,7 +2310,7 @@ class GBTRegressorOperation(RegressionOperation):
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'maxIter': parameters.get('max_iter'),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInfoGain':  _as_float_list(parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode': _as_int_list(parameters.get('min_instance'), self.grid_info),
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
@@ -2385,6 +2406,29 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                 f'{self.var}.link: {repr(link)}}}')
         return result
 
+class FactorizationMachinesRegressionOperation(RegressionOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        RegressionOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+            #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
+            #'alphabetAsc')),
+            
+        }
+        
+        self.var = 'fm_reg'
+        self.name = 'FMRegressor'
 
 class VisualizationOperation(MetaPlatformOperation):
 
