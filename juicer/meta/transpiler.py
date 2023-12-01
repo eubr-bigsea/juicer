@@ -173,7 +173,8 @@ class MetaTranspiler(Transpiler):
                       'random-forest-classifier', 'logistic-regression', 'svm',
                       'linear-regression', 'isotonic-regression', 
                       'gbt-regressor', 'random-forest-regressor', 
-                      'generalized-linear-regressor', 'decision-tree-regressor'}
+                      'generalized-linear-regressor', 'decision-tree-regressor',
+                      'fm-classifier', 'fm-regression'}
         param_dict = {'estimators': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
