@@ -476,17 +476,30 @@ fig.update_traces(
 {%- endif %}
 
 {%- elif type in ('boxplot',) %}
-fig = px.box(pandas_df, 
-             x='dim_0', 
-             y='aggr_0',
-             points="all",
-             #marker_color='{{op.palette}}'
-             #opacity = {{op.opacity}},
-             color='dim_0',
-             title='{{op.title}}',
-             labels=labels,
+fig = make_subplots(rows=1, cols={{op.y|length}}, 
+	subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
 
-)
+{%- for y in op.y %}
+fig.add_trace(
+	go.Box(x=pandas_df['dim_0'], y=pandas_df['{{y.attribute}}'], 
+		name='{{y.attribute}}'), row=1, col={{loop.index}})
+{%- endfor %}
+
+# fig = px.box(pandas_df, 
+#              x='dim_0', 
+#              y={% if op.aggregations %}'aggr_0'{% else %}[
+#              {%- for y in op.y  %}
+#              '{{y.attribute}}',
+#              {%- endfor %}]
+#              {%- endif %},
+#              #points="all",
+#              #marker_color='{{op.palette}}'
+#              #opacity = {{op.opacity}},
+#              color='dim_0',
+#              title='{{op.title}}',
+#              labels=labels,
+# 
+# )
 
 fig.update_traces(quartilemethod="exclusive") 
 
