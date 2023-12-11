@@ -105,6 +105,8 @@ class VisualizationOperation(Operation):
         self.transpiler_utils.add_import('import itertools')
         self.transpiler_utils.add_import('import plotly.express as px')
         self.transpiler_utils.add_import('import plotly.graph_objects as go')
+        self.transpiler_utils.add_import(
+            'from plotly.subplots import make_subplots')
 
         self.limit = parameters.get('limit')
 
