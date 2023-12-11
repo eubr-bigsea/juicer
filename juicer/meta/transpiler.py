@@ -140,6 +140,8 @@ class MetaTranspiler(Transpiler):
             'generalized-linear-regressor':
                 ops.GeneralizedLinearRegressionOperation,
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
+            'pic':ops.PowerIterationClusteringOperation,
+            'lda':ops.LDAOperation,
         }
 
 
