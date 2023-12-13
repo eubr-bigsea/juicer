@@ -178,11 +178,12 @@ class DataReaderOperation(Operation):
                     extra_params = json.loads(
                             self.metadata['storage']['extra_params'])
                     if 'user' in extra_params:
+                        user = extra_params.get('user')
                         code.append('jvm = spark_session._jvm')
                         code.append(
                             'jvm.java.lang.System.setProperty('
-                            '"HADOOP_USER_NAME", "' + extra_params.get('user') +
-                            '")')
+                            f'"HADOOP_USER_NAME", "{user}")')
+                        code.append(f"os.environ['HADOOP_USER_NAME'] = '{user}'")
 
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
@@ -563,8 +564,9 @@ class SaveOperation(Operation):
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         final_url = '{}/limonero/user_data/{}/{}/{}'.format(
-            storage['url'], self.user['id'], self.path,
-            strip_accents(self.name.replace(' ', '_')))
+            storage['url'].strip('/'), self.user['id'],
+            self.path.strip('/'),
+            strip_accents(self.name.replace(' ', '_')).strip('/'))
 
         hdfs_user = 'hadoop'
         if storage.get('extra_params'):
@@ -693,6 +695,7 @@ class SaveOperation(Operation):
             # Need to generate an output, even though it is not used.
             code_save += '\n{0}_tmp = {0}'.format(
                 self.named_inputs['input data'])
+            code_save += '\nwrite_header = False'
         elif self.format == self.FORMAT_JSON:
             code_save = dedent("""
             {}.write.json('{}', mode='{}')""".format(
@@ -712,13 +715,15 @@ class SaveOperation(Operation):
             
             for att in {input}.schema:
                 type_name = str(att.dataType)
+                if type_name.endswith('()'):
+                    type_name = type_name[:-2]
                 precision = None
                 scale = None
-                found = isinstance(attr.dataType, types.DecimalType)
+                found = isinstance(att.dataType, types.DecimalType)
                 if found:
                     type_name = 'DecimalType'
-                    precision = found[0][0]
-                    scale = found[0][1]
+                    precision = att.dataType.precision
+                    scale = att.dataType.scale
                 attributes.append({{
                   'enumeration': 0,
                   'feature': 0,

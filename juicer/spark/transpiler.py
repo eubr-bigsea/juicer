@@ -34,6 +34,7 @@ class SparkTranspiler(Transpiler):
         self.requires_hive = False
         self.requires_hive_warehouse = False
         self.hive_metadata = None
+        self.spark_version = (2, 4, 0)
 
     def on(self, event, params):
         """ Manage events from Operations during code conversion """

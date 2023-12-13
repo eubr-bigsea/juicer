@@ -108,7 +108,7 @@ def spark_logging(spark_session):
     global __SPARK_LOG__
     if not __SPARK_LOG__:
         # noinspection PyProtectedMember
-        logger = spark_session.sparkContext._jvm.org.apache.log4j
+        logger = spark_session._jvm.org.apache.log4j
         __SPARK_LOG__ = logger.LogManager.getLogger(__name__)
     return __SPARK_LOG__
 
