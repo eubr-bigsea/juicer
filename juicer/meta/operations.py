@@ -2140,6 +2140,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
         self.name = 'MultilayerPerceptronClassifier'
 
 
+
 class RandomForestClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         ClassificationOperation.__init__(
@@ -2339,26 +2340,22 @@ class RandomForestRegressorOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'bootstrap': parameters.get('bootstrap'),
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval':
-                parameters.get('checkpoint_interval'),
-            'featureSubsetStrategy':
-                _as_string_list(parameters.get('feature_subset_strategy')),
-            'impurity': parameters.get('impurity'),
-            'leafCol': parameters.get('leaf_col'),
+            'bootstrap': _as_boolean_list(parameters.get('bootstrap')),
+            'cacheNodeIds':_as_boolean_list(parameters.get('cache_node_ids')),
+            'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info),
+            'featureSubsetStrategy':_as_string_list(parameters.get('feature_subset_strategy')),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'leafCol': _as_string_list(parameters.get('leaf_col')),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
+            'maxMemoryInMB': _as_int_list(parameters.get('max_memory_in_m_b'), self.grid_info),
             'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
-            'minWeightFractionPerNode':
-                parameters.get('min_weight_fraction_per_node'),
+            'minInstancesPerNode': _as_list(parameters.get('min_instances_per_node')),
+            'minWeightFractionPerNode': _as_float_list(parameters.get('min_weight_fraction_per_node'), self.grid_info),
             'numTrees': _as_int_list(parameters.get('num_trees'), self.grid_info),
-            'seed': parameters.get('seed'),
-            'subsamplingRate': parameters.get('subsampling_rate'),
-            'weightCol': parameters.get('weight_col')
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'subsamplingRate': _as_float_list(parameters.get('subsampling_rate'), self.grid_info),
+            'weightCol': _as_string_list(parameters.get('weight_col'))
         }
         self.var = 'rand_forest_reg'
         self.name = 'RandomForestRegressor'

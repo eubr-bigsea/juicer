@@ -1107,22 +1107,22 @@ def test_random_forest_regressor_hyperparams_success():
             'id': task_id,
             'operation': {'id': operation_id}
         },
-        'bootstrap': True,
-        'cache_node_ids': True,
-        'checkpoint_interval': 10,
+        'bootstrap': {'type': 'list', 'list': [True]},
+        'cache_node_ids': {'type': 'list', 'list': [True]},
+        'checkpoint_interval': {'type': 'list', 'list': [10], 'enabled': True},
         'feature_subset_strategy': {'type': 'list', 'list': ['auto', 'all'], 'enabled': True},
-        'impurity': 'variance',
-        'leaf_col': 'leaf',
+        'impurity': {'type': 'list', 'list': ['variance']},
+        'leaf_col': {'type': 'list', 'list': ['leaf']},
         'max_bins': {'type': 'list', 'list': [2, 4, 6, 9], 'enabled': True},
         'max_depth': {'type': 'list', 'list': [2, 4, 6, 9], 'enabled': True},
-        'max_memory_in_m_b': 1024,
+        'max_memory_in_m_b': {'type': 'list', 'list': [1024], 'enabled': True},
         'min_info_gain': {'type': 'range', 'min': 0, 'max': 1, 'size': 6, 'distribution': 'uniform'},
-        'min_instances_per_node': 2,
-        'min_weight_fraction_per_node': 0.1,
+        'min_instances_per_node': {'type': 'list', 'list': [2], 'enabled': True},
+        'min_weight_fraction_per_node': {'type': 'list', 'list': [0.1], 'enabled': True},
         'num_trees': {'type': 'list', 'list': [10, 20, 30], 'enabled': True},
-        'seed': 123,
-        'subsampling_rate': 0.8,
-        'weight_col': 'weight'
+        'seed': {'type': 'list', 'list': [123], 'enabled': True},
+        'subsampling_rate': {'type': 'list', 'list': [0.8], 'enabled': True},
+        'weight_col': {'type': 'list', 'list': ['weight']}
     }
 
     rf_regressor = RandomForestRegressorOperation(params, {}, {})
@@ -1138,7 +1138,7 @@ def test_random_forest_regressor_hyperparams_success():
             .addGrid(rand_forest_reg.maxBins, [2, 4, 6, 9])
             .addGrid(rand_forest_reg.maxDepth, [2, 4, 6, 9])
             .addGrid(rand_forest_reg.maxMemoryInMB, [1024])
-            .addGrid(rand_forest_reg.minInfoGain, np.linspace(0, 1, 6).tolist())
+            .addGrid(rand_forest_reg.minInfoGain, np.linspace(0, 1, 3, dtype=int).tolist())
             .addGrid(rand_forest_reg.minInstancesPerNode, [2])
             .addGrid(rand_forest_reg.minWeightFractionPerNode, [0.1])
             .addGrid(rand_forest_reg.numTrees, [10, 20, 30])
@@ -1150,6 +1150,10 @@ def test_random_forest_regressor_hyperparams_success():
 
     code = rf_regressor.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code, msg)
 
     assert rf_regressor.get_hyperparameter_count() == 16 
@@ -1172,14 +1176,14 @@ def test_decision_tree_classifier_hyperparams_success():
             'id': task_id,
             'operation': {'id': operation_id}
         },
-        'cache_node_ids': {'type': 'boolean', 'enabled': True},
-        'checkpoint_interval': {'type': 'int', 'min': 1, 'enabled': True},
+        'cache_node_ids': {'type': 'list', 'list': [True]},
+        'checkpoint_interval': {'type': 'list', 'list': [1], 'enabled': True},
         'impurity': {'type': 'list', 'list': ['entropy', 'gini'], 'enabled': True},
-        'max_bins': {'type': 'int', 'min': 2, 'enabled': True},
-        'max_depth': {'type': 'int', 'min': 0, 'enabled': True},
-        'min_info_gain': {'type': 'float', 'enabled': True},
-        'min_instances_per_node': {'type': 'int', 'min': 1, 'enabled': True},
-        'seed': {'type': 'int', 'enabled': True},
+        'max_bins':  {'type': 'list', 'list': [2], 'enabled': True},
+        'max_depth':  {'type': 'list', 'list': [0], 'enabled': True},
+        'min_info_gain': {'type': 'list', 'list': [0.0], 'enabled': True},
+        'min_instances_per_node': {'type': 'list', 'list': [1], 'enabled': True},
+        'seed': {'type': 'list', 'list': [123], 'enabled': True},
     }
 
     dt_classifier = DecisionTreeClassifierOperation(params, {}, {})
@@ -1199,12 +1203,37 @@ def test_decision_tree_classifier_hyperparams_success():
 
     code = dt_classifier.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code, msg)
 
     assert dt_classifier.get_hyperparameter_count() == 8
     '''
     print(code)
     print(dt_classifier.get_constrained_params())
+    '''
+
+def test_decision_tree_classifier_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'DecisionTreeClassifier'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    dt_classifier = DecisionTreeClassifierOperation(params, {}, {})
+    assert dt_classifier.name == 'DecisionTreeClassifier'
+    assert dt_classifier.var == 'decision_tree'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
     '''
     
 def test_gbt_classifier_hyperparams_success():
@@ -1217,33 +1246,33 @@ def test_gbt_classifier_hyperparams_success():
             'id': task_id,
             'operation': {'id': operation_id}
         },
-        'cache_node_ids': {'type': 'boolean', 'enabled': True},
-        'checkpoint_interval': {'type': 'int', 'min': 1, 'enabled': True},
-        'loss_type': {'type': 'list', 'list': 'str', 'enabled': True}, 
-        'max_bins': {'type': 'int', 'enabled': True},
-        'max_depth': {'type': 'int', 'enabled': True},
-        'max_iter': {'type': 'int', 'enabled': True},
-        'min_info_gain': {'type': 'float', 'enabled': True},
-        'min_instances_per_node': {'type': 'int', 'enabled': True},
-        'seed': {'type': 'int', 'enabled': True},
-        'step_size': {'type': 'float', 'enabled': True},  
-        'subsampling_rate': {'type': 'float', 'enabled': True}  
+        'cache_node_ids': {'type': 'list', 'list': [False]},
+        'checkpoint_interval': {'type': 'list', 'list': [1], 'enabled': True},
+        'loss_type': {'type': 'list', 'list': ['logistic']}, 
+        'max_bins': {'type': 'list', 'list': [32], 'enabled': True},
+        'max_depth': {'type': 'list', 'list': [5], 'enabled': True},
+        'max_iter': {'type': 'list', 'list': [20], 'enabled': True},
+        'min_info_gain': {'type': 'list', 'list': [0.0], 'enabled': True},
+        'min_instances_per_node': {'type': 'list', 'list': [1], 'enabled': True},
+        'seed': {'type': 'list', 'list': [123], 'enabled': True},
+        'step_size': {'type': 'list', 'list': [0.1], 'enabled': True},  
+        'subsampling_rate': {'type': 'list', 'list': [1.0], 'enabled': True}  
     }
 
     gbt_classifier = GBTClassifierOperation(params, {}, {})
     expected_code = dedent(f"""
         grid_gbt_classifier = (tuning.ParamGridBuilder()
             .baseOn({{pipeline.stages: common_stages + [gbt_classifier] }})
-            .addGrid(gbt_classifier.cacheNodeIds, [True])
+            .addGrid(gbt_classifier.cacheNodeIds, [False])
             .addGrid(gbt_classifier.checkpointInterval, [1])
-            .addGrid(gbt_classifier.lossType) 
-            .addGrid(gbt_classifier.maxBins, [1])  
-            .addGrid(gbt_classifier.maxDepth, [1])  
-            .addGrid(gbt_classifier.maxIter, [1])  
-            .addGrid(gbt_classifier.minInfoGain, [1.0])  
+            .addGrid(gbt_classifier.lossType,['logistic']) 
+            .addGrid(gbt_classifier.maxBins, [32])  
+            .addGrid(gbt_classifier.maxDepth, [5])  
+            .addGrid(gbt_classifier.maxIter, [20])  
+            .addGrid(gbt_classifier.minInfoGain, [0.0])  
             .addGrid(gbt_classifier.minInstancesPerNode, [1])  
-            .addGrid(gbt_classifier.seed, [1])  
-            .addGrid(gbt_classifier.stepSize, [1.0])  
+            .addGrid(gbt_classifier.seed, [123])  
+            .addGrid(gbt_classifier.stepSize, [0.1])  
             .addGrid(gbt_classifier.subsamplingRate, [1.0])  
             .build()
         )""")
@@ -1251,12 +1280,37 @@ def test_gbt_classifier_hyperparams_success():
 
     code = gbt_classifier.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code, msg)
 
     assert gbt_classifier.get_hyperparameter_count() == 10  
     '''
     print(code)
     print(gbt_classifier.get_constrained_params())
+    '''
+
+def test_GBT_classifier_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'GBTClassifier'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    gbt_classifier = GBTClassifierOperation(params, {}, {})
+    assert gbt_classifier.name == 'GBTClassifier'
+    assert gbt_classifier.var == 'gbt_classifier'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
     '''
 
 def test_perceptron_classifier_hyperparams_success():
@@ -1269,10 +1323,10 @@ def test_perceptron_classifier_hyperparams_success():
             'id': task_id,
             'operation': {'id': operation_id}
         },
-        'layers': {'type': 'string', 'value': '10,5', 'enabled': True},
-        'block_size': {'type': 'int', 'enabled': True},
-        'max_iter': {'type': 'int', 'enabled': True},
-        'seed': {'type': 'int', 'enabled': True},
+        'layers': {'type': 'list', 'list': [4, 5, 4, 3], 'enabled': True},
+        'block_size': {'type': 'list', 'list': [128], 'enabled': True},
+        'max_iter': {'type': 'list', 'list': [1], 'enabled': True},
+        'seed': {'type': 'list', 'list': [1], 'enabled': True},
         'solver': {'type': 'list', 'list': ['l-bfgs', 'gd'], 'enabled': True}
     }
 
@@ -1280,7 +1334,7 @@ def test_perceptron_classifier_hyperparams_success():
     expected_code = dedent(f"""
         grid_perceptron_classifier = (tuning.ParamGridBuilder()
             .baseOn({{pipeline.stages: common_stages + [perceptron_classifier] }})
-            .addGrid(perceptron_classifier.layers, [(10, 5)])  
+            .addGrid(perceptron_classifier.layers, [4, 5, 4, 3])  
             .addGrid(perceptron_classifier.blockSize, [1])  
             .addGrid(perceptron_classifier.maxIter, [1])  
             .addGrid(perceptron_classifier.seed, [1])  
@@ -1296,6 +1350,27 @@ def test_perceptron_classifier_hyperparams_success():
     '''
     print(code)
     print(perceptron_classifier.get_constrained_params())
+
+    '''
+def test_perceptron_classifier_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'MultilayerPerceptronClassifier'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    perceptron_classifier = PerceptronClassifierOperation(params, {}, {})
+    assert perceptron_classifier.name == 'MultilayerPerceptronClassifier'
+    assert perceptron_classifier.var == 'mlp_classifier'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
     '''
 
 def test_random_forest_classifier_hyperparams_success():
@@ -1309,12 +1384,12 @@ def test_random_forest_classifier_hyperparams_success():
             'operation': {'id': operation_id}
         },
         'impurity': {'type': 'list', 'list': ['entropy', 'gini'], 'enabled': True},
-        'cache_node_ids': {'type': 'boolean', 'enabled': True},
-        'checkpoint_interval': {'type': 'int', 'enabled': True},
+        'cache_node_ids': {'type': 'list', 'list': [False], 'enabled': True},
+        'checkpoint_interval': {'type': 'list', 'list': [10], 'enabled': True},
         'feature_subset_strategy': {'type': 'list', 'list': ['auto', 'all'], 'enabled': True},
         'max_bins': {'type': 'list', 'list': [10, 20, 30], 'enabled': True},
         'max_depth': {'type': 'list', 'list': [5, 10, 15], 'enabled': True},
-        'min_info_gain': {'type': 'float', 'enabled': True},
+        'min_info_gain': {'type': 'list', 'list': [0.0], 'enabled': True},
         'min_instances_per_node': {'type': 'list', 'list': [1, 2, 3], 'enabled': True},
         'num_trees': {'type': 'list', 'list': [50, 100, 150], 'enabled': True},
         'seed': {'type': 'list', 'list': [123, 456, 789], 'enabled': True},
@@ -1326,8 +1401,8 @@ def test_random_forest_classifier_hyperparams_success():
         grid_random_forest_classifier = (tuning.ParamGridBuilder()
             .baseOn({{pipeline.stages: common_stages + [random_forest_classifier] }})
             .addGrid(random_forest_classifier.impurity, ['entropy', 'gini'])
-            .addGrid(random_forest_classifier.cacheNodeIds, [True, False])
-            .addGrid(random_forest_classifier.checkpointInterval, [1])
+            .addGrid(random_forest_classifier.cacheNodeIds, [False])
+            .addGrid(random_forest_classifier.checkpointInterval, [10])
             .addGrid(random_forest_classifier.featureSubsetStrategy, ['auto', 'all'])
             .addGrid(random_forest_classifier.maxBins, [10, 20, 30])
             .addGrid(random_forest_classifier.maxDepth, [5, 10, 15])
@@ -1341,6 +1416,10 @@ def test_random_forest_classifier_hyperparams_success():
 
     code = random_forest_classifier.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code, msg)
 
     assert random_forest_classifier.get_hyperparameter_count() == 11
@@ -1348,7 +1427,26 @@ def test_random_forest_classifier_hyperparams_success():
     print(code)
     print(random_forest_classifier.get_constrained_params())
     '''
-
+def test_random_forest_classifier_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'RandomForestClassifier'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    random_forest_classifier = RandomForestClassifierOperation(params, {}, {})
+    assert random_forest_classifier.name == 'RandomForestClassifier'
+    assert random_forest_classifier.var == 'rand_forest_cls'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
+    '''
 def test_svm_classifier_hyperparams_success():
     task_id = '123143-3411-23cf-233'
     operation_id = 2367
@@ -1359,10 +1457,10 @@ def test_svm_classifier_hyperparams_success():
             'id': task_id,
             'operation': {'id': operation_id}
         },
-        'max_iter': {'type': 'int', 'enabled': True},
-        'standardization': {'type': 'int', 'enabled': True},
-        'threshold': {'type': 'float', 'enabled': True},
-        'tol': {'type': 'float', 'enabled': True},
+        'max_iter': {'type': 'list', 'list': [1, 2, 3], 'enabled': True},
+        'standardization': {'type': 'list', 'list': [1, 2, 3], 'enabled': True},
+        'threshold': {'type': 'list', 'list': [0.1, 0.2, 0.3], 'enabled': True},
+        'tol': {'type': 'list', 'list': [0.01, 0.02, 0.03], 'enabled': True},
         'weight_attr': {'type': 'list', 'list': ['attr1', 'attr2'], 'enabled': True}
     }
 
@@ -1388,6 +1486,27 @@ def test_svm_classifier_hyperparams_success():
     print(svm_classifier.get_constrained_params())
     '''
 
+def test_svm_classifier_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'LinearSVC'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    svm_classifier = SVMClassifierOperation(params, {}, {})
+    assert svm_classifier.name == 'LinearSVC'
+    assert svm_classifier.var == 'svm_cls'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
+    '''
+
 def test_logistic_regression_hyperparams_success():
     task_id = '123143-3411-23cf-233'
     operation_id = 2368
@@ -1400,13 +1519,13 @@ def test_logistic_regression_hyperparams_success():
         },
         'weight_col': {'type': 'list', 'list': ['attr1', 'attr2'], 'enabled': True},
         'family': {'type': 'list', 'list': ['binomial', 'multinomial'], 'enabled': True},
-        'aggregation_depth': {'type': 'int', 'enabled': True},
-        'elastic_net_param': {'type': 'float', 'enabled': True},
-        'fit_intercept': {'type': 'boolean', 'enabled': True},
-        'max_iter': {'type': 'int', 'enabled': True},
-        'reg_param': {'type': 'float', 'enabled': True},
-        'tol': {'type': 'float', 'enabled': True},
-        'threshold': {'type': 'float', 'enabled': True},
+        'aggregation_depth': {'type': 'list', 'list': [1, 2, 3], 'enabled': True},
+        'elastic_net_param': {'type': 'list', 'list': [0.1, 0.2, 0.3], 'enabled': True},
+        'fit_intercept': {'type': 'list', 'list': [True, False], 'enabled': True},
+        'max_iter': {'type': 'list', 'list': [10, 20, 30], 'enabled': True},
+        'reg_param': {'type': 'list', 'list': [0.1, 0.2, 0.3], 'enabled': True},
+        'tol': {'type': 'list', 'list': [0.001, 0.002, 0.003], 'enabled': True},
+        'threshold': {'type': 'list', 'list': [0.1, 0.2, 0.3], 'enabled': True},
         'thresholds': {'type': 'list', 'list': ['test'], 'enabled': True}
     }
 
@@ -1436,7 +1555,26 @@ def test_logistic_regression_hyperparams_success():
     print(code)
     print(lr.get_constrained_params())
     '''
-
+def test_svm_logistic_regression_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2359
+    name = 'LogisticRegression'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    lr = LogisticRegressionOperation(params, {}, {})
+    assert lr.name == 'LogisticRegression'
+    assert lr.var == 'lr'
+    '''
+    print(gbt.generate_code())
+    print(gbt.generate_hyperparameters_code())
+    print(gbt.generate_random_hyperparameters_code())
+    '''
 
 # endregion
 
