@@ -2282,7 +2282,7 @@ class IsotonicRegressionOperation(RegressionOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'isotonic': _as_boolean_list(parameters.get('isotonic')),
-            'weightCol': parameters.get('weight'),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
         }
         self.var = 'isotonic_reg'
         self.name = 'IsotonicRegression'
@@ -2293,15 +2293,15 @@ class GBTRegressorOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval': parameters.get('checkpoint_interval'),
-            'featureSubsetStrategy': parameters.get('feature_subset_strategy'),
-            'impurity': parameters.get('impurity'),
-            'leafCol': parameters.get('leaf_col'),
-            'lossType': parameters.get('loss_type'),
-            'maxBins': parameters.get('max_bins'),
+            'cacheNodeIds': _as_boolean_list(parameters.get('cache_node_ids')),
+            'checkpointInterval': _as_int_list(parameters.get('checkpoint_interval')),
+            'featureSubsetStrategy': _as_string_list(parameters.get('feature_subset_strategy')),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'leafCol': _as_string_list(parameters.get('leaf_col')),
+            'lossType': _as_string_list(parameters.get('')),
+            'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxIter': parameters.get('max_iter'),
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
             'minInfoGain':  _as_float_list(parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode': _as_int_list(parameters.get('min_instance'), self.grid_info),
@@ -2328,8 +2328,7 @@ class DecisionTreeRegressorOperation(RegressionOperation):
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
+            'minInstancesPerNode':  _as_int_list(parameters.get('min_instances_per_node'), self.grid_info),
         }
         self.var = 'dt_reg'
         self.name = 'DecisionTreeRegressor'
