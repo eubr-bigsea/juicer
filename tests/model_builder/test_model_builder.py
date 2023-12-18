@@ -1332,10 +1332,10 @@ def test_perceptron_classifier_hyperparams_success():
 
     perceptron_classifier = PerceptronClassifierOperation(params, {}, {})
     expected_code = dedent(f"""
-        grid_perceptron_classifier = (tuning.ParamGridBuilder()
-            .baseOn({{pipeline.stages: common_stages + [perceptron_classifier] }})
+        grid_mlp_classifier = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [mlp_classifier] }})
             .addGrid(perceptron_classifier.layers, [4, 5, 4, 3])  
-            .addGrid(perceptron_classifier.blockSize, [1])  
+            .addGrid(perceptron_classifier.blockSize, [128])  
             .addGrid(perceptron_classifier.maxIter, [1])  
             .addGrid(perceptron_classifier.seed, [1])  
             .addGrid(perceptron_classifier.solver, ['l-bfgs', 'gd']) 
@@ -1344,6 +1344,10 @@ def test_perceptron_classifier_hyperparams_success():
 
     code = perceptron_classifier.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code, msg)
 
     assert perceptron_classifier.get_hyperparameter_count() == 5
@@ -1399,7 +1403,7 @@ def test_random_forest_classifier_hyperparams_success():
     random_forest_classifier = RandomForestClassifierOperation(params, {}, {})
     expected_code = dedent(f"""
         grid_random_forest_classifier = (tuning.ParamGridBuilder()
-            .baseOn({{pipeline.stages: common_stages + [random_forest_classifier] }})
+            .baseOn({{pipeline.stages: common_stages + [rand_forest_cls] }})
             .addGrid(random_forest_classifier.impurity, ['entropy', 'gini'])
             .addGrid(random_forest_classifier.cacheNodeIds, [False])
             .addGrid(random_forest_classifier.checkpointInterval, [10])
@@ -1467,7 +1471,7 @@ def test_svm_classifier_hyperparams_success():
     svm_classifier = SVMClassifierOperation(params, {}, {})
     expected_code = dedent(f"""
         grid_svm_classifier = (tuning.ParamGridBuilder()
-            .baseOn({{pipeline.stages: common_stages + [svm_classifier] }})
+            .baseOn({{pipeline.stages: common_stages + [svm_cls] }})
             .addGrid(svm_classifier.maxIter, [1, 2, 3])  
             .addGrid(svm_classifier.standardization, [1, 2, 3])  
             .addGrid(svm_classifier.threshold, [0.1, 0.2, 0.3])  
@@ -1478,6 +1482,10 @@ def test_svm_classifier_hyperparams_success():
 
     code = svm_classifier.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code)
 
     assert svm_classifier.get_hyperparameter_count() == 5
@@ -1548,6 +1556,10 @@ def test_logistic_regression_hyperparams_success():
 
     code = lr.generate_hyperparameters_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    print("=== Expected Code ===")
+    print(expected_code)
+    print("=== Generated Code ===")
+    print(code)
     assert result, format_code_comparison(expected_code, code)
 
     assert lr.get_hyperparameter_count() == 10

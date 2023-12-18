@@ -1246,8 +1246,10 @@ class EstimatorMetaOperation(ModelMetaOperation):
         self.name = "CHANGE_NAME"
         self.hyperparameters: dict[str, HyperparameterInfo] = {}
         self.task_type = task_type
-        self.grid_info = parameters.get('workflow').get(
-            'forms', {}).get('$grid', {})
+        #self.grid_info = parameters.get('workflow').get(
+            #'forms', {}).get('$grid', {})
+        self.grid_info = parameters.get('workflow', {}).get('forms', {}).get('$grid', {})
+
 
     def get_constrained_params(self):
         return None
@@ -2120,12 +2122,24 @@ class PerceptronClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
 
         layers = None
+        '''
         if parameters.get('layers'):
             value = tuple(int(x.strip()) for x in parameters.get('layers').split(','))
             layers =  HyperparameterInfo(
                 value=(value,), param_type='list', 
                 values_count=1,
                 random_generator='random_generator')
+        '''
+        if 'layers' in parameters and 'list' in parameters['layers']:
+            layers = HyperparameterInfo(
+            value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
+            param_type='list',
+            values_count=1,
+            random_generator='random_generator'
+            )
+
+
+
 
         self.hyperparameters = {
             'layers': layers,
