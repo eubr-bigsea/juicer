@@ -20,9 +20,8 @@ from .fixtures import *  # Must be * in order to import fixtures
 
 # region Test Sample Operation
 
-
-def test_sample_percent_success(builder_params: ModelBuilderParams):
-    frac = 0.5
+@pytest.mark.parametrize('frac', [0.5, 0.1, 0.7, 1.0])
+def test_sample_percent_success(builder_params: ModelBuilderParams, frac: float):
     seed = 777
     builder_params.sample.parameters['fraction'] = frac
     builder_params.sample.parameters['seed'] = seed  # Must be set
@@ -31,16 +30,24 @@ def test_sample_percent_success(builder_params: ModelBuilderParams):
         f'df = df.sample(withReplacement=False, fraction={frac}, seed={seed})'
         == builder_params.sample.model_builder_code())
 
+@pytest.mark.parametrize('frac', [-200, 24091294, 0, -0.5])
+def test_sample_percent_informed_failure(builder_params: ModelBuilderParams, frac: float):
+    seed = 777
+    builder_params.sample.parameters['fraction'] = frac
+    builder_params.sample.parameters['seed'] = seed
+    builder_params.sample.parameters['type'] = 'percent'
+    with pytest.raises(ValueError) as ve:
+        builder_params.sample.model_builder_code()
+    assert "Parameter 'fraction' must be in range (0, 100)" in str(ve)
 
-def test_sample_head_success(builder_params: ModelBuilderParams):
-    n = 120
+@pytest.mark.parametrize('n', [-200, -239523952, 23952935, 0, 5, 100])
+def test_sample_head_success(builder_params: ModelBuilderParams, n: int):
     builder_params.sample.parameters['value'] = n
     builder_params.sample.parameters['type'] = 'head'
     assert f'df = df.limit({n})' == builder_params.sample.model_builder_code()
 
-
-def test_sample_fixed_number_success(builder_params: ModelBuilderParams):
-    n = 300
+@pytest.mark.parametrize('n', [-200, -239523952, 23952935, 0, 5, 100])
+def test_sample_fixed_number_success(builder_params: ModelBuilderParams, n: int):
     seed = 123
     builder_params.sample.parameters['value'] = n
     builder_params.sample.parameters['seed'] = seed
@@ -62,6 +69,12 @@ def test_sample_invalid_type_informed_failure(
     with pytest.raises(ValueError) as ve:
         builder_params.sample.model_builder_code()
     assert "Invalid value for parameter 'type'" in str(ve)
+
+def test_no_sample_success(builder_params: ModelBuilderParams):
+    seed = 777
+    builder_params.sample.parameters['type'] = ''
+    assert (f'df = df.sample(False, fraction=1, seed={seed})' ==
+            builder_params.sample.model_builder_code())
 
 @pytest.mark.parametrize('frac', [0.0, 1.01, -1.0, 10])
 def test_sample_invalid_fraction_failure(builder_params: ModelBuilderParams,
