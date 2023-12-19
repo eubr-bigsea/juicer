@@ -1181,12 +1181,13 @@ def test_decision_tree_classifier_hyperparams_success():
         'impurity': {'type': 'list', 'list': ['entropy', 'gini'], 'enabled': True},
         'max_bins':  {'type': 'list', 'list': [2], 'enabled': True},
         'max_depth':  {'type': 'list', 'list': [0], 'enabled': True},
-        'min_info_gain': {'type': 'list', 'list': [0.0], 'enabled': True},
+        'min_info_gain': {'type': 'list', 'list': [1.0], 'enabled': True},
         'min_instances_per_node': {'type': 'list', 'list': [1], 'enabled': True},
         'seed': {'type': 'list', 'list': [123], 'enabled': True},
     }
 
     dt_classifier = DecisionTreeClassifierOperation(params, {}, {})
+    
     expected_code = dedent(f"""
         grid_decision_tree = (tuning.ParamGridBuilder()
             .baseOn({{pipeline.stages: common_stages + [decision_tree] }})
@@ -1197,7 +1198,7 @@ def test_decision_tree_classifier_hyperparams_success():
             .addGrid(decision_tree.maxDepth, [0])
             .addGrid(decision_tree.minInfoGain, [1.0])  
             .addGrid(decision_tree.minInstancesPerNode, [1])
-            .addGrid(decision_tree.seed, [None])  
+            .addGrid(decision_tree.seed, [123])  
             .build()
         )""")
 
@@ -1275,7 +1276,7 @@ def test_gbt_classifier_hyperparams_success():
             .addGrid(gbt_classifier.stepSize, [0.1])  
             .addGrid(gbt_classifier.subsamplingRate, [1.0])  
             .build()
-        )""")
+        )""".strip())
 
 
     code = gbt_classifier.generate_hyperparameters_code()
