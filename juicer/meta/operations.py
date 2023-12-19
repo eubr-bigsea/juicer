@@ -1246,8 +1246,10 @@ class EstimatorMetaOperation(ModelMetaOperation):
         self.name = "CHANGE_NAME"
         self.hyperparameters: dict[str, HyperparameterInfo] = {}
         self.task_type = task_type
-        self.grid_info = parameters.get('workflow').get(
-            'forms', {}).get('$grid', {})
+        #self.grid_info = parameters.get('workflow').get(
+            #'forms', {}).get('$grid', {})
+        self.grid_info = parameters.get('workflow', {}).get('forms', {}).get('$grid', {})
+
 
     def get_constrained_params(self):
         return None
@@ -2120,12 +2122,24 @@ class PerceptronClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
 
         layers = None
+        '''
         if parameters.get('layers'):
             value = tuple(int(x.strip()) for x in parameters.get('layers').split(','))
             layers =  HyperparameterInfo(
                 value=(value,), param_type='list', 
                 values_count=1,
                 random_generator='random_generator')
+        '''
+        if 'layers' in parameters and 'list' in parameters['layers']:
+            layers = HyperparameterInfo(
+            value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
+            param_type='list',
+            values_count=1,
+            random_generator='random_generator'
+            )
+
+
+
 
         self.hyperparameters = {
             'layers': layers,
@@ -2138,6 +2152,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
         }
         self.var = 'mlp_classifier'
         self.name = 'MultilayerPerceptronClassifier'
+
 
 
 class RandomForestClassifierOperation(ClassificationOperation):
@@ -2207,6 +2222,27 @@ class SVMClassifierOperation(ClassificationOperation):
         self.var = 'svm_cls'
         self.name = 'LinearSVC'
 
+class FactorizationMachinesClassifierOperation(ClassificationOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClassificationOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            'thresholds': _as_float_list(parameters.get('threshold'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+        }
+        self.var = 'fm_classifier'
+        self.name = 'FMClassifier'
+
 
 class RegressionOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2261,7 +2297,7 @@ class IsotonicRegressionOperation(RegressionOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'isotonic': _as_boolean_list(parameters.get('isotonic')),
-            'weightCol': parameters.get('weight'),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
         }
         self.var = 'isotonic_reg'
         self.name = 'IsotonicRegression'
@@ -2272,17 +2308,17 @@ class GBTRegressorOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval': parameters.get('checkpoint_interval'),
-            'featureSubsetStrategy': parameters.get('feature_subset_strategy'),
-            'impurity': parameters.get('impurity'),
-            'leafCol': parameters.get('leaf_col'),
-            'lossType': parameters.get('loss_type'),
-            'maxBins': parameters.get('max_bins'),
+            'cacheNodeIds': _as_boolean_list(parameters.get('cache_node_ids')),
+            'checkpointInterval': _as_int_list(parameters.get('checkpoint_interval')),
+            'featureSubsetStrategy': _as_string_list(parameters.get('feature_subset_strategy')),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'leafCol': _as_string_list(parameters.get('leaf_col')),
+            'lossType': _as_string_list(parameters.get('')),
+            'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxIter': parameters.get('max_iter'),
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInfoGain':  _as_float_list(parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode': _as_int_list(parameters.get('min_instance'), self.grid_info),
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
@@ -2307,8 +2343,7 @@ class DecisionTreeRegressorOperation(RegressionOperation):
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
+            'minInstancesPerNode':  _as_int_list(parameters.get('min_instances_per_node'), self.grid_info),
         }
         self.var = 'dt_reg'
         self.name = 'DecisionTreeRegressor'
@@ -2319,26 +2354,22 @@ class RandomForestRegressorOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'bootstrap': parameters.get('bootstrap'),
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval':
-                parameters.get('checkpoint_interval'),
-            'featureSubsetStrategy':
-                _as_string_list(parameters.get('feature_subset_strategy')),
-            'impurity': parameters.get('impurity'),
-            'leafCol': parameters.get('leaf_col'),
+            'bootstrap': _as_boolean_list(parameters.get('bootstrap')),
+            'cacheNodeIds':_as_boolean_list(parameters.get('cache_node_ids')),
+            'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info),
+            'featureSubsetStrategy':_as_string_list(parameters.get('feature_subset_strategy')),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'leafCol': _as_string_list(parameters.get('leaf_col')),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
+            'maxMemoryInMB': _as_int_list(parameters.get('max_memory_in_m_b'), self.grid_info),
             'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
-            'minWeightFractionPerNode':
-                parameters.get('min_weight_fraction_per_node'),
+            'minInstancesPerNode': _as_list(parameters.get('min_instances_per_node')),
+            'minWeightFractionPerNode': _as_float_list(parameters.get('min_weight_fraction_per_node'), self.grid_info),
             'numTrees': _as_int_list(parameters.get('num_trees'), self.grid_info),
-            'seed': parameters.get('seed'),
-            'subsamplingRate': parameters.get('subsampling_rate'),
-            'weightCol': parameters.get('weight_col')
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'subsamplingRate': _as_float_list(parameters.get('subsampling_rate'), self.grid_info),
+            'weightCol': _as_string_list(parameters.get('weight_col'))
         }
         self.var = 'rand_forest_reg'
         self.name = 'RandomForestRegressor'
@@ -2378,6 +2409,28 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                 f'{self.var}.link: {repr(link)}}}')
         return result
 
+class FactorizationMachinesRegressionOperation(RegressionOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        RegressionOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+            #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
+            #'alphabetAsc')),
+        }
+        
+        self.var = 'fm_reg'
+        self.name = 'FMRegressor'
 
 class VisualizationOperation(MetaPlatformOperation):
 
