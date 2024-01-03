@@ -127,6 +127,8 @@ class CustomEncoder(json.JSONEncoder):
             return obj.isoformat()
         elif isinstance(obj, set):
             return default_encoder(list(obj))
+        elif np.isnan(obj):
+            return None
         return default_encoder(obj)
 
 
@@ -747,21 +749,22 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             import polars.selectors as cs
             attr_names = df.select(cs.numeric()).columns
             pairs = list(itertools.product(attr_names, attr_names))
-            correlation = [round(x, 4) for x in df.select([
+            correlation = [x if not np.isnan(x) else None 
+                for x in [round(x, 4) for x in df.select([
                 pl.corr(*v, method="spearman").alias(str(v)) for v in pairs])
                 .row(0)
-            ]
+            ] ]
             attr_count = len(attr_names)
             final_corr = [correlation[i:i + attr_count] for i in 
                      range(0, attr_count**2, attr_count)]
             numeric = [s.is_numeric() or s.is_boolean() for s in df]
-            
+           
             result = json.dumps({
                 'table': obj_result,
                 'correlation': final_corr,
                 'attributes': list(zip(df.columns, numeric)),
                 'numeric': [s.name for s in df if s.is_numeric()]
-            })
+            }, cls=CustomEncoder)
 
 
         elif msg.get('cluster'):
