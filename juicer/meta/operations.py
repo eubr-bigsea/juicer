@@ -7,7 +7,7 @@ import unicodedata
 from collections import namedtuple
 from gettext import gettext
 from itertools import zip_longest as zip_longest
-from textwrap import dedent
+from textwrap import dedent, indent
 
 from juicer.operation import Operation
 from juicer.spark.data_operation import DataReaderOperation
@@ -268,6 +268,50 @@ class ReadDataOperation(MetaPlatformOperation):
 
     def visualization_builder_code(self):
         return self.model_builder_code()
+
+    def sql_code(self):
+        return self.model_builder_code()
+ 
+class ExecuteSQLOperation(MetaPlatformOperation):
+    TARGET_OP = 93
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.query = self.get_required_parameter(
+            parameters, 'query')
+        self.input_port_name = 'input data 1'
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+            "query": {"value": self.query},
+        })
+        task_obj['operation'] = {"id": self.TARGET_OP}
+        return json.dumps(task_obj)
+
+    def _not_first(self):
+        """Creates a function returning False only the first time."""
+        _first_time_call = True
+    
+        def fn(_) -> bool:
+            nonlocal _first_time_call
+    
+            res = not _first_time_call
+            _first_time_call = False
+            return res
+    
+        return fn
+    def sql_code(self):
+        code = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
+            '"""', '')
+
+        return dedent(
+            f"""
+            sql = \"\"\"
+                {indent(dedent(code), ' '*15, self._not_first())}
+            \"\"\"
+            return spark_session.sql(sql)
+            """).strip()
 
 @dataclasses.dataclass
 class TransformParam:
@@ -2655,3 +2699,5 @@ class ConvertDataSourceFormat(BatchMetaOperation):
             'url': url,
         }
         return dedent(self.render_template(ctx))
+
+
