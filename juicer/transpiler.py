@@ -12,6 +12,7 @@ import logging
 import networkx as nx
 import os
 import redis
+import re
 import sys
 import tempfile
 import uuid
@@ -122,6 +123,9 @@ class Transpiler(object):
 
     def get_meta_template(self):
         return "templates/meta.tmpl"
+
+    def get_sql_template(self):
+        return "templates/sql.tmpl"
 
     def get_batch_template(self):
         return "templates/batch.tmpl"
@@ -400,6 +404,8 @@ class Transpiler(object):
                 template = template_env.get_template(self.get_code_template())
             elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
                 template = template_env.get_template(self.get_meta_template())
+            elif workflow_type in ('SQL', ):
+                template = template_env.get_template(self.get_sql_template())
             elif workflow_type == 'BATCH':
                 template = template_env.get_template(self.get_batch_template())
 
@@ -698,3 +704,18 @@ class TranspilerUtils(object):
         """
         tm = jinja2.Template(template)
         return tm.render(**context)
+
+    def text_to_identifier(self, text: str) -> str:
+        # Remove leading/trailing whitespaces
+        text = text.strip()
+        # Replace spaces with underscores
+        text = text.replace(" ", "_")
+        # Add underscore if the first character is not a letter
+        if not text[0].isalpha():
+            text = "_" + text
+        # Remove invalid characters
+        text = re.sub(r'\W|^(?=\d)', '_', text)
+        # Limit the length to 40 characters
+        text = text[:40]
+        return text
+        

@@ -172,7 +172,7 @@ class DataReaderOperation(Operation):
                 code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
-                code.append("url = '{url}'".format(url=url))
+                code.append(f"url = '{url}' #protect 'Protected, please update'")
 
                 if self.metadata['storage'].get('extra_params'):
                     extra_params = json.loads(
@@ -204,7 +204,7 @@ class DataReaderOperation(Operation):
                             'treatEmptyValuesAsNulls', 'true').option(
                             'wholeFile', True).option(
                                 'multiLine', {multiline}).option('escape',
-                                    '"').option('timestampFormat', '{date_fmt}'
+                                    '"').option('timestampFormat', {date_fmt}
                                     ).csv(
                                 url, schema=schema_{output},
                                 quote={quote},
@@ -217,7 +217,7 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
-                        date_fmt=date_format,
+                        date_fmt=repr(date_format),
                         quote='None' if self.quote is None else "'{}'".format(
                             self.quote),
                         infer_schema=infer_from_data,
