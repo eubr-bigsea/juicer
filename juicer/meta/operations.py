@@ -1547,7 +1547,7 @@ class FeaturesOperation(ModelMetaOperation):
         'quantis': 'quantis',
         'buckets': 'buckets'
     }
-    __slots__ = ('all_attributes', 'label', 'features', 'numerical_features',
+    __slots__ = ('all_attributes', 'label', 'features', 'features',
                  'categorical_features', 'textual_features', 'features_names'
                  'features_and_label', 'task_type', 'supervisioned'
                  )
@@ -1682,7 +1682,7 @@ class FeaturesOperation(ModelMetaOperation):
                     ...
                 elif transform == 'binarize':
                     final_name = final_name + '_bin'
-                    threshold = self.parameters.get('threshold', 0.0)
+                    threshold = self.parameters.get('threshold', f['threshold'])
                     code.append(dedent(f"""
                         {f['var']}_bin = feature.Binarizer(
                             threshold={threshold}, inputCol='{f['na_name']}',
