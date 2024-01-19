@@ -852,7 +852,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                         pl.col(attribute).drop_nulls().cast(
                             pl.Utf8).min().alias('min'),
                         pl.col(attribute).drop_nulls().cast(
-                            l.Utf8).max().alias('max'),
+                            pl.Utf8).max().alias('max'),
                         pl.col(attribute).drop_nulls().cast(
                             pl.Utf8).mode().alias('mode'),
                         pl.col(attribute).n_unique().alias('unique'),
