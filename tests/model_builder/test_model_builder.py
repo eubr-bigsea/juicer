@@ -452,7 +452,7 @@ def test_features_numerical_transform_buckets_success(
             splits=[-float('inf'), 0.5, 0.7, float('inf')],
             inputCol='class',
             outputCol='class_bkt', handleInvalid='skip')
-        features_stages.append(class_qtles) 
+        features_stages.append(class_qtles)
         label = 'class_bkt'
     """)
     code = builder_params.features.model_builder_code()
@@ -580,6 +580,98 @@ def test_features_numerical_remove_if_null_success(
     assert result, format_code_comparison(expected_code, code, msg)
 
 # TODO Test textual and vector features
+def test_textual_tokenize_hash(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'token_hash'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_tkn = feature.Tokenizer(
+            inputCol='class',
+            outputCol='class_tkn')
+        features_stages.append(class_tkn) 
+
+        class_tkn = feature.HashingTF(
+            inputCol='class_tkn',
+            outputCol='class_tkn_hash')
+        features_stages.append(class_tkn_hash) 
+        label = 'class_tkn_hash'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+def test_textual_tokenize_stop_hash(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'token_stop_hash'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_tkn = feature.StopWordsRemover(
+            inputCol='class',
+            outputCol='class_stop')
+        features_stages.append(class_stop) 
+
+        class_tkn = feature.Tokenizer(
+            inputCol='class_stop',
+            outputCol='class_stop_tkn')
+        features_stages.append(class_stop_tkn) 
+
+        class_tkn = feature.HashingTF(
+            inputCol='class_stop_tkn',
+            outputCol='class_stop_tkn_hash')
+        features_stages.append(class_stop_tkn_hash) 
+        label = 'class_stop_tkn_hash'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+def test_textual_count_vectorizer(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'count_vectorizer'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_tkn = feature.CountVectorizer(
+            inputCol='class',
+            outputCol='class_count_vectorizer')
+        features_stages.append(class_count_vectorizer) 
+        label = 'class_count_vectorizer'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+def test_textual_word2vect(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'word_2_vect'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+        
+        class_tkn = feature.Word2Vec(
+            inputCol='class',
+            outputCol='class_word2vect')
+        features_stages.append(class_word2vect) 
+        label = 'class_word2vect'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+       
+
 
 # endregion
 
@@ -849,4 +941,4 @@ def xtest_generate_run_code_success(sample_workflow: dict, builder_params: Model
     # assert """out = df.sort_values(by=['sepalwidth'], ascending=[False])""" == \
     #        instance.generate_code()
 
-# endregion
+# endregionn
