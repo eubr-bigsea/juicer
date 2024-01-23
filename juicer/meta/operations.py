@@ -1782,8 +1782,62 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{old_final_name}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_ohe) """))
-
                 self.features_names.append(final_name)
+            elif data_type == 'textual':
+                if transform == 'token_hash':
+                    token_name = final_name + '_tkn'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.Tokenizer(
+                            inputCol='{f['na_name']}',
+                            outputCol='{token_name}')
+                        features_stages.append({f['var']}_tkn) """))
+                    
+                    final_name = token_name + '_hash'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.HashingTF(
+                            inputCol='{token_name}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_tkn_hash) """))
+                                       
+                elif transform == 'token_stop_hash':
+                    stop_name = final_name + '_stop'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.StopWordsRemover(
+                            inputCol='{f['na_name']}',
+                            outputCol='{stop_name}')
+                        features_stages.append({f['var']}_stop) """))
+                                        
+                    token_name = stop_name + '_tkn'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.Tokenizer(
+                            inputCol='{stop_name}',
+                            outputCol='{token_name}')
+                        features_stages.append({f['var']}_stop_tkn) """))
+                    
+                    final_name = token_name + '_hash'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.HashingTF(
+                            inputCol='{token_name}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_stop_tkn_hash) """))
+                
+                elif transform == 'count_vectorizer':
+                    final_name = final_name + '_count_vectorizer'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.CountVectorizer(
+                            inputCol='{f['na_name']}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_count_vectorizer) """))
+                
+                elif transform == 'word_2_vect':
+                    final_name = final_name + '_word2vect'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.Word2Vec(
+                            inputCol='{f['na_name']}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_word2vect) """))
+                    
+            self.features_names.append(final_name)
             if f['usage'] == 'label':
                 label = final_name
 
