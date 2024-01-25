@@ -142,6 +142,7 @@ class MetaTranspiler(Transpiler):
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
             'pic':ops.PowerIterationClusteringOperation,
             'lda':ops.LDAOperation,
+            'bkm':ops.BisectingKMeansOperation,
         }
 
 

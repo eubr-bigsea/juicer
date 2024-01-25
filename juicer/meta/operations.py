@@ -2059,6 +2059,24 @@ class GaussianMixOperation(ClusteringOperation):
         }
         self.name = 'GaussianMixture'
 
+class BisectingKMeansOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'bisecting_kmeans'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info),
+            'tol': _as_float_list(
+                parameters.get('tolerance'), self.grid_info),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info),
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'minDivisibleClusterSize': _as_float_list(parameters.get('min_divisible_clusterSize'), self.grid_info),
+            'distanceMeasure': _as_string_list(parameters.get('distance'), self.in_list('euclidean')),
+        }
+        self.name = 'BisectingKMeans'
+
 
 class ClassificationOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
