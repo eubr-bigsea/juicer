@@ -1983,6 +1983,55 @@ class KMeansOperation(ClusteringOperation):
         }
         self.name = 'KMeans'
 
+class PowerIterationClusteringOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'pic'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info, 
+                self.gt(1)),
+            'initMode': _as_string_list(parameters.get('init_mode'), 
+                    self.in_list('random', 'degree')),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info, self.ge(0)),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
+        }
+        self.name = 'PIC'
+
+class LDAOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'lda'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info, 
+                self.gt(1)),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info, self.ge(0)),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
+            'featuresCol':_as_string_list(parameters.get('features')),
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info, self.ge(0)),
+            'optimizer':_as_string_list(parameters.get('optimizer'), 
+                    self.in_list('online')),
+            'learningOffset':_as_float_list(
+                parameters.get('learning_offset'), self.grid_info),
+            'learningDecay':_as_float_list(
+                parameters.get('learning_decay'), self.grid_info),
+            'subsamplingRate': parameters.get('subsampling_rate'),
+            'optimizeDocConcentration':_as_boolean_list(
+                parameters.get('optimize_doc_concentration')),
+            'docConcentration':_as_float_list(parameters.get('doc_concentration'), self.grid_info),
+            'topicConcentration':_as_float_list(parameters.get('topic_concentration'), self.grid_info),
+            'topicDistributionCol':_as_string_list(parameters.get('topic_distribution_col')),
+            'keepLastCheckpoint':_as_boolean_list(
+                parameters.get('keep_last_checkpoint')),
+        }
+        self.name = 'LDA'
+        
     def get_variations(self):
         result = []
         if 'kmeans' in self.types:
@@ -2009,6 +2058,24 @@ class GaussianMixOperation(ClusteringOperation):
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
         self.name = 'GaussianMixture'
+
+class BisectingKMeansOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'bisecting_kmeans'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info),
+            'tol': _as_float_list(
+                parameters.get('tolerance'), self.grid_info),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info),
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'minDivisibleClusterSize': _as_float_list(parameters.get('min_divisible_clusterSize'), self.grid_info),
+            'distanceMeasure': _as_string_list(parameters.get('distance'), self.in_list('euclidean')),
+        }
+        self.name = 'BisectingKMeans'
 
 
 class ClassificationOperation(EstimatorMetaOperation):
@@ -2207,6 +2274,27 @@ class SVMClassifierOperation(ClassificationOperation):
         self.var = 'svm_cls'
         self.name = 'LinearSVC'
 
+class FactorizationMachinesClassifierOperation(ClassificationOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClassificationOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            'thresholds': _as_float_list(parameters.get('threshold'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+        }
+        self.var = 'fm_classifier'
+        self.name = 'FMClassifier'
+
 
 class RegressionOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2282,7 +2370,7 @@ class GBTRegressorOperation(RegressionOperation):
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'maxIter': parameters.get('max_iter'),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
-            'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
+            'minInfoGain':  _as_float_list(parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode': _as_int_list(parameters.get('min_instance'), self.grid_info),
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
@@ -2378,6 +2466,29 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                 f'{self.var}.link: {repr(link)}}}')
         return result
 
+class FactorizationMachinesRegressionOperation(RegressionOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        RegressionOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.hyperparameters = {
+            'factorSize':_as_int_list(parameters.get('factor_size'), self.grid_info),
+            'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
+            'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
+            'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
+            'stepSize': parameters.get('step_size'),
+            'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
+            'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
+            'seed': _as_int_list(parameters.get('seed'), None),
+            #'weightCol': _as_string_list(parameters.get('weight_attr')),
+            #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
+            #'alphabetAsc')),
+            
+        }
+        
+        self.var = 'fm_reg'
+        self.name = 'FMRegressor'
 
 class VisualizationOperation(MetaPlatformOperation):
 
