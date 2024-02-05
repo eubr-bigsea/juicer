@@ -342,7 +342,8 @@ class SparkMinion(Minion):
                             sys.path = [p for p in self.default_sys_path]
                             for f in files:
                                 if f not in sys.path:
-                                    sys.path.append(f)
+                                    sys.path[:0 ] = [f] # adding at begining
+
                         self.cluster_options['build.dist_file'] =  gp.get(
                             'lemonade.spark.build.dist_file', True)
                         self.cluster_options['remote'] = gp.get(
