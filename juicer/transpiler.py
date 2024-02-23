@@ -177,6 +177,9 @@ class Transpiler(object):
         audit_events = []
         for i, task_id in enumerate(opt.tasks_ids):
             if task_id not in graph.nodes:
+                print('*' * 20)
+                print('Task not in graph', task_id)
+                print('*' * 20)
                 continue
             task = graph.nodes[task_id]['attr_dict']
             task['parents'] = graph.nodes[task_id]['parents']
@@ -311,7 +314,6 @@ class Transpiler(object):
             tasks_ids = opt.tasks_ids
 
         instances, audit_events = self.get_instances(opt)
-
         if audit_events:
 
             redis_url = self.configuration['juicer']['servers']['redis_url']
