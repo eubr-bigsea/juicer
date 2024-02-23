@@ -327,6 +327,7 @@ class MetaMinion(Minion):
         self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
     def _execute_sql_workflow(self, job_id, workflow, app_configs):
+
         loader = Workflow(workflow, self.config, lang=self.current_lang)
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
@@ -342,6 +343,7 @@ class MetaMinion(Minion):
             self.target_minion = SparkMinion(
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
+            # self.target_minion.transpiler.requires_hive = True
 
         self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
