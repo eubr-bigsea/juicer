@@ -35,13 +35,13 @@ RUN apt-get update && apt-get install -y \
 
 ENV SPARK_VERSION=2.4
 ENV HADOOP_VERSION=2.7
-ENV SPARK_BASE_URL=http://www.apache.org/dist/spark
+ENV SPARK_BASE_URL=https://archive.apache.org/dist/spark/
 
 # Get latest spark based on major.minor version
 RUN SPARK_LATEST_VERSION=$(\
       curl -sL ${SPARK_BASE_URL} | \
       grep -Eo "spark-${SPARK_VERSION}\.[0-9]{1}" | \
-      head -1 \
+      tail -1 \
     ) \
   && SPARK_HADOOP_PKG=${SPARK_LATEST_VERSION}-bin-hadoop${HADOOP_VERSION} \
   && SPARK_HADOOP_URL=${SPARK_BASE_URL}/${SPARK_LATEST_VERSION}/${SPARK_HADOOP_PKG}.tgz \
