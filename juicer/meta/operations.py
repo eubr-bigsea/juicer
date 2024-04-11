@@ -2016,6 +2016,73 @@ class GaussianMixOperation(ClusteringOperation):
         }
         self.name = 'GaussianMixture'
 
+class BisectingKMeansOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'bisecting_kmeans'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info),
+            'tol': _as_float_list(
+                parameters.get('tolerance'), self.grid_info),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info),
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'minDivisibleClusterSize': _as_float_list(parameters.get('min_divisible_clusterSize'), self.grid_info),
+            'distanceMeasure': _as_string_list(parameters.get('distance'), self.in_list('euclidean')),
+        }
+        self.name = 'BisectingKMeans'
+
+class LDAOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'lda'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info, 
+                self.gt(1)),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info, self.ge(0)),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
+            'featuresCol':_as_string_list(parameters.get('features')),
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info, self.ge(0)),
+            'optimizer':_as_string_list(parameters.get('optimizer'), 
+                    self.in_list('online')),
+            'learningOffset':_as_float_list(
+                parameters.get('learning_offset'), self.grid_info),
+            'learningDecay':_as_float_list(
+                parameters.get('learning_decay'), self.grid_info),
+            'subsamplingRate': parameters.get('subsampling_rate'),
+            'optimizeDocConcentration':_as_boolean_list(
+                parameters.get('optimize_doc_concentration')),
+            'docConcentration':_as_float_list(parameters.get('doc_concentration'), self.grid_info),
+            'topicConcentration':_as_float_list(parameters.get('topic_concentration'), self.grid_info),
+            'topicDistributionCol':_as_string_list(parameters.get('topic_distribution_col')),
+            'keepLastCheckpoint':_as_boolean_list(
+                parameters.get('keep_last_checkpoint')),
+        }
+        self.name = 'LDA'
+
+class PowerIterationClusteringOperation(ClusteringOperation):
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.var = 'pic'
+        self.hyperparameters = {
+            'k': _as_int_list(
+                parameters.get('number_of_clusters'), self.grid_info, 
+                self.gt(1)),
+            'initMode': _as_string_list(parameters.get('init_mode'), 
+                    self.in_list('random', 'degree')),
+            'maxIter ': _as_int_list(
+                parameters.get('max_iterations'), self.grid_info, self.ge(0)),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
+        }
+        self.name = 'PIC'
+
 
 class ClassificationOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
