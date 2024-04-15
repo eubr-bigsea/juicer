@@ -4,6 +4,7 @@
 import json
 import logging
 
+import re
 import requests
 
 log = logging.getLogger()
@@ -15,11 +16,12 @@ def save_job_source_code(base_url, token, job_id, source):
         'X-Auth-Token': str(token),
         'Content-Type': 'application/json'
     }
-
+    handle_protected = re.compile(r'(.+?)\s*=\s*(.+?)\s*#protect (.+)')
+    final_source = handle_protected.sub(r'\1 = \3', source)
     url = '{}/jobs/{}/source-code'.format(base_url, job_id)
 
     r = requests.patch(url,
-                       data=json.dumps({'secret': token, 'source': source},
+                       data=json.dumps({'secret': token, 'source': final_source},
                                        sort_keys=True),
                        headers=headers)
     if r.status_code == 200:

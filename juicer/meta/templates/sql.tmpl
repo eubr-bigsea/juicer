@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Auto-generated Spark code from Lemonade Workflow
+(c) Speed Labs - Departamento de Ciência da Computação
+    Universidade Federal de Minas Gerais
+More information about Lemonade to be provided.
+"""
+from pyspark.ml import (classification, regression, clustering,
+                        evaluation, feature, tuning)
+from pyspark.sql import functions, types, Row, DataFrame, SQLContext
+
+from pyspark.ml import Pipeline, PipelineModel
+
+from collections import namedtuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import functools
+import itertools
+import operator
+import os
+import random
+import traceback
+import sys
+import time
+import uuid
+
+import numpy as np
+
+from juicer.util import dataframe_util
+import dataclasses
+
+{% for imps in transpiler.imports %}
+{{imps}}
+{%- endfor %}
+
+{% set builder_params = transpiler.transpiler.prepare_sql_workflow_parameters(instances) %}
+{%- for reader in builder_params.readers %}
+{%- set name = transpiler.text_to_identifier(reader.task.name) %}
+def read_data_{{name}}(spark_session):
+    """ Read input data."""
+    {{reader.sql_code() |  indent(width=4, first=False) }}
+    return df
+{%- endfor %}
+
+{%- for sql in builder_params.sqls %}
+def execute_sql_{{sql.order}}(spark_session):
+    """ Execute the query. """
+    {{sql.sql_code() |  indent(width=4, first=False) }}
+{%- endfor %}
+
+def main(spark_session: any, cached_state: dict, emit_event: callable):
+    """ Run generated code """
+
+    try:
+        sql_context = SQLContext(spark_session)
+        {%- for reader in builder_params.readers %}
+        {%- set name = transpiler.text_to_identifier(reader.task.name) %}
+        (hash, result) = cached_state.get('{{reader.task.id}}', (None, None))
+        if hash == '{{reader.parameters.hash}}':
+            df_{{loop.index0}} = result 
+        else:
+            result = read_data_{{name}}(spark_session)
+            cached_state['{{reader.task.id}}'] = ('{{reader.parameters.hash}}', result)
+            df_{{loop.index0}} = result 
+        sql_context.registerDataFrameAsTable(df_{{loop.index0}}, '{{reader.task.name}}')
+        {% endfor %}
+
+        # Queries
+        {%- for sql in builder_params.sqls %}
+        (hash, result) = cached_state.get('{{sql.task.id}}', (None, None))
+        if hash == '{{sql.parameters.hash}}':
+            result_{{loop.index0}} = result 
+        else:
+            result = execute_sql_{{sql.order}}(spark_session)
+            cached_state['{{sql.task.id}}'] = ('{{sql.parameters.hash}}', result)
+            result_{{loop.index0}} = result 
+
+        {%- if sql.task.name %}
+        sql_context.registerDataFrameAsTable(result_{{loop.index0}}, '{{sql.task.name}}')
+        {%- endif %}
+        {%- endfor %}
+
+        # if last command is a SELECT one, display a sample
+        {%- set last_result = 'result_' + (builder_params.sqls|length -1)|string %}
+        if {{last_result}}.columns:
+            task_id = '{{ builder_params.sqls[-1].task.id}}'
+            dataframe_util.emit_sample_data_explorer(
+                task_id, {{last_result}}, emit_event, 'output')
+
+    except Exception as e:
+        spark_session.sparkContext.cancelAllJobs()
+        traceback.print_exc(file=sys.stderr)
+        if not dataframe_util.handle_spark_exception(e):
+            raise

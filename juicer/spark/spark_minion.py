@@ -653,8 +653,14 @@ class SparkMinion(Minion):
             if self.transpiler.requires_hive:
                 log.info(_('Enabling HIVE Support'))
                 spark_builder = spark_builder.enableHiveSupport()
+                meta_store = 'metastore.db'
+                if (self.transpiler.hive_metadata and 
+                    'storage' in self.transpiler.hive_metadata):
+                    if 'url' in self.transpiler.hive_metadata['storage']:
+                        meta_store = self.transpiler.hive_metadata[
+                            'storage']['url']
                 spark_builder = spark_builder.config('hive.metastore.uris',
-                        self.transpiler.hive_metadata['storage']['url'])
+                        meta_store)
 
             elif self.transpiler.requires_hive_warehouse:
                 log.info(_('Enabling HIVE Warehouse Support'))

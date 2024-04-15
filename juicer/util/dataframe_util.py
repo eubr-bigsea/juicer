@@ -1041,6 +1041,9 @@ def handle_spark_exception(e):
                 raise ValueError(
                     f'{_("Attribute")} {found[0][0]} '
                     f'{_("not found. Valid ones:")} {found[0][1]}.')
+            found = re.findall(r'Invalid view name: (.+);', err_desc)
+            if found:
+                raise ValueError(f'Nome inválido para view: {found[0]}.')
     elif isinstance(e, KeyError):
         value_expr = re.compile(r'No StructField named (.+)\'$')
         found = value_expr.findall(str(e))
