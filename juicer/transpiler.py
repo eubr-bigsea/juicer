@@ -12,6 +12,7 @@ import logging
 import networkx as nx
 import os
 import redis
+import re
 import sys
 import tempfile
 import uuid
@@ -123,6 +124,9 @@ class Transpiler(object):
     def get_meta_template(self):
         return "templates/meta.tmpl"
 
+    def get_sql_template(self):
+        return "templates/sql.tmpl"
+
     def get_batch_template(self):
         return "templates/batch.tmpl"
 
@@ -173,6 +177,9 @@ class Transpiler(object):
         audit_events = []
         for i, task_id in enumerate(opt.tasks_ids):
             if task_id not in graph.nodes:
+                print('*' * 20)
+                print('Task not in graph', task_id)
+                print('*' * 20)
                 continue
             task = graph.nodes[task_id]['attr_dict']
             task['parents'] = graph.nodes[task_id]['parents']
@@ -307,7 +314,6 @@ class Transpiler(object):
             tasks_ids = opt.tasks_ids
 
         instances, audit_events = self.get_instances(opt)
-
         if audit_events:
 
             redis_url = self.configuration['juicer']['servers']['redis_url']
@@ -400,6 +406,8 @@ class Transpiler(object):
                 template = template_env.get_template(self.get_code_template())
             elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
                 template = template_env.get_template(self.get_meta_template())
+            elif workflow_type in ('SQL', ):
+                template = template_env.get_template(self.get_sql_template())
             elif workflow_type == 'BATCH':
                 template = template_env.get_template(self.get_batch_template())
 
@@ -698,3 +706,18 @@ class TranspilerUtils(object):
         """
         tm = jinja2.Template(template)
         return tm.render(**context)
+
+    def text_to_identifier(self, text: str) -> str:
+        # Remove leading/trailing whitespaces
+        text = text.strip()
+        # Replace spaces with underscores
+        text = text.replace(" ", "_")
+        # Add underscore if the first character is not a letter
+        if not text[0].isalpha():
+            text = "_" + text
+        # Remove invalid characters
+        text = re.sub(r'\W|^(?=\d)', '_', text)
+        # Limit the length to 40 characters
+        text = text[:40]
+        return text
+        
