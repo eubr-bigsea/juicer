@@ -10,7 +10,8 @@ from itertools import zip_longest as zip_longest
 from textwrap import dedent, indent
 
 from juicer.operation import Operation
-from juicer.spark.data_operation import DataReaderOperation
+from juicer.spark.data_operation import (DataReaderOperation,
+                                         SaveOperation as SparkSaveOperation)
 from juicer.spark.etl_operation import AggregationOperation
 from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
 from juicer.spark.etl_operation import SampleOrPartitionOperation
@@ -271,7 +272,7 @@ class ReadDataOperation(MetaPlatformOperation):
 
     def sql_code(self):
         return self.model_builder_code()
- 
+
 class ExecuteSQLOperation(MetaPlatformOperation):
     TARGET_OP = 93
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -280,6 +281,10 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         self.query = self.get_required_parameter(
             parameters, 'query')
         self.input_port_name = 'input data 1'
+        self.save = parameters.get('save') in (1, '1', 'true', True)
+        if self.save:
+            self.transpiler_utils.add_import(
+                'from juicer.service.limonero_service import register_datasource')
 
     def generate_code(self):
         task_obj = self._get_task_obj()
@@ -292,32 +297,44 @@ class ExecuteSQLOperation(MetaPlatformOperation):
     def _not_first(self):
         """Creates a function returning False only the first time."""
         _first_time_call = True
-    
+
         def fn(_) -> bool:
             nonlocal _first_time_call
-    
+
             res = not _first_time_call
             _first_time_call = False
             return res
-    
+
         return fn
     def sql_code(self):
-        code = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
+        sql = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
             '"""', '')
+        code = []
 
-        return dedent(
+        code.append(dedent(
             f"""
             sql = \"\"\"
-                {indent(dedent(code), ' '*15, self._not_first())}
+                {indent(dedent(sql), ' '*15, self._not_first())}
             \"\"\"
-            return spark_session.sql(sql)
-            """).strip()
+            result = spark_session.sql(sql)
+            """).strip())
+
+        if self.save:
+            params = {}
+            params.update(self.parameters)
+            params['name'] = self.parameters.get('new_name')
+            params['format'] = 'PARQUET' # FIXME
+            params['path'] = params.get('path', '')
+
+            dro = SparkSaveOperation(params, {'input data': 'df'}, {})
+            code.append(dro.generate_code())
+        return '\n'.join(code)
 
 @dataclasses.dataclass
 class TransformParam:
     function: str
-    args: List[any] = dataclasses.field(default_factory=list) 
-    transform: List[callable] = dataclasses.field(default_factory=list) 
+    args: List[any] = dataclasses.field(default_factory=list)
+    transform: List[callable] = dataclasses.field(default_factory=list)
 
 class TransformOperation(MetaPlatformOperation):
     TARGET_OP = 7
@@ -327,10 +344,10 @@ class TransformOperation(MetaPlatformOperation):
         # 'extract-numbers': Transform()'regexp_extract', [number_re, 1],
         #                    [str, None]),
         'extract-numbers': TransformParam('extract_numbers', [], []),
-        'extract-with-regex': TransformParam('regexp_extract', ['{regex}'], 
+        'extract-with-regex': TransformParam('regexp_extract', ['{regex}'],
                                              [str]),
         'replace-with-regex': TransformParam(
-            'regexp_replace', ['{regex}', '{replace}'], 
+            'regexp_replace', ['{regex}', '{replace}'],
             [str, lambda v: '' if v is None else v]),
         'to-upper': TransformParam('upper', None, None),
         'to-lower': TransformParam('lower', None, None),
@@ -340,11 +357,11 @@ class TransformOperation(MetaPlatformOperation):
         'split': TransformParam('split', None, None),
         'trim': TransformParam('trim', None, None),
         'normalize': TransformParam('FIXME', None, None),
-        'regexp_extract': TransformParam('regexp_extract', ['{delimiter}'], 
+        'regexp_extract': TransformParam('regexp_extract', ['{delimiter}'],
                                          [str]),
         'round-number': TransformParam('round', ['{decimals}'], [int]),
         'split-into-words': TransformParam('split', ['{delimiter}'], [str]),
-        'truncate-text': TransformParam('substring', ['0', '{characters}'], 
+        'truncate-text': TransformParam('substring', ['0', '{characters}'],
                                         [int, int]),
         'ts-to-date': TransformParam('from_unixtime', None, None),
         'date-to-ts': TransformParam('unix_timestamp', None, None),
@@ -355,13 +372,13 @@ class TransformOperation(MetaPlatformOperation):
         #'extract-from-array': TransformParam('None', None, None),
         'concat-array': TransformParam('array_join', ['{delimiter}'], [str]),
         'sort-array': TransformParam('array_sort', None, None),
-        'change-array-type': TransformParam('array_cast', ['{new_type}'], 
+        'change-array-type': TransformParam('array_cast', ['{new_type}'],
                                             [str]),
         'flag-empty': TransformParam('isnull', None, None),
         #'flag-with-formula': TransformParam('None', None, None),
     }
     SUPPORTED_FUNCTIONS = list(SLUG_TO_EXPR.keys()) + [
-        'invert-boolean', 'date-add', 'date-part', 'extract-from-array', 
+        'invert-boolean', 'date-add', 'date-part', 'extract-from-array',
         'flag-with-formula']
     ALIASES = {
         'flag-empty': '_na'
@@ -403,13 +420,13 @@ class TransformOperation(MetaPlatformOperation):
         if function_name is not None:
             self.form_parameters = {}
             param_names = []
-            for i, (arg, transform) in enumerate(zip(info.args or [], 
+            for i, (arg, transform) in enumerate(zip(info.args or [],
                                                      info.transform or [])):
                 if transform is not None:
                     if arg[0] == '{' and arg[-1] == '}':
                         param_name = arg[1:-1]
                         self.form_parameters[param_name] = transform(
-                            self.get_required_parameter(self.parameters, 
+                            self.get_required_parameter(self.parameters,
                                                         param_name))
                         param_names.append(param_name)
                     else:
@@ -468,7 +485,7 @@ class TransformOperation(MetaPlatformOperation):
             else:
                 source = self.parameters.get('value_attribute').get(0)
 
-            
+
             component = self.parameters.get('component', 'day')
             f = self.DATE_COMPONENT_2_FN.get(component)
             for attr in self.attributes:
@@ -651,7 +668,7 @@ class SampleOperation(MetaPlatformOperation):
             self.fraction = float(self.fraction)
         self.output_port_name = 'sampled data'
         self.has_code = (
-            (self.value is not None and self.value > 0) or 
+            (self.value is not None and self.value > 0) or
                 (self.fraction is not None and self.fraction > 0))
 
     def generate_code(self):
@@ -659,8 +676,8 @@ class SampleOperation(MetaPlatformOperation):
         task_obj['forms'].update({
             'type': {'value': self.type},
             'value': {'value': self.value},
-            'fraction': {'value': 
-                         100 * self.fraction if self.fraction is not None 
+            'fraction': {'value':
+                         100 * self.fraction if self.fraction is not None
                          else None},
             'seed': {'value': self.seed},
         })
@@ -1312,7 +1329,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 operation_id = self.task.get('operation').get('id')
                 code.append(dedent(f"""
                     {var}_{i} = {self.task_type}.{klass}(**common_params)
-        
+
                     # Lemonade internal use
                     {var}_{i}.task_id = '{self.task.get('id')}'
                     {var}_{i}.task_name = '{self.task.get('name')} ({klass})'
@@ -1321,7 +1338,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
         else:
             code.append(dedent(f"""
                 {var} = {self.task_type}.{name}(**common_params)
-    
+
                 # Lemonade internal use
                 {var}.task_id = '{self.task.get('id')}'
                 {var}.task_name = '{self.task.get('name')}'
@@ -1418,7 +1435,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 }
                 #generated_param_values.add(tuple(param_dict.values())
                 grid_{{var}}.append(param_dict)
-            
+
         """
         ctx = {
             'var': self.var, 'seed': seed, 'n': n,
@@ -1463,7 +1480,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 grid_{self.var} = []
                 for grid_p, rand_p in tmp_{self.var}:
                     grid_{self.var}.append({{**grid_p, **dict(rand_p)}})
-                    
+
             """).strip())
         constrained = self.get_constrained_params()
         if constrained:
@@ -1973,7 +1990,7 @@ class SplitOperation(ModelMetaOperation):
 
 class GridOperation(ModelMetaOperation):
     """
-    See: 
+    See:
     https://medium.com/storebrand-tech/random-search-in-spark-ml-5370dc908bd7
     https://towardsdatascience.com/hyperparameters-part-ii-random-search-on-spark-77667e68b606
     """
@@ -2267,7 +2284,7 @@ class FactorizationMachinesClassifierOperation(ClassificationOperation):
             'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
             'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
             'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
-            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'stepSize': parameters.get('step_size'),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
@@ -2459,7 +2476,7 @@ class FactorizationMachinesRegressionOperation(RegressionOperation):
             'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
             'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
             'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
-            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'stepSize': parameters.get('step_size'),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
@@ -2468,9 +2485,9 @@ class FactorizationMachinesRegressionOperation(RegressionOperation):
             #'weightCol': _as_string_list(parameters.get('weight_attr')),
             #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
             #'alphabetAsc')),
-            
+
         }
-        
+
         self.var = 'fm_reg'
         self.name = 'FMRegressor'
 
@@ -2578,7 +2595,7 @@ class ConvertDataSourceFormat(BatchMetaOperation):
         schema = types.StructType()
         {%- for attr in attributes %}
         schema.add('{{attr.name}}', {{attr.data_type}}, {{attr.nullable}})
-        {%- endfor %} 
+        {%- endfor %}
         {%- elif infer_schema == 'FROM_DATA' %}
         schema = None
         {%- endif %}
@@ -2599,7 +2616,7 @@ class ConvertDataSourceFormat(BatchMetaOperation):
                 {%- endif %}
                 ignoreTrailingWhiteSpace=True, # Handle \\r
                 encoding='{{encoding}}',
-                header={{header}}, 
+                header={{header}},
                 sep='{{sep}}',
                 inferSchema={{infer_schema == 'FROM_DATA'}},
                 mode='IGNORE'

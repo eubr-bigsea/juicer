@@ -9,6 +9,7 @@ import traceback
 import sys
 from pyspark.sql import types # type: ignore
 from juicer.util import dataframe_util
+from termcolor import colored
 
 {%- for imps in transpiler.imports %}
 {{imps}}
@@ -29,6 +30,9 @@ def read_data_{{name}}(spark_session):
 def execute_sql_{{sql.order}}(spark_session):
     """ Execute the query. """
     {{sql.sql_code() |  indent(width=4, first=False) }}
+    {%- if sql.parameters.save %}
+    {%- endif %}
+    return result
 {%- endfor %}
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
@@ -40,28 +44,29 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         (hash, result) = cached_state.get(
             '{{reader.task.id}}', (None, None))
         if hash == '{{reader.parameters.hash}}':
-            df_{{loop.index0}} = result 
+            df_{{loop.index0}} = result
+            print(colored('Using cache', 'green'))
         else:
             result = read_data_{{name}}(spark_session)
             cached_state['{{reader.task.id}}'] = (
                 '{{reader.parameters.hash}}', result)
-            df_{{loop.index0}} = result 
+            df_{{loop.index0}} = result
         df_{{loop.index0}}.createOrReplaceTempView('`{{reader.task.name}}`')
-        
-        {% endfor %}
+
+        {%- endfor %}
 
         # Queries
         {%- for sql in builder_params.sqls %}
         (hash, result) = cached_state.get(
             '{{sql.task.id}}', (None, None))
         if hash == '{{sql.parameters.hash}}':
-            result_{{sql.order}} = result 
+            result_{{sql.order}} = result
+            print(colored('Using cache', 'green'))
         else:
             result = execute_sql_{{sql.order}}(spark_session)
             cached_state['{{sql.task.id}}'] = (
                 '{{sql.parameters.hash}}', result)
-            result_{{sql.order}} = result 
-            result_{{sql.order}}.explain()
+            result_{{sql.order}} = result
 
         {%- if sql.task.name %}
         result_{{sql.order}}.createOrReplaceTempView('`{{sql.task.name}}`')
