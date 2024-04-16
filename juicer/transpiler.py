@@ -423,7 +423,7 @@ class Transpiler(object):
                 # noinspection PyBroadException
                 try:
                     stand_service.save_job_source_code(
-                        stand_config['url'], stand_config['auth_token'], 
+                        stand_config['url'], stand_config['auth_token'],
                         opt.job_id, gen_source_code)
                 except Exception as ex:
                     log.exception(str(ex))
@@ -670,7 +670,7 @@ class TranspilerUtils(object):
     @staticmethod
     def pprint(obj):
         return pprint.pformat(obj)
-    
+
     @staticmethod
     def gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')
@@ -725,4 +725,4 @@ class TranspilerUtils(object):
         # Limit the length to 40 characters
         text = text[:40]
         return text
-        
+
