@@ -1,6 +1,7 @@
 # coding=utf-8
 
 
+import pprint
 from typing import Callable
 import autopep8
 import datetime
@@ -606,18 +607,18 @@ class TranspilerUtils(object):
         for instance in instances:
             if instance.import_code:
                 if instance.import_code['layer']:
-                    if not instance.import_code['layer'] in layer_list:
+                    if instance.import_code['layer'] not in layer_list:
                         layer_list.append(instance.import_code['layer'])
                 if instance.import_code['callbacks']:
                     for callback in instance.import_code['callbacks']:
                         if callback not in callbacks_list:
                             callbacks_list.append(callback)
                 if instance.import_code['model']:
-                    if not instance.import_code['model'] in model_list:
+                    if instance.import_code['model'] not in model_list:
                         model_list.append(instance.import_code['model'])
                 if instance.import_code['preprocessing_image']:
-                    if not instance.import_code[
-                               'preprocessing_image'] in preprocessing_image_list:
+                    if instance.import_code['preprocessing_image'
+                                            ] not in preprocessing_image_list:
                         preprocessing_image_list.append(
                             instance.import_code['preprocessing_image'])
                 if instance.import_code['others']:
@@ -666,6 +667,10 @@ class TranspilerUtils(object):
         return text.replace('"', '\\"').replace("'", "\\'").encode(
             'unicode-escape').decode('utf-8')
 
+    @staticmethod
+    def pprint(obj):
+        return pprint.pformat(obj)
+    
     @staticmethod
     def gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')

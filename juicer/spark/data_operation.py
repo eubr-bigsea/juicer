@@ -172,18 +172,20 @@ class DataReaderOperation(Operation):
                 code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
-                code.append(f"url = '{url}' #protect 'Protected, please update'")
+                code.append(f"url = '/'.join({repr(url.split('/'))}) #protect 'Protected, please update'")
 
                 if self.metadata['storage'].get('extra_params'):
                     extra_params = json.loads(
                             self.metadata['storage']['extra_params'])
                     if 'user' in extra_params:
                         user = extra_params.get('user')
-                        code.append('jvm = spark_session._jvm')
-                        code.append(
-                            'jvm.java.lang.System.setProperty('
-                            f'"HADOOP_USER_NAME", "{user}")')
-                        code.append(f"os.environ['HADOOP_USER_NAME'] = '{user}'")
+                        if user:
+                            code.append('jvm = spark_session._jvm')
+                            code.append(
+                                'jvm.java.lang.System.setProperty('
+                                f'"HADOOP_USER_NAME", "{user}")')
+                            code.append(
+                                f"os.environ['HADOOP_USER_NAME'] = '{user}'")
 
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
