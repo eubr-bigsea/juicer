@@ -231,11 +231,11 @@ if __name__ == "__main__":
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read(),
                                       Loader=yaml.FullLoader)
-    custom_vars = None
+    custom_vars = {'job_id': 9999}
     if args.vars:
         with open(args.vars) as vars_file:
-            custom_vars = yaml.load(vars_file.read(),
-                                    Loader=yaml.FullLoader)
+            custom_vars.extend(yaml.load(vars_file.read(),
+                                    Loader=yaml.FullLoader))
 
     _generate(args.workflow, args.job_id, args.execute_main,
               {"plain": args.plain},

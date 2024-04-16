@@ -70,7 +70,7 @@ def convert_variable_name(task_name):
 
     variable_name = ""
     for c in name:
-        if c.isalnum() or c is '_':
+        if c.isalnum() or c == '_':
             variable_name += ''.join(c)
 
     variable_name = variable_name.lower()
@@ -92,7 +92,7 @@ def convert_parents_to_variable_name(parents=[]):
 
         variable_name = ""
         for c in name:
-            if c.isalnum() or c is '_':
+            if c.isalnum() or c == '_':
                 variable_name += ''.join(c)
 
         variable_name = variable_name.lower()
