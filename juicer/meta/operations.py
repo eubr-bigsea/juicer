@@ -2291,7 +2291,7 @@ class FactorizationMachinesClassifierOperation(ClassificationOperation):
             'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
             'initStd': _as_float_list(parameters.get('init_std'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
+            'stepSize': _as_int_list(parameters.get('step_size'), self.grid_info),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
             'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
             'seed': _as_int_list(parameters.get('seed'), None),
@@ -2381,7 +2381,7 @@ class GBTRegressorOperation(RegressionOperation):
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
+            'stepSize': _as_int_list(parameters.get('step_size'), self.grid_info),
             'subsamplingRate': parameters.get('subsampling_rate'),
             'validationIndicatorCol':
             parameters.get('validation_indicator_col'),
@@ -2483,7 +2483,7 @@ class FactorizationMachinesRegressionOperation(RegressionOperation):
             'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
             'initStd': _as_float_list(parameters.get('init_std'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
+            'stepSize': _as_int_list(parameters.get('step_size'), self.grid_info),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
             'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
             'seed': _as_int_list(parameters.get('seed'), None),
