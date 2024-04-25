@@ -84,7 +84,7 @@ class SparkMinion(Minion):
         #if not spark_dist_classpath:
         #    log.error(_('SPARK_DIST_CLASSPATH environment variable is not defined, '
         #        'minion will not run correctly.'))
-        
+
         self.spark_session = None
 
         self.mgr = socketio.RedisManager(
@@ -279,7 +279,7 @@ class SparkMinion(Minion):
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
 
-            log.info('Starting execution of workflow %s', self.app_id)  
+            log.info('Starting execution of workflow %s', self.app_id)
             # Checks if it's a valid cluster
             job_id = msg_info['job_id']
             cluster_info = msg_info.get('cluster', {})
@@ -310,7 +310,7 @@ class SparkMinion(Minion):
                         if m in sys.modules:
                             del sys.modules[m]
                     import pyspark
-            
+
             self.cluster_options = {'remote': False, 'build.dist_file': True}
 
             # Add general parameters in the form param1=value1,param2=value2
@@ -329,7 +329,7 @@ class SparkMinion(Minion):
                                             gp.get('python'))
                         if gp.get('lemonade.spark.version'):
                             self.transpiler.spark_version = tuple([
-                                int(v) for v in 
+                                int(v) for v in
                                 gp.get('lemonade.spark.version').split('.')
                             ])
                         if gp.get('lemonade.spark.dir'):
@@ -359,15 +359,16 @@ class SparkMinion(Minion):
                 if '/lib/native' not in os.environ.get('LD_LIBRARY_PATH', ''):
                     os.environ['LD_LIBRARY_PATH'] = ':'.join([
                         os.environ.get('LD_LIBRARY_PATH', ''),
-                        os.environ.get('HADOOP_HOME', '/opt/hadoop').rstrip('/') 
+                        os.environ.get('HADOOP_HOME', '/opt/hadoop').rstrip('/')
                             + '/lib/native'])
                 print('*' * 20)
                 print(os.environ['SPARK_HOME'])
                 print(sys.path)
-                py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
-                files = glob.glob(py4j_dir)
-                print(py4j_dir, files)
-                print('*' * 20)
+                if self.spark_dir:
+                    py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
+                    files = glob.glob(py4j_dir)
+                    print(py4j_dir, files)
+                    print('*' * 20)
             except Exception as ex:
                 msg = _("Error in general cluster parameters: {}").format(ex)
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -493,7 +494,7 @@ class SparkMinion(Minion):
             freeze = self.config['juicer'].get('freeze')
             if freeze:
                 # Always use same name. Useful to debug and avoid
-                # stoping the minion every time you change the 
+                # stoping the minion every time you change the
                 # code generation. Can be used in conjunction
                 # with code_gen.py tool
                 log.warn(_('Minion is using the module name {}'.format(freeze)))
@@ -514,7 +515,7 @@ class SparkMinion(Minion):
                         loader.workflow, loader.graph, {}, out, job_id,
                         self._state, persist=app_configs.get('persist', True))
             elif code is not None:
-                # Code was generated somewhere else. For example, 
+                # Code was generated somewhere else. For example,
                 # in minion from Meta Platform
                 with codecs.open(generated_code_path, 'w', 'utf8') as out:
                     print(code, file=out)
@@ -654,7 +655,7 @@ class SparkMinion(Minion):
                 log.info(_('Enabling HIVE Support'))
                 spark_builder = spark_builder.enableHiveSupport()
                 meta_store = 'metastore.db'
-                if (self.transpiler.hive_metadata and 
+                if (self.transpiler.hive_metadata and
                     'storage' in self.transpiler.hive_metadata):
                     if 'url' in self.transpiler.hive_metadata['storage']:
                         meta_store = self.transpiler.hive_metadata[
@@ -669,7 +670,8 @@ class SparkMinion(Minion):
                         self.transpiler.hive_metadata['storage']['url'])
 
             # Use config file default configurations to set up Spark session
-            for option, value in self.config['juicer'].get('spark', {}).items():
+            spark_config = self.config['juicer'].get('spark', {}) or {}
+            for option, value in spark_config.items():
                 if value is not None:
                     log.info(_('Setting spark configuration %s'), option)
                     spark_builder = spark_builder.config(option, value)
@@ -680,7 +682,7 @@ class SparkMinion(Minion):
                     '{}/lib/native/'.format(os.environ.get('HADOOP_HOME'))
 
             # Default options from configuration file
-            app_configs.update(self.config['juicer'].get('spark', {}))
+            app_configs.update(spark_config)
 
             environment_settings = {
                 'SPARK_DRIVER_PORT': 'spark.driver.port',
@@ -914,7 +916,7 @@ class SparkMinion(Minion):
         }
         self.state_control.push_app_queue(
                 self.app_id,
-                json.dumps(msg_processed, 
+                json.dumps(msg_processed,
                     cls=dataframe_util.CustomEncoder))
         log.info('Sending message processed message: %s' % msg_processed)
 
@@ -933,7 +935,7 @@ class SparkMinion(Minion):
         if self.spark_session and multiprocessing.current_process().name == 'main':
             try:
                 # sc = self.spark_session.sparkContext
-    
+
                 self.spark_session.stop()
                 # self.spark_session.sparkContext.stop()
                 self.spark_session = None
@@ -965,7 +967,7 @@ class SparkMinion(Minion):
         self.execute_process = multiprocessing.Process(
             name="minion", target=self.execute,
             args=(self.terminate_proc_queue,))
-        self.execute_process.daemon = True 
+        self.execute_process.daemon = True
 
         self.ping_process = multiprocessing.Process(
             name="ping process", target=self.ping,

@@ -1,21 +1,20 @@
 import dataclasses
-from functools import reduce
 import json
 import re
-from typing import List
 import unicodedata
 from collections import namedtuple
+from functools import reduce
 from gettext import gettext
 from itertools import zip_longest as zip_longest
 from textwrap import dedent, indent
+from typing import List
 
 from juicer.operation import Operation
-from juicer.spark.data_operation import (DataReaderOperation,
-                                         SaveOperation as SparkSaveOperation)
-from juicer.spark.etl_operation import AggregationOperation
-from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
-from juicer.spark.etl_operation import SampleOrPartitionOperation
 from juicer.service import limonero_service
+from juicer.spark.data_operation import DataReaderOperation
+from juicer.spark.data_operation import SaveOperation as SparkSaveOperation
+from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOperation
+from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -1060,7 +1059,12 @@ class DateDiffOperation(MetaPlatformOperation):
         self.value = parameters.get('value')
 
     def generate_code(self):
+        """ FIXME Code is not correct"""
         task_obj = self._get_task_obj()
+        function_name = ''
+        attr = ''
+        final_args_str = ''
+        final_args = []
         formula = {
             'alias': self.alias,
             'expression': f'{function_name}({attr}{final_args_str})',
@@ -1072,6 +1076,7 @@ class DateDiffOperation(MetaPlatformOperation):
         }
         task_obj['forms'].update({
             "expression": {"value": self.formula},
+            'formula': formula
         })
         task_obj['operation'] = {"id": 7}
 
