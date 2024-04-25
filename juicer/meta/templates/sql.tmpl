@@ -74,7 +74,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endfor %}
 
         # if last command is a SELECT one, display a sample
-        {%- set last_result = 'result_' + (builder_params.sqls|length -1)|string %}
+        {%- set last_result = 'result_' + (builder_params.sqls|last).order|string %}
         if {{last_result}}.columns:
             task_id = '{{ builder_params.sqls[-1].task.id}}'
             dataframe_util.emit_sample_data_explorer(
