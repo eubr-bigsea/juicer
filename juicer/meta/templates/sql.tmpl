@@ -68,6 +68,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             cached_state['{{sql.task.id}}'] = (
                 '{{sql.parameters.hash}}', result)
             result_{{sql.order}} = result
+            {%- set last_result = sql.order -%}
 
         {%- if sql.task.name %}
         result_{{sql.order}}.createOrReplaceTempView('`{{sql.task.name}}`')
@@ -75,7 +76,6 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endfor %}
 
         # if last command is a SELECT one, display a sample
-        {%- set last_result = 'result_' + (builder_params.sqls|length -1)|string %}
         if {{last_result}}.columns:
             task_id = '{{ builder_params.sqls[-1].task.id}}'
             dataframe_util.emit_sample_data_explorer(
