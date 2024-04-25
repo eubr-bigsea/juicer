@@ -16,6 +16,7 @@ from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import functools
 import itertools
+import math
 import operator
 import pdb
 import random
@@ -214,16 +215,21 @@ class CustomTrainValidationSplit():
                     ctx = result.ctx
                     message = {'params': ctx.details, 't': ctx.time,
                         'index': ctx.index}
-                    if result.status == 'OK':
+                    if result.metric is not None and math.isnan(result.metric):
+                         message['error'] = 'Metric could not be computed'
+                         emit(identifier=ctx.task_id, status='ERROR',
+                                message=message, title=ctx.task_name,
+                                operation_id=ctx.operation_id)
+
+                    elif result.status == 'OK':
                         results.append(result)
                         metric_name = self.evaluator.extractParamMap().get(
                             self.evaluator.metricName)
                         message['metric'] = {
                             'name': metric_name,
-                            'value': result.metric,
+                            'value': result.metric if not math.isnan(result.metric) else 1000,
                             'is_larger_better': is_larger_better
                         }
-
                         ml_model = result.model.stages[-1]
                         importance = get_feature_importance_score(ml_model, [])
                         message['feature_importance'] = importance
