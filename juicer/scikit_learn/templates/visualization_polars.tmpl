@@ -2,6 +2,7 @@
 
 {% macro prepare_x_axis(x_values) -%}
 # Prepare X-Axis values.
+#df = df.select(float(valor) for valor in '{{x_values[0].attribute}}')
 df = df.sort('{{x_values[0].attribute}}')
 {%- for x in x_values %}
 col = pl.col('{{x.attribute}}')
@@ -119,7 +120,7 @@ dimensions = [
     pl.col('{{op.animation.attribute}}'), # animation
     {%- endif %}
 
-    {%- if type in ('scatter', 'bubble', 'pointcloud') %}
+    {%- if type in ('scatter', 'bubble') %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
     pl.col('{{op.color_attribute.attribute}}'), #color
     {%- endif %}
@@ -319,7 +320,7 @@ fig = px.
     area
     {%- elif type in ('stacked-bar', 'stacked-horizontal-bar', 'horizontal-bar') -%}
     bar
-    {%- elif type in ('bubble', ) -%}
+    {%- elif type in ('bubble') -%}
     scatter 
     {%- else %}{{type}}{% endif -%}(
         pandas_df,
@@ -335,9 +336,9 @@ fig = px.
         color='dim_1', 
         pattern_shape="dim_1", 
         template="simple_white",
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar', 'pointcloud') and not type.endswith('bar')-%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar') and not type.endswith('bar')-%}
         line_group='dim_1', color='dim_1',
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'pointcloud') -%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
         color='dim_1',{% endif %}
         log_y={{op.y_axis.logScale}},
 
@@ -422,6 +423,7 @@ styles = [{% for y in op.y -%}
     'solid',
     {%- endif %}
     {%- endfor %}]
+
 {%- if x_values |length > 1 %}
 sizes = sizes * {{x_values |length}}
 styles = styles * {{x_values |length}}
@@ -521,10 +523,19 @@ fig.update_layout(
 
 {%- elif type in ('pointcloud',) %}
 
+#pandas_df['dim_0'] = pandas_df['dim_0'].cast(pl.Float64)
+#pandas_df['aggr_0'] = pandas_df['aggr_0'].cast(pl.Float64)
+#pandas_df['dim_1'] = pandas_df['dim_1'].cast(pl.Float64)
+
+#valid_data = pandas_df.dropna(subset=['dim_0', 'aggr_0', 'dim_1'])
+
 fig = go.Figure(data=go.Scatter3d(
     x=pandas_df['dim_0'],
     y=pandas_df['aggr_0'],
     z=pandas_df['dim_1'],
+    #x='dim_0',
+    #y='aggr_0',
+    #z='dim_1',
     mode='markers',
     #color_discrete_sequence ={{op.palette}},
     marker=dict(
@@ -602,12 +613,13 @@ fig.add_trace(go.Funnel(
 
 {%- elif type in ('parcoords',) %}
 fig = px.parallel_coordinates(pandas_df, 
-      color='dim_0', 
+      #color='dim_0', 
       labels=labels,
       dimensions=['aggr_0', 'aggr_1', 'aggr_2', 'aggr_3'],
-      color_continuous_scale={{op.color_scale}},
+      color_continuous_scale = {{op.color_scale}},
       title='{{op.title}}',
       color_continuous_midpoint=2)
+
 
 
 

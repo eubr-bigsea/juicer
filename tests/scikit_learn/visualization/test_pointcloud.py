@@ -13,11 +13,27 @@ import plotly.colors
 
 # pointcloud
 
+def to_numeric(s: pl.Series) -> pl.Series:
+    try:
+        result = s.cast(pl.Int64)
+    except pl.exceptions.ComputeError:
+        result = s.cast(pl.Float64)
+    return result
+
 
 @pytest.fixture
 def get_df():
-    return util.iris_polars()
-
+    df = util.iris_polars()
+    '''
+    mapa_classes = {'Iris-setosa': 1, 'Iris-versicolor': 2, 'Iris-virginica': 3}
+    df = df.select(
+        pl.col("sepallength"),
+        pl.col("sepalwidth"),
+        pl.col("petallength"),
+        pl.col("petalwidth"),
+        pl.col("class").apply(lambda x: mapa_classes.get(x, 0), pl.Int64()))
+    '''
+    return df
 
 @pytest.fixture
 def get_arguments():
@@ -27,20 +43,14 @@ def get_arguments():
             "display_legend": "LEFT",
             "x": [
                 {
-                    "binning": "EQUAL_INTERVAL",
-                    "bins": 30,
+                    "binning": None,
+                    "bins": 20,
                     "binSize": 10,
                     "emptyBins": "ZEROS",
-                    "multiplier": 10,
-                    "decimal_places": 3,
-                    "prefix": None,
-                    "suffix": None,
-                    "label": None,
-                    "max_displayed": "",
+                    "decimal_places": 2,
                     "group_others": True,
-                    "sorting": "Y_ASC",
+                    "sorting": "NATURAL",
                     "attribute": "petalwidth",
-                    "displayLabel": "TESTE",
                 },
                 {
                     "binning": None,
@@ -48,14 +58,14 @@ def get_arguments():
                     "binSize": 10,
                     "emptyBins": "ZEROS",
                     "multiplier": None,
-                    "decimal_places": 2,
+                    "decimal_places": None,
                     "prefix": None,
                     "suffix": None,
                     "label": None,
                     "max_displayed": None,
                     "group_others": True,
-                    "sorting": "NATURAL",
-                    "attribute": "class",
+                    "sorting": None,
+                    "attribute": "sepalwidth",
                 },
             ],
             "palette": [
@@ -120,7 +130,6 @@ def get_arguments():
         "named_outputs": {"output data": "out"},
     }
 
-
 def emit_event(*args, **kwargs):
     print(args, kwargs)
 
@@ -143,7 +152,6 @@ def generated_chart(get_arguments, get_df):
     generated_chart = result.get("d")
     data = generated_chart["data"]
     layout = generated_chart["layout"]
-
     return data, layout
 
 
