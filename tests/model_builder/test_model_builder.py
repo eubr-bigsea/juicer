@@ -24,9 +24,8 @@ from .fixtures import *  # Must be * in order to import fixtures
 
 # region Test Sample Operation
 
-
-def test_sample_percent_success(builder_params: ModelBuilderParams):
-    frac = 0.5
+@pytest.mark.parametrize('frac', [0.5, 0.1, 0.7, 1.0])
+def test_sample_percent_success(builder_params: ModelBuilderParams, frac: float):
     seed = 777
     builder_params.sample.parameters['fraction'] = frac
     builder_params.sample.parameters['seed'] = seed  # Must be set
@@ -35,16 +34,24 @@ def test_sample_percent_success(builder_params: ModelBuilderParams):
         f'df = df.sample(withReplacement=False, fraction={frac}, seed={seed})'
         == builder_params.sample.model_builder_code())
 
+@pytest.mark.parametrize('frac', [-200, 24091294, 0, -0.5])
+def test_sample_percent_informed_failure(builder_params: ModelBuilderParams, frac: float):
+    seed = 777
+    builder_params.sample.parameters['fraction'] = frac
+    builder_params.sample.parameters['seed'] = seed
+    builder_params.sample.parameters['type'] = 'percent'
+    with pytest.raises(ValueError) as ve:
+        builder_params.sample.model_builder_code()
+    assert "Parameter 'fraction' must be in range (0, 100)" in str(ve)
 
-def test_sample_head_success(builder_params: ModelBuilderParams):
-    n = 120
+@pytest.mark.parametrize('n', [-200, -239523952, 23952935, 0, 5, 100])
+def test_sample_head_success(builder_params: ModelBuilderParams, n: int):
     builder_params.sample.parameters['value'] = n
     builder_params.sample.parameters['type'] = 'head'
     assert f'df = df.limit({n})' == builder_params.sample.model_builder_code()
 
-
-def test_sample_fixed_number_success(builder_params: ModelBuilderParams):
-    n = 300
+@pytest.mark.parametrize('n', [-200, -239523952, 23952935, 0, 5, 100])
+def test_sample_fixed_number_success(builder_params: ModelBuilderParams, n: int):
     seed = 123
     builder_params.sample.parameters['value'] = n
     builder_params.sample.parameters['seed'] = seed
@@ -66,6 +73,12 @@ def test_sample_invalid_type_informed_failure(
     with pytest.raises(ValueError) as ve:
         builder_params.sample.model_builder_code()
     assert "Invalid value for parameter 'type'" in str(ve)
+
+def test_no_sample_success(builder_params: ModelBuilderParams):
+    seed = 777
+    builder_params.sample.parameters['type'] = ''
+    assert (f'df = df.sample(False, fraction=1, seed={seed})' ==
+            builder_params.sample.model_builder_code())
 
 @pytest.mark.parametrize('frac', [0.0, 1.01, -1.0, 10])
 def test_sample_invalid_fraction_failure(builder_params: ModelBuilderParams,
@@ -101,7 +114,7 @@ def test_split_cross_validation_success(builder_params: ModelBuilderParams):
     assert result, format_code_comparison(expected_code, code, msg)
     print(builder_params.split.model_builder_code())
 
-
+ 
 def test_split_split_strategy_success(builder_params: ModelBuilderParams):
     ratio = .8
     seed = 232
@@ -118,21 +131,6 @@ def test_split_split_strategy_success(builder_params: ModelBuilderParams):
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
 
-
-def test_split_cross_val_strategy_success(builder_params: ModelBuilderParams):
-    ratio = .8
-    seed = 232
-    builder_params.split.strategy = 'cross_validation'
-    builder_params.split.seed = seed
-    builder_params.split.ratio = ratio
-
-    code = builder_params.split.model_builder_code()
-    expected_code = dedent(f"""
-    executor = CustomTrainValidationSplit(pipeline, evaluator, grid, 
-        seed={seed}, strategy='cross_validation', folds=10)
-    """)
-    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
-    assert result, format_code_comparison(expected_code, code, msg)
 
 # endregion
 
@@ -202,6 +200,7 @@ def test_evaluator_clustering_success(builder_params: ModelBuilderParams,
     assert result, format_code_comparison(expected_code, code, msg)
 
 # endregion
+
 
 # region Features Operation
 @pytest.mark.parametrize('task_type', ['regression', 'classification'])
@@ -296,7 +295,6 @@ def test_label_categorical_success(builder_params: ModelBuilderParams):
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
 
-
 def test_label_categorical_transform_one_hot_success(
         builder_params: ModelBuilderParams):
     """
@@ -321,7 +319,6 @@ def test_label_categorical_transform_one_hot_success(
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
 
-
 def test_label_categorical_transform_flag_not_null_success(
         builder_params: ModelBuilderParams):
     builder_params.features.label['transform'] = 'not_null'
@@ -334,7 +331,6 @@ def test_label_categorical_transform_flag_not_null_success(
     code = builder_params.features.model_builder_code()
     result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
     assert result, format_code_comparison(expected_code, code, msg)
-
 
 def test_label_categorical_handle_null_success(
         builder_params: ModelBuilderParams):
@@ -402,29 +398,78 @@ def test_features_numerical_success(builder_params: ModelBuilderParams):
     assert result, format_code_comparison(expected_code, code, msg)
 
 
-# def test_features_numerical_keep_as_is_success(
-#         builder_params: ModelBuilderParams):
-#     assert False, 'Implement'
 
 
-# def test_features_numerical_binarize_success(
-#         builder_params: ModelBuilderParams):
-#     assert False, 'Implement'
+def test_features_numerical_transform_quantis_success(
+    builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'numerical'
+    builder_params.features.label['transform'] = 'quantis'
+    builder_params.features.label['quantis'] = 10
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_qtles = feature.QuantileDiscretizer(
+            numBuckets=10, inputCol='class',
+            outputCol='class_qtles', handleInvalid='skip')
+        features_stages.append(class_qtles) 
+        label = 'class_qtles'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
 
 
-# def test_features_numerical_transform_quantis_success(
-#         builder_params: ModelBuilderParams):
-#     assert False, 'Implement'
+def test_features_numerical_binarize_success(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'numerical'
+    builder_params.features.label['transform'] = 'binarize'
+    builder_params.features.label['threshold'] = 2
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_bin = feature.Binarizer(
+            threshold=2, inputCol='class',
+            outputCol='class_bin')
+        features_stages.append(class_bin) 
+        label = 'class_bin'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
 
 
-# def test_features_numerical_transform_buckets_success(
-#         builder_params: ModelBuilderParams):
-#     assert False, 'Implement'
+def test_features_numerical_transform_buckets_success(
+         builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'numerical'
+    builder_params.features.label['transform'] = 'buckets'
+    builder_params.features.label['buckets'] = ['0.5','0.7']
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_qtles = feature.Bucketizer(
+            splits=[-float('inf'), 0.5, 0.7, float('inf')],
+            inputCol='class',
+            outputCol='class_bkt', handleInvalid='skip')
+        features_stages.append(class_qtles)
+        label = 'class_bkt'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
 
 
-# def test_features_numerical_transform_invalid_failure(
-#         builder_params: ModelBuilderParams):
-#     assert False, 'Implement'
+def test_features_numerical_transform_invalid_failure(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['transform'] ='invalid'
+    with pytest.raises(ValueError) as ve:
+        builder_params.features.model_builder_code()
+    assert 'Invalid transformation' in str(ve)
 
 
 @pytest.mark.parametrize('action, algo',
@@ -539,6 +584,98 @@ def test_features_numerical_remove_if_null_success(
     assert result, format_code_comparison(expected_code, code, msg)
 
 # TODO Test textual and vector features
+def test_textual_tokenize_hash(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'token_hash'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_tkn = feature.Tokenizer(
+            inputCol='class',
+            outputCol='class_tkn')
+        features_stages.append(class_tkn) 
+
+        class_tkn = feature.HashingTF(
+            inputCol='class_tkn',
+            outputCol='class_tkn_hash')
+        features_stages.append(class_tkn_hash) 
+        label = 'class_tkn_hash'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+def test_textual_tokenize_stop_hash(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'token_stop_hash'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_tkn = feature.StopWordsRemover(
+            inputCol='class',
+            outputCol='class_stop')
+        features_stages.append(class_stop) 
+
+        class_tkn = feature.Tokenizer(
+            inputCol='class_stop',
+            outputCol='class_stop_tkn')
+        features_stages.append(class_stop_tkn) 
+
+        class_tkn = feature.HashingTF(
+            inputCol='class_stop_tkn',
+            outputCol='class_stop_tkn_hash')
+        features_stages.append(class_stop_tkn_hash) 
+        label = 'class_stop_tkn_hash'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+def test_textual_count_vectorizer(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'count_vectorizer'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+
+        class_tkn = feature.CountVectorizer(
+            inputCol='class',
+            outputCol='class_count_vectorizer')
+        features_stages.append(class_count_vectorizer) 
+        label = 'class_count_vectorizer'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+def test_textual_word2vect(
+        builder_params: ModelBuilderParams):
+    builder_params.features.label['feature_type'] = 'textual'
+    builder_params.features.label['transform'] = 'word_2_vect'
+    expected_code = dedent("""
+        class_del_nulls = feature.SQLTransformer(
+            statement="SELECT * FROM __THIS__ WHERE (class) IS NOT NULL")
+        features_stages.append(class_del_nulls) 
+        
+        class_tkn = feature.Word2Vec(
+            inputCol='class',
+            outputCol='class_word2vect')
+        features_stages.append(class_word2vect) 
+        label = 'class_word2vect'
+    """)
+    code = builder_params.features.model_builder_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+       
+
 
 # endregion
 
@@ -1322,4 +1459,4 @@ def xtest_generate_run_code_success(sample_workflow: dict, builder_params: Model
     # assert """out = df.sort_values(by=['sepalwidth'], ascending=[False])""" == \
     #        instance.generate_code()
 
-# endregion
+# endregionn
