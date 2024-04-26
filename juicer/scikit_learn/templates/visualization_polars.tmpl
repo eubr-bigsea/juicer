@@ -320,7 +320,7 @@ fig = px.
     area
     {%- elif type in ('stacked-bar', 'stacked-horizontal-bar', 'horizontal-bar') -%}
     bar
-    {%- elif type in ('bubble') -%}
+    {%- elif type in ['bubble'] -%}
     scatter 
     {%- else %}{{type}}{% endif -%}(
         pandas_df,

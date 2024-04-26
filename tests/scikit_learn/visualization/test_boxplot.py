@@ -120,6 +120,7 @@ def generated_chart(get_arguments, get_df):
         [
             "import plotly.graph_objects as go",
             "import plotly.express as px",
+            "from plotly.subplots import make_subplots",
             "import json",
             instance.generate_code(),
         ]
