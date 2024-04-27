@@ -53,7 +53,7 @@ def _as_list(input_values, transform=None, size=None, validate=None):
     https://towardsdatascience.com/why-is-the-log-uniform-distribution-useful-for-hyperparameter-tuning-63c8d331698
     """
     if (input_values is None or not isinstance(input_values, dict) or
-            False == input_values.get('enabled')):
+            (not input_values.get('enabled', True))):
         return None
     param_type = input_values.get('type')
 
@@ -62,7 +62,7 @@ def _as_list(input_values, transform=None, size=None, validate=None):
             values = values.get('list')
             return (values, f'np.random.choice({values})')
         elif param_type == 'range':
-            qty = size or values.get('quantity') or 3
+            qty = size or values.get('quantity') or values.get('size', 3)
             _min = values.get('min', 0)
             _max = values.get('max', 3)
             if values.get('distribution') == 'log_uniform':
@@ -82,15 +82,20 @@ def _as_list(input_values, transform=None, size=None, validate=None):
     result, random_generator = apply(input_values)
     if param_type == 'list' and len(result) == 0:
         return None
-    if transform and param_type == 'list':
-        if validate:
-            _validate(validate, result)
-        transformed = [transform(x) for x in result if x is not None]
-        return HyperparameterInfo(
-            value=transformed, param_type='list', values_count=len(transformed),
-            random_generator=random_generator)
+    if param_type == 'list':
+        if transform:
+            if validate:
+                _validate(validate, result)
+            transformed = [transform(x) for x in result if x is not None]
+            return HyperparameterInfo(
+                value=transformed, param_type='list', values_count=len(transformed),
+                random_generator=random_generator)
+        else:
+            return HyperparameterInfo(
+                value=result, param_type='list', values_count=len(result),
+                random_generator=random_generator)
 
-    qty = size or input_values.get('quantity') or 3
+    qty = size or input_values.get('quantity') or input_values.get('size', 3)
     return HyperparameterInfo(
         value=result, param_type='range', values_count=qty,
         random_generator=random_generator)
@@ -1865,14 +1870,14 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{f['na_name']}',
                             outputCol='{token_name}')
                         features_stages.append({f['var']}_tkn) """))
-                    
+
                     final_name = token_name + '_hash'
                     code.append(dedent(f"""
                         {f['var']}_tkn = feature.HashingTF(
                             inputCol='{token_name}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_tkn_hash) """))
-                                       
+
                 elif transform == 'token_stop_hash':
                     stop_name = final_name + '_stop'
                     code.append(dedent(f"""
@@ -1880,21 +1885,21 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{f['na_name']}',
                             outputCol='{stop_name}')
                         features_stages.append({f['var']}_stop) """))
-                                        
+
                     token_name = stop_name + '_tkn'
                     code.append(dedent(f"""
                         {f['var']}_tkn = feature.Tokenizer(
                             inputCol='{stop_name}',
                             outputCol='{token_name}')
                         features_stages.append({f['var']}_stop_tkn) """))
-                    
+
                     final_name = token_name + '_hash'
                     code.append(dedent(f"""
                         {f['var']}_tkn = feature.HashingTF(
                             inputCol='{token_name}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_stop_tkn_hash) """))
-                
+
                 elif transform == 'count_vectorizer':
                     final_name = final_name + '_count_vectorizer'
                     code.append(dedent(f"""
@@ -1902,7 +1907,7 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{f['na_name']}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_count_vectorizer) """))
-                
+
                 elif transform == 'word_2_vect':
                     final_name = final_name + '_word2vect'
                     code.append(dedent(f"""
@@ -1910,7 +1915,7 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{f['na_name']}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_word2vect) """))
-                    
+
             self.features_names.append(final_name)
             if f['usage'] == 'label':
                 label = final_name
@@ -2163,7 +2168,7 @@ class LDAOperation(ClusteringOperation):
         self.var = 'lda'
         self.hyperparameters = {
             'k': _as_int_list(
-                parameters.get('number_of_clusters'), self.grid_info, 
+                parameters.get('number_of_clusters'), self.grid_info,
                 self.gt(1)),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
@@ -2171,7 +2176,7 @@ class LDAOperation(ClusteringOperation):
             'featuresCol':_as_string_list(parameters.get('features')),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
             'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info, self.ge(0)),
-            'optimizer':_as_string_list(parameters.get('optimizer'), 
+            'optimizer':_as_string_list(parameters.get('optimizer'),
                     self.in_list('online')),
             'learningOffset':_as_float_list(
                 parameters.get('learning_offset'), self.grid_info),
@@ -2195,9 +2200,9 @@ class PowerIterationClusteringOperation(ClusteringOperation):
         self.var = 'pic'
         self.hyperparameters = {
             'k': _as_int_list(
-                parameters.get('number_of_clusters'), self.grid_info, 
+                parameters.get('number_of_clusters'), self.grid_info,
                 self.gt(1)),
-            'initMode': _as_string_list(parameters.get('init_mode'), 
+            'initMode': _as_string_list(parameters.get('init_mode'),
                     self.in_list('random', 'degree')),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
@@ -2264,24 +2269,7 @@ class GBTClassifierOperation(ClassificationOperation):
 
         self.hyperparameters = dict([
             (p, _as_list(parameters.get(v))) for p, v in params.items()])
-        # self.hyperparameters = {
-        #     'cacheNodeIds': _as_list(parameters.get('cache_node_ids'), None),
-        #     'checkpointInterval': _as_list(parameters.get('checkpoint_interval')),
-        #     'lossType': _as_list(parameters.get('loss_type')),
-        #     'maxBins': _as_list(parameters.get('max_bins')),
-        #     'maxDepth': _as_int_list(
-        #         parameters.get('max_depth'), self.grid_info),
-        #     'maxIter': _as_int_list(
-        #         parameters.get('max_iter'), self.grid_info),
-        #     'minInfoGain': _as_float_list(
-        #         parameters.get('min_info_gain'), self.grid_info),
-        #     'minInstancesPerNode': _as_int_list(
-        #         parameters.get('min_instances_per_node'), self.grid_info),
-        #     'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-        #     'stepSize': parameters.get('step_size'),
-        #     'subsamplingRate': parameters.get('subsampling_rate'),
 
-        # }
         self.var = 'gbt_classifier'
         self.name = 'GBTClassifier'
 
@@ -2331,9 +2319,6 @@ class PerceptronClassifierOperation(ClassificationOperation):
             values_count=1,
             random_generator='random_generator'
             )
-
-
-
 
         self.hyperparameters = {
             'layers': layers,
@@ -2449,30 +2434,28 @@ class LinearRegressionOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
 
-        seed = 0
-        max_iter = 5
         self.hyperparameters = {
-            'aggregationDepth':
-                _as_int_list(parameters.get('aggregation_depth'), None,
-                             self.ge(2)),
+            'aggregationDepth': # FIXME Missing in interface
+            _as_int_list(parameters.get('aggregation_depth'), None,
+                            self.ge(2)),
             'elasticNetParam':
                 _as_float_list(parameters.get('elastic_net'), self.grid_info,
-                               self.between(0, 1)),
+                            self.between(0, 1)),
             'epsilon':
                 _as_float_list(parameters.get('epsilon'), self.grid_info,
-                               self.gt(1)),
+                            self.gt(1)),
             'fitIntercept': _as_boolean_list(parameters.get('fit_intercept')),
             'loss': _as_string_list(parameters.get('loss'),
                                     self.in_list('huber', 'squaredError')),
             'maxIter': _as_int_list(
                 parameters.get('max_iter'), self.grid_info,  self.ge(0)),
             'regParam': _as_float_list(parameters.get('reg_param'),
-                                       self.grid_info, self.ge(0)),
+                                    self.grid_info, self.ge(0)),
             'solver': _as_string_list(parameters.get('solver'),
-                                      self.in_list('auto', 'normal', 'l-bfgs')),
+                                    self.in_list('auto', 'normal', 'l-bfgs')),
             'standardization': _as_boolean_list(parameters.get('standardization')),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
-            'weightCol': parameters.get('weight'),
+            'weightCol': parameters.get('weight'), # Missing in interface
         }
         self.var = 'linear_reg'
         self.name = 'LinearRegression'
@@ -2507,7 +2490,7 @@ class GBTRegressorOperation(RegressionOperation):
             'featureSubsetStrategy': _as_string_list(parameters.get('feature_subset_strategy')),
             'impurity': _as_string_list(parameters.get('impurity')),
             'leafCol': _as_string_list(parameters.get('leaf_col')),
-            'lossType': _as_string_list(parameters.get('')),
+            'lossType': _as_string_list(parameters.get('loss_type')),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
@@ -2575,8 +2558,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.family_link = parameters.get('family_link') or []
         if 'solver' in parameters:
-            parameters['solver'] = [s for s in parameters['solver']
-                                    if s != 'auto']
+            parameters['solver'] = dict((s, v) for s, v in parameters['solver'].items()
+                                    if s != 'auto')
 
         self.hyperparameters = {
             # 'aggregationDepth': parameters.get('aggregation_depth'),
@@ -2597,7 +2580,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
     def get_constrained_params(self):
         result = []
-        for family, link in [x.split(':') for x in self.family_link]:
+        for family, link in [x.split(':')
+                for x in self.family_link.get('list', [])]:
             result.append(
                 f'{{{self.var}.family: {repr(family)}, '
                 f'{self.var}.link: {repr(link)}}}')

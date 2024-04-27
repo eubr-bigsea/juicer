@@ -45,7 +45,7 @@ def test_job_source_code_failure(mocked_patch):
     job_id = 982
     source = 'def f()\n    print("OK")'
 
-    data = '{"source": "def f()\\n    print(\\"OK\\")", "secret": "00000"}'
+    data = '{"secret": "00000", "xsource": "def f()\\n    print(\\"OK\\")"}'
     headers = {'Content-Type': 'application/json', 'X-Auth-Token': '00000'}
     with pytest.raises(RuntimeError):
         resp = stand_service.save_job_source_code(url, token, job_id, source)
