@@ -1,33 +1,31 @@
-# coding=utf-8
-
-
-import pprint
-from typing import Callable
-import autopep8
 import datetime
 import hashlib
 import inspect
-import jinja2
 import json
 import logging
-import networkx as nx
 import os
-import redis
+import pprint
 import re
 import sys
 import tempfile
 import uuid
 from collections import OrderedDict
-from rq import Queue
-from urllib.parse import urlparse
+from dataclasses import dataclass
 from textwrap import dedent
+from typing import Callable
+from urllib.parse import urlparse
+
+import autopep8
+import jinja2
+import networkx as nx
+import redis
+from rq import Queue
 
 from juicer import auditing
 from juicer.util.jinja2_custom import AutoPep8Extension
+
 from .service import stand_service
 from .util.template_util import HandleExceptionExtension
-
-from dataclasses import dataclass
 
 AUDITING_QUEUE_NAME = 'auditing'
 AUDITING_JOB_NAME = 'seed.jobs.auditing'
@@ -293,26 +291,26 @@ class Transpiler(object):
 
     def generate_code(self, opt: GenerateCodeParams):
         workflow = opt.workflow
-        if opt.deploy:
-            # To be able to convert, workflow must obey all these rules:
-            # - 1 and exactly 1 data source;
-            # - Data source must be defined in Limonero with its attributes in
-            # order to define the schema for data input;
-            # - For ML models, it is required to have a Save Model operation;
-            total_ds = 0
-            for task in workflow['tasks']:
-                if not task.get('enabled', False):
-                    continue
-                if task['operation']['slug'] in self.DATA_SOURCE_OPS:
-                    total_ds += 1
+        # if opt.deploy:
+        #     # To be able to convert, workflow must obey all these rules:
+        #     # - 1 and exactly 1 data source;
+        #     # - Data source must be defined in Limonero with its attributes in
+        #     # order to define the schema for data input;
+        #     # - For ML models, it is required to have a Save Model operation;
+        #     total_ds = 0
+        #     for task in workflow['tasks']:
+        #         if not task.get('enabled', False):
+        #             continue
+        #         if task['operation']['slug'] in self.DATA_SOURCE_OPS:
+        #             total_ds += 1
 
-            if total_ds < 1:
-                raise ValueError(_(
-                    'Workflow must have at least 1 data source to be deployed.')
-                )
-            tasks_ids = reversed(opt.tasks_ids)
-        else:
-            tasks_ids = opt.tasks_ids
+        #     if total_ds < 1:
+        #         raise ValueError(gettext(
+        #             'Workflow must have at least 1 data source to be deployed.')
+        #         )
+        #     tasks_ids = reversed(opt.tasks_ids)
+        # else:
+        #     tasks_ids = opt.tasks_ids
 
         instances, audit_events = self.get_instances(opt)
         if audit_events:
@@ -394,13 +392,13 @@ class Transpiler(object):
             # env_setup['slug_to_port_id'] = self.slug_to_port_id
             env_setup['id_mapping'] = {}
             template = template_env.get_template(self.get_deploy_template())
-            out.write(template.render(env_setup))
+            opt.out.write(template.render(env_setup))
         elif opt.export_notebook:
             template = template_env.get_template(self.get_notebook_template())
-            out.write(template.render(env_setup))
+            opt.out.write(template.render(env_setup))
         elif opt.plain:
             template = template_env.get_template(self.get_plain_template())
-            out.write(template.render(env_setup))
+            opt.out.write(template.render(env_setup))
         else:
             workflow_type = workflow.get('type')
             if workflow_type in ('WORKFLOW', 'MODEL_BUILDER'):

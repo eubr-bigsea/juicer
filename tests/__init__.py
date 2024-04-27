@@ -42,11 +42,18 @@ def compare_ast(node1, node2):
                 current_line = vars(node2)['lineno']
             elif kind == 'col_offset':
                 current_offset = vars(node2)['col_offset']
+            elif kind in ['end_col_offset', 'end_lineno']:
+                pass
             elif kind not in ('ctx',):
                 var2 = vars(node2).get(kind)
                 result, msg = compare_ast(var, var2)
+
                 if not result:
-                    return False, f'{current_line}:{current_offset}] {msg}'
+                    pos = f'Line: {current_line} offest: {current_offset}:'
+                    if pos in msg:
+                        return False, msg
+                    else:
+                        return False, f'Line: {current_line} offest: {current_offset}: {msg}'
         return True, ''
     elif isinstance(node1, list):
         if len(node1) != len(node2):
@@ -63,7 +70,8 @@ def compare_ast(node1, node2):
                 return False, msg
         return True, ''
     else:
-        return node1 == node2, f'Node comparison ({node1}) == ({node2})'
+        result = node1 == node2
+        return result, f'Node comparison ({node1}) == ({node2})'
 
 
 def debug_ast(code, expected_code):
