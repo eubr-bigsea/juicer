@@ -9,8 +9,8 @@ col = pl.col('{{x.attribute}}')
 {%- if x.binning in ('FIXED_SIZE', 'EQUAL_INTERVAL') %}
 def round_str(col, n:int=2):
     """ Format number. See https://stackoverflow.com/a/75893046/1646932"""
-    return ( 
-        col.round(n).cast(pl.Utf8) + pl.lit("0"*n) 
+    return (
+        col.round(n).cast(pl.Utf8) + pl.lit("0"*n)
     ).str.replace(r'^(-?\d+\.\d{' + str(n) + r'}).*$','$1')
 {%- endif %}
 
@@ -51,7 +51,7 @@ df = df.with_columns([
 {%- elif x.binning == 'QUANTILES' %}
 df = df.with_columns([
     df.select('{{x.attribute}}').collect().get_column('{{x.attribute}}')
-        .qcut({{x.quantiles_list}}, 
+        .qcut({{x.quantiles_list}},
                 labels={{x.labels}})
         .get_column('category')
         .alias('dim_{{loop.index0}}')
@@ -96,7 +96,7 @@ aggregations = [
     # Cast to Float64 because to_pandas() convert to uint32 and it is not
     # supported by Plotly
     pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
-        ('{{y.attribute}}')).alias('aggr_{{loop.index0}}').cast(pl.Float64), 
+        ('{{y.attribute}}')).alias('aggr_{{loop.index0}}').cast(pl.Float64),
     {%- endif %}
     {%- endfor %}
     {%- for x in x_values %}
@@ -111,7 +111,7 @@ dimensions = [
     (pl.col('dim_{{loop.index0}}') {%- if x.multiplier %} * {{x.multiplier}}{% endif -%})
     {#%- if x.decimal_places %}.round({{x.decimal_places}}){% endif %#},
     {%- endfor %}
-    
+
     {%- if op.subgraph and op.subgraph != '' %}
     pl.col('{{op.subgraph.attribute}}'), # subgraph
     {%- endif %}
@@ -135,9 +135,9 @@ df = df.groupby(dimensions).agg(aggregations)
 # Test, not working!
 dimensions = [
     {%- for x in x_values %}
-    pl.col('dim_{{loop.index0}}'), 
+    pl.col('dim_{{loop.index0}}'),
     {%- endfor %}
-    
+
     {%- if op.color_attribute and op.color_attribute.attribute %}
     pl.col('{{op.color_attribute.attribute}}'), # color
     {%- endif %}
@@ -153,13 +153,13 @@ df = df.select(attributes + dimensions)
 {%- endif %}
 {%- endmacro %}
 
-{%- macro fix_missing_in_serie(op) %} 
-# Fill the missing values. Otherwise, series may be wrongly 
-# sorted in the x-axis (if a new x-value is discovered after 
+{%- macro fix_missing_in_serie(op) %}
+# Fill the missing values. Otherwise, series may be wrongly
+# sorted in the x-axis (if a new x-value is discovered after
 # a previous serie is plot.
 # For example, for the first serie, there is no ('v1', 'a1') value,
 # but for there is a value for the second serie. The value 'a1'
-# would be displayed after values found in the first serie, 
+# would be displayed after values found in the first serie,
 # causing x-axis to become wrongly sorted.
 tmp_df = (df.select('dim_0')
             .unique()
@@ -321,20 +321,20 @@ fig = px.
     {%- elif type in ('stacked-bar', 'stacked-horizontal-bar', 'horizontal-bar') -%}
     bar
     {%- elif type in ['bubble'] -%}
-    scatter 
+    scatter
     {%- else %}{{type}}{% endif -%}(
         pandas_df,
         {%- if 'horizontal' in type %}
         # Invert axis values
         x=axis2,
-        y=axis1,    
+        y=axis1,
         {%- else %}
         x=axis1,
-        y=axis2,    
+        y=axis2,
         {%- endif %}
         {%- if x_values|length > 1 and type in ('bar', ) and False-%}
-        color='dim_1', 
-        pattern_shape="dim_1", 
+        color='dim_1',
+        pattern_shape="dim_1",
         template="simple_white",
         {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar') and not type.endswith('bar')-%}
         line_group='dim_1', color='dim_1',
@@ -478,33 +478,16 @@ fig.update_traces(
 {%- endif %}
 
 {%- elif type in ('boxplot',) %}
-fig = make_subplots(rows=1, cols={{op.y|length}}, 
+fig = make_subplots(rows=1, cols={{op.y|length}},
 	subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
 
 {%- for y in op.y %}
 fig.add_trace(
-	go.Box(x=pandas_df['dim_0'], y=pandas_df['{{y.attribute}}'], 
-		name='{{y.attribute}}'), row=1, col={{loop.index}})
+	go.Box(x=pandas_df['dim_0'], y=pandas_df['aggr_0'],
+		name=labels['aggr_0']), row=1, col={{loop.index}})
 {%- endfor %}
 
-# fig = px.box(pandas_df, 
-#              x='dim_0', 
-#              y={% if op.aggregations %}'aggr_0'{% else %}[
-#              {%- for y in op.y  %}
-#              '{{y.attribute}}',
-#              {%- endfor %}]
-#              {%- endif %},
-#              #points="all",
-#              #marker_color='{{op.palette}}'
-#              #opacity = {{op.opacity}},
-#              color='dim_0',
-#              title='{{op.title}}',
-#              labels=labels,
-# 
-# )
-
-fig.update_traces(quartilemethod="exclusive") 
-
+fig.update_traces(quartilemethod="exclusive")
 
 {%- elif type in ('scattergeo',) %}
 fig = px.scatter_geo(pandas_df,locations='dim_0',color='aggr_0',
@@ -556,20 +539,20 @@ fig.update_layout(
 )
 
 {%- elif type in ('scatterplot',) %}
-fig = px.scatter(pandas_df, 
-      x='dim_0', 
-      y='aggr_0', 
-      color='aggr_1', 
+fig = px.scatter(pandas_df,
+      x='dim_0',
+      y='aggr_0',
+      color='aggr_1',
       #marginal_y="violin",
-      #marginal_x="box", 
-      trendline="ols", 
+      #marginal_x="box",
+      trendline="ols",
       template="simple_white")
 
 {%- elif type in ('histogram2d',) %}
-fig = px.density_heatmap(pandas_df, 
-      x='dim_0', 
-      y='aggr_0', 
-      marginal_x="box", 
+fig = px.density_heatmap(pandas_df,
+      x='dim_0',
+      y='aggr_0',
+      marginal_x="box",
       marginal_y="violin",
       #name='{{op.title}}',
       title='{{op.title}}',
@@ -599,11 +582,11 @@ fig.add_trace(go.Funnel(
 {%- elif type in ('violin',) %}
     fig = px.violin(pandas_df,
         # eixos trocados
-        y='aggr_0', 
+        y='aggr_0',
         x='dim_0',
         # trocar para testar a paleta de cores
-        color='dim_0', 
-        box=True, 
+        color='dim_0',
+        box=True,
         points="all",
         hover_data=pandas_df.columns,
         title='{{op.title}}',
@@ -612,8 +595,8 @@ fig.add_trace(go.Funnel(
 
 
 {%- elif type in ('parcoords',) %}
-fig = px.parallel_coordinates(pandas_df, 
-      #color='dim_0', 
+fig = px.parallel_coordinates(pandas_df,
+      #color='dim_0',
       labels=labels,
       dimensions=['aggr_0', 'aggr_1', 'aggr_2', 'aggr_3'],
       color_continuous_scale = {{op.color_scale}},
@@ -625,7 +608,7 @@ fig = px.parallel_coordinates(pandas_df,
 
 {%- elif type in ('histogram2dcontour',) %}
 fig = px.density_contour(pandas_df,
-    x='dim_0', 
+    x='dim_0',
     y='aggr_0',
     title='{{op.title}}',
     labels=labels,
@@ -640,7 +623,7 @@ fig.update_traces(contours_coloring="fill",
 
 {%- elif treemap_family %}
 fig = px.{{type}}(
-    pandas_df, 
+    pandas_df,
     path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
     values='aggr_0',
     color='aggr_0',
@@ -665,8 +648,8 @@ fig = px.scatter_mapbox(
     mapbox_style='{{op.style or 'open-street-map'}}',
     {%- if op.height %}height={{op.height}},{% endif %}
     {%- if op.center_latitude or op.center_longitude %}
-        center={'lat': {{op.center_latitude or 'None'}}, 
-            'lon': {{op.center_longitude or 'None'}}}, 
+        center={'lat': {{op.center_latitude or 'None'}},
+            'lon': {{op.center_longitude or 'None'}}},
     {%- endif %}
     {%- if op.zoom %}zoom={{op.zoom}},{% endif %}
     {%- if op.title %}title='{{op.title}}',{% endif %}
@@ -690,7 +673,7 @@ fig.update_layout(autosize=True, showlegend=True)
 
 {%- if op.opacity is not none and op.opacity >=0 and op.opacity != 1 %}
 fig.update_traces(opacity={{op.opacity}})
-{%- endif %} 
+{%- endif %}
 
 # Legend and separators.
 fig.update_layout(
@@ -750,10 +733,10 @@ fig.update_layout(template='{{op.template_}}')
 {%- if not pie_family and not map_family and op.palette and not treemap_family %}
 cycle = itertools.cycle(transparent_colors)
 fig.for_each_trace(
-    lambda trace: 
+    lambda trace:
         trace.update(
             marker={
-                'line': {'color': trace.marker.color, 'width': 1.5}, 
+                'line': {'color': trace.marker.color, 'width': 1.5},
                 #'pattern': {'shape': '\\', 'fillmode': 'replace'},
                 'color': next(cycle),
             }
@@ -766,17 +749,17 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 # Tooltip
 #expr_agg = re.compile(r'aggr_\d+')
 #fig.for_each_trace(
-#    lambda trace: 
+#    lambda trace:
 #        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
 #)
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
-# Rouding 
+# Rouding
 {%- if pie_family and op.text_info %}
 fig.update_traces(
     texttemplate='
-    {%- if 'label' in op.text_info %}%{label}<br>{% endif %} 
-    {%- if 'value' in op.text_info %}%{value:.{{op.y[0].decimal_places}}f}<br>{% endif %} 
-    {%- if 'percent' in op.text_info %}%{percent:.{{2 + op.y[0].decimal_places}}p}{% endif -%} 
+    {%- if 'label' in op.text_info %}%{label}<br>{% endif %}
+    {%- if 'value' in op.text_info %}%{value:.{{op.y[0].decimal_places}}f}<br>{% endif %}
+    {%- if 'percent' in op.text_info %}%{percent:.{{2 + op.y[0].decimal_places}}p}{% endif -%}
     '
 )
 {%- elif pie_family and op.text_info %}-
@@ -792,7 +775,7 @@ fig.update_xaxes(automargin=True)
 {%- else %}
 fig.update_layout(
     margin=dict(
-        l={{op.left_margin}}, r={{op.right_margin}}, 
+        l={{op.left_margin}}, r={{op.right_margin}},
         t={{op.top_margin}}, b={{op.bottom_margin}})
 )
 {%- endif %}
