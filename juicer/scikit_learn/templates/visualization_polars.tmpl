@@ -477,7 +477,7 @@ fig.update_traces(
 )
 {%- endif %}
 
-{%- elif type in ('boxplot',) %}
+{%- elif type in ('boxplot',) and not op.aggregations %}
 fig = make_subplots(rows=1, cols={{op.y|length}},
 	subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
 
@@ -487,6 +487,22 @@ fig.add_trace(
 		name=labels['aggr_0']), row=1, col={{loop.index}})
 {%- endfor %}
 
+fig.update_traces(quartilemethod="exclusive")
+{%- elif type in ('boxplot',) and op.aggregations %}
+fig = px.box(pandas_df,
+             x='dim_0',
+             y={% if op.aggregations %}'aggr_0'{% else %}[
+             {%- for y in op.y  %}
+             '{{y.attribute}}',
+             {%- endfor %}]
+             {%- endif %},
+             #points="all",
+             #marker_color='{{op.palette}}'
+             #opacity = {{op.opacity}},
+             color='dim_0',
+             title='{{op.title}}',
+             labels=labels,
+)
 fig.update_traces(quartilemethod="exclusive")
 
 {%- elif type in ('scattergeo',) %}
@@ -499,7 +515,7 @@ fig = px.scatter_geo(pandas_df,locations='dim_0',color='aggr_0',
 fig.update_layout(
         title_text = '{{op.title}}',
         #opacity = {{op.opacity}},
-        showlegend = True,
+        ###showlegend = True,
     )
 
 
@@ -529,7 +545,7 @@ fig = go.Figure(data=go.Scatter3d(
 ))
 
 fig.update_layout(
-    showlegend = True,
+    ###showlegend = True,
     title='{{op.title}}',
     scene=dict(
         xaxis_title=pandas_df.columns[0],
@@ -662,7 +678,7 @@ fig.update_traces(
     {%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
     {%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
 )
-fig.update_layout(autosize=True, showlegend=True)
+###fig.update_layout(autosize=True, showlegend=True)
 
 {%- endif %}
 
@@ -683,7 +699,7 @@ fig.update_layout(
     {%- elif op.display_legend != 'AUTO' %}
     showlegend=True,
     legend=dict(
-        title='Legenda',
+        title=_('Legenda'),
         orientation="{%if 'CENTER' in op.display_legend %}h{%else%}v{%endif%}",
         yanchor="{% if 'BOTTOM' in op.display_legend %}bottom
         {%- else %}top{% endif %}",
