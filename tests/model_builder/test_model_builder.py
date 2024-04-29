@@ -12,7 +12,8 @@ from juicer.meta.operations import (
     IsotonicRegressionOperation, GeneralizedLinearRegressionOperation, DecisionTreeRegressorOperation,
     RandomForestRegressorOperation,DecisionTreeClassifierOperation,GBTClassifierOperation, 
     PerceptronClassifierOperation, RandomForestClassifierOperation, SVMClassifierOperation, 
-    LogisticRegressionOperation)
+    LogisticRegressionOperation, GaussianMixOperation, BisectingKMeansOperation, LDAOperation, 
+    PowerIterationClusteringOperation)
 from juicer.meta.transpiler import (
     ModelBuilderTemplateParams as ModelBuilderParams)
 from juicer.transpiler import GenerateCodeParams
@@ -650,7 +651,7 @@ def test_linear_regression_hyperparams_success():
 def test_kmeans_hyperparams_success():
     task_id = '123143-3411-23cf-233'
     operation_id = 2364
-    name = 'linear regression'
+    name = 'k-means clustering'
     params = {
         'workflow': {'forms': {}},
         'task': {
@@ -691,6 +692,62 @@ def test_kmeans_hyperparams_success():
 
     print(code)
     print(km.generate_random_hyperparameters_code())
+
+# test of generate code for clustering alg
+def test_gaussian_mix_operation_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'GaussianMixture'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    gm = GaussianMixOperation(params, {}, {})
+    assert gm.name == 'GaussianMixture'
+    assert gm.var == 'gaussian_mix'
+    '''
+    print(gm.generate_code())
+    print(gm.generate_hyperparameters_code())
+    print(gm.generate_random_hyperparameters_code())
+    '''
+def test_gaussian_mix_operation_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'GaussianMixture'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        },
+        'number_of_clusters': {'type': 'list', 'list': [4, 10]},
+        'tol': {'type': 'list', 'list': [2]},
+        'max_iterations': {'type': 'range', 'list': [0.0, 1], 'enabled': True, 
+                      'quantity': 4},
+        'seed': {'type': 'list', 'list': [2]},
+    }
+    gm = GaussianMixOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_kmeans = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [gaussian_mix] }})
+            .addGrid(gaussian_mix.k, [4, 10])
+            .addGrid(gaussian_mix.maxIter , np.linspace(0, 3, 4, dtype=int).tolist())
+            .addGrid(gaussian_mix.seed, [2])
+            .build()
+        )""")
+    code = gm.generate_hyperparameters_code()
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert gm.get_hyperparameter_count() == 6
+
+    print(code)
+    print(gm.generate_random_hyperparameters_code())
 
 # TODO: test all estimators (classifiers, regressors, cluster types)
 # endregion
