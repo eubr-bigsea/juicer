@@ -156,8 +156,8 @@ def test_boxplot_hovertemplate(generated_chart):
     data, layout = generated_chart
     hovertemplate = [item.get("hovertemplate") for item in data]
     expected_hovertemplate = [
-        "teste=%{x}<br>min(total_bill)=%{y}<extra></extra>",
-        "teste=%{x}<br>min(total_bill)=%{y}<extra></extra>",
+        "test=%{x}<br>min(total_bill)=%{y}<extra></extra>",
+        "test=%{x}<br>min(total_bill)=%{y}<extra></extra>",
     ]
     assert (
         hovertemplate == expected_hovertemplate
