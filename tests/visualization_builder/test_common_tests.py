@@ -5,12 +5,8 @@ from tests.scikit_learn import util
 # Common tests
 
 
-@pytest.fixture(scope="session")
-def get_df():
-    return util.titanic_polars()
 
-
-params_and_expected = [
+legend_params_and_expected = [
     ({"display_legend": "AUTO"}, {"o": None, "pos": [None, None], "show": None}),
     (
         {"display_legend": "HIDE"},
@@ -43,6 +39,10 @@ params_and_expected = [
     ({}, {"o": None, "pos": [None, None], "show": False}),
 ]
 
+
+@pytest.fixture(scope="session")
+def get_df():
+    return util.titanic_polars()
 
 @pytest.fixture
 def get_arguments(updated_params):
@@ -103,10 +103,6 @@ def get_arguments(updated_params):
     return result
 
 
-def emit_event(*args, **kwargs):
-    print(args, kwargs)
-
-
 @pytest.fixture
 def generated_chart(get_arguments, get_df):
     instance = VisualizationOperation(**get_arguments)
@@ -120,6 +116,7 @@ def generated_chart(get_arguments, get_df):
         ]
     )
     result = util.execute(code, vis_globals)
+    # breakpoint()
     generated_chart_code = result.get("d")
     data = generated_chart_code["data"]
     layout = generated_chart_code["layout"]
@@ -169,30 +166,118 @@ def test_title_success(generated_chart, expected):
     assert title == expected, "Incorrect value for the 'title' field"
 
 
-# Test to verify the 'margin' field
-def test_layout_margin(generated_chart):
+@pytest.mark.parametrize(
+    "updated_params, expected",
+    [
+        ({"number_format": "1,234.56"}, "1,234.56"),
+        ({"number_format": "1,234.56"}, "1,234.56"),
+        ({"number_format": "1.234,56"}, "1.234,56"),
+        ({"number_format": "1 234.56"}, "1 234.56"),
+        ({"number_format": "1 234,56"}, "1 234,56"),
+        ({}, None),
+    ],
+)
+def test_layout_number_format_success(generated_chart, expected):
+    _, layout = generated_chart
+    separators = layout.get("separators")
+    assert (
+        separators == expected
+    ), "Incorrect values for the 'width' or 'height' field"
+
+
+@pytest.mark.parametrize(
+    "updated_params, expected",
+    [
+        ({"height": 200, "width": 300}, (300, 200)),
+        ({}, (None, None)),
+    ],
+)
+def test_layout_size_success(generated_chart, expected):
+    _, layout = generated_chart
+    (width, height) = layout.get("width"), layout.get("height")
+    assert (
+        width,
+        height,
+    ) == expected, "Incorrect values for the 'width' or 'height' field"
+
+
+@pytest.mark.parametrize(
+    "updated_params, expected",
+    [
+        ({"auto_margin": False}, {"t": 30, "l": 30, "r": 30, "b": 30}),
+        ({}, {"t": 30, "l": 30, "r": 30, "b": 30}),
+    ],
+)
+def test_layout_auto_margin_false_success(generated_chart, expected):
     _, layout = generated_chart
     layout_margin = layout.get("margin")
     assert (
         layout_margin is not None
     ), "Field 'margin' not found in the layout object"
-    expected_margin = {"t": 30, "l": 30, "r": 30, "b": 30}
+    assert layout_margin == expected, "Incorrect values for the 'margin' field"
+
+
+@pytest.mark.parametrize(
+    "updated_params, expected",
+    [
+        ({"auto_margin": True}, {}),
+    ],
+)
+def test_layout_auto_margin_true_success(generated_chart, expected):
+    _, layout = generated_chart
+    auto_margin_x, auto_margin_y = (layout.get("xaxis").get('automargin'),
+                                    layout.get("yaxis").get('automargin'))
+    assert auto_margin_x, "Incorrect values for the 'margin' field"
+    assert auto_margin_y, "Incorrect values for the 'margin' field"
+
+
+@pytest.mark.parametrize(
+    "updated_params, expected",
+    [
+        (
+            {
+                "left_margin": 11,
+                "right_margin": 13,
+                "top_margin": 17,
+                "bottom_margin": 23,
+            },
+            {"b": 23, "t": 17, "l": 11, "r": 13},
+        ),
+        (
+            {
+                "left_margin": 20,
+                "right_margin": 20,
+                "top_margin": 35,
+                "bottom_margin": 45,
+            },
+            {"b": 45, "t": 35, "l": 20, "r": 20},
+        ),
+    ],
+)
+def test_layout_margin_success(generated_chart, expected):
+    _, layout = generated_chart
+    layout_margin = layout.get("margin")
     assert (
-        layout_margin == expected_margin
-    ), "Incorrect values for the 'margin' field"
+        layout_margin is not None
+    ), "Field 'margin' not found in the layout object"
+    assert layout_margin == expected, "Incorrect values for the 'margin' field"
 
 
-# Test for verifying the 'hovertemplate' field
-def test_data_hovertemplate(generated_chart):
+
+@pytest.mark.parametrize("updated_params, expected", [
+    ({}, {})
+])
+def test_data_hovertemplate(generated_chart, expected):
     data, _ = generated_chart
     sunburst_data = data[0]
     hovertemplate = sunburst_data.get("hovertemplate")
+    assert True or expected
     assert (
         hovertemplate is not None
     ), "Field 'hovertemplate' not found in data object"
 
 
-@pytest.mark.parametrize("updated_params, expected", params_and_expected)
+@pytest.mark.parametrize("updated_params, expected", legend_params_and_expected)
 def test_layout_showlegend_success(generated_chart, expected):
     """Notice that generated_chart has a parameter named updated_params. The
     value for updated_params is automatically passed to the fixture if there is
@@ -205,7 +290,7 @@ def test_layout_showlegend_success(generated_chart, expected):
     ), "Incorrect value for 'showlegend' field"
 
 
-@pytest.mark.parametrize("updated_params, expected", params_and_expected)
+@pytest.mark.parametrize("updated_params, expected", legend_params_and_expected)
 def test_layout_legend_position_success(generated_chart, expected):
     _, layout = generated_chart
     x, y = (layout["legend"].get("xanchor"), layout["legend"].get("yanchor"))
@@ -214,10 +299,24 @@ def test_layout_legend_position_success(generated_chart, expected):
     ), "Incorrect value for 'legend position' field"
 
 
-@pytest.mark.parametrize("updated_params, expected", params_and_expected)
+@pytest.mark.parametrize("updated_params, expected", legend_params_and_expected)
 def test_layout_legend_orientation_success(generated_chart, expected):
     _, layout = generated_chart
     orientation = layout["legend"].get("orientation")
     assert orientation == expected.get(
         "o"
     ), "Incorrect value for 'legend orientation' field"
+
+
+# @pytest.mark.parametrize("updated_params, expected", [
+#     ({'template': 'ggplot2'}, None)
+# ])
+# def test_layout_template_success(generated_chart, expected):
+#     _, layout = generated_chart
+#     breakpoint()
+#     orientation = layout["legend"].get("orientation")
+#     assert orientation == expected.get(
+#         "o"
+#     ), "Incorrect value for 'legend orientation' field"
+
+# Color palette, opacity, fill opacity, smooth

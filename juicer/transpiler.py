@@ -703,11 +703,15 @@ class TranspilerUtils(object):
     def __unicode__(self):
         return 'TranspilerUtils object'
 
-    def render_template(self, template: str, context: dict):
+    def render_template(self, template: str, context: dict,
+                        install_gettext: bool = False):
         """
         Render a Jinja2 template using the information provided by context.
         """
         tm = jinja2.Template(template)
+        if install_gettext:
+            tm.environment.add_extension('jinja2.ext.i18n')
+
         return tm.render(**context)
 
     def text_to_identifier(self, text: str) -> str:
