@@ -295,7 +295,8 @@ pandas_df = df.collect().to_pandas()
 #  Chart definition
 {%- if type in ('line', 'filled-area', 'stacked-filled-area',
     'bar', 'stacked-bar', 'horizontal-bar',
-    'stacked-horizontal-bar', 'scatter', 'bubble') %}
+    'stacked-horizontal-bar', 'scatter', 'bubble',
+    ) or treemap_family %}
 
 {%- if x_values|length == 1 or type.endswith('bar')%}
 axis1 = 'dim_0'
@@ -328,6 +329,9 @@ fig = px.
         # Invert axis values
         x=axis2,
         y=axis1,
+        {%- elif treemap_family %}
+        path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
+        values='aggr_0',
         {%- else %}
         x=axis1,
         y=axis2,
@@ -340,7 +344,9 @@ fig = px.
         line_group='dim_1', color='dim_1',
         {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
         color='dim_1',{% endif %}
+        {%- if not treemap_family %}
         log_y={{op.y_axis.logScale}},
+        {%- endif %}
 
         {%- if op.blackWhite %}
         # Remove white color (last one generated)
@@ -402,6 +408,18 @@ fig.update_yaxes(
         {%- endif %}
         #showtickprefix="first",
         #showticksuffix="last"
+)
+fig.update_yaxes(
+    {%- if op.x_axis.label %}title='{{op.x_axis.label}}',{% endif %}
+    showgrid=True,
+    gridcolor="rgba(255,0,0,.10)",
+    visible={{op.x_axis.display}}, tickformat=
+        {%- if type == 'stacked-filled-area' %}None{% else %}'.3f'{% endif %},
+        {%- if op.x_axis.prefix %}tickprefix='{{op.x_axis.prefix}}',{% endif %}
+        {%- if op.x_axis.suffix %}
+        ticksuffix=
+        {%- if type == 'stacked-filled-area' %}'%'{% else %}'{{op.x_axis.suffix}}'{% endif %},
+        {%- endif %}
 )
 {%- if op.smoothing and type == 'line' %}
 fig.update_traces(line={'shape': 'spline', 'smoothing': 0.4})
@@ -620,8 +638,6 @@ fig = px.parallel_coordinates(pandas_df,
       color_continuous_midpoint=2)
 
 
-
-
 {%- elif type in ('histogram2dcontour',) %}
 fig = px.density_contour(pandas_df,
     x='dim_0',
@@ -648,7 +664,7 @@ fig = px.{{type}}(
     labels=labels,
 )
 
-fig.update_layout(margin = dict(t=50, l=25, r=25, b=25))
+# fig.update_layout(margin = dict(t=50, l=25, r=25, b=25)) # FIXME
 
 
 {%- elif type in ('indicator', ) %}
@@ -769,7 +785,7 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 #        trace.update(hovertemplate=expr_agg.sub(trace.name, trace.hovertemplate))
 #)
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
-# Rouding
+# Rounding
 {%- if pie_family and op.text_info %}
 fig.update_traces(
     texttemplate='
@@ -799,7 +815,7 @@ fig.update_layout(
 # Sorting follow the one defined for the input data
 fig.update_xaxes(categoryorder='trace')
 
-{%- if op.animation and type not in ('pie', 'donut') %}
+{%- if op.animation and not pie_family %}
 # Animation configuration
 fig.update_layout(transition = {'duration': 1000})
 fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000

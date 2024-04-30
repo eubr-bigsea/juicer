@@ -173,5 +173,5 @@ class VisualizationOperation(Operation):
             "hex_to_rgb": _hex_to_rgb,
             "rgb_to_rgba": _rgb_to_rgba,
         }
-        code = self.render_template(ctx)
+        code = self.render_template(ctx, install_gettext=True)
         return dedent(code)
