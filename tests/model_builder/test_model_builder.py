@@ -749,6 +749,99 @@ def test_gaussian_mix_operation_hyperparams_success():
     print(code)
     print(gm.generate_random_hyperparameters_code())
 
+
+def test_lda_operation_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'LDA'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    lda = LDAOperation(params, {}, {})
+    assert lda.name == 'LDA'
+    assert lda.var == 'lda'
+    '''
+    print(gm.generate_code())
+    print(gm.generate_hyperparameters_code())
+    print(gm.generate_random_hyperparameters_code())
+    '''
+
+def test_lda_operation_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'LDA'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        },
+        'number_of_clusters': {'type': 'list', 'list': [4, 10]},
+        'max_iterations': {'type': 'range', 'list': [0.0, 1], 'enabled': True, 
+                      'quantity': 4},
+        'weight_col': 'weight',
+        'features': 'features',
+        'seed': {'type': 'list', 'list': [2]},
+        'checkpoint_interval': 10,
+        'optimizer':{'type': 'list', 'list': ['online'], 'enabled': True},
+        #'optimizer': {'type': 'boolean', 'enabled': True},
+        'learning_offset':{'type': 'float', 'enabled': True},
+        'learningDecay':{'type': 'float', 'enabled': True},
+        'subsampling_rate': 0.05,
+        'optimize_doc_concentration':{'type': 'boolean', 'enabled': True},
+        'doc_concentration':{'type': 'float', 'enabled': True}, 
+        'topic_concentration':{'type': 'float', 'enabled': True},
+        'topic_distribution_col': 'topicDistribution',
+        'keep_last_checkpoint':{'type': 'float', 'enabled': True}
+
+    }
+    lda = LDAOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_kmeans = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [gaussian_mix] }})
+            .addGrid(gaussian_mix.k, [4, 10])
+            .addGrid(gaussian_mix.maxIter , np.linspace(0, 3, 4, dtype=int).tolist())
+            .addGrid(gaussian_mix.seed, [2])
+            
+            .build()
+        )""")
+    code = lda.generate_hyperparameters_code()
+    print(code)
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert lda.get_hyperparameter_count() == 6
+
+    print(code)
+    print(lda.generate_random_hyperparameters_code())
+
+def test_pic_operation_no_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'LDA'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        }
+    }
+    pic = PowerIterationClusteringOperation(params, {}, {})
+    assert pic.name == 'PIC'
+    assert pic.var == 'pic'
+    '''
+    print(gm.generate_code())
+    print(gm.generate_hyperparameters_code())
+    print(gm.generate_random_hyperparameters_code())
+    '''
+
 # TODO: test all estimators (classifiers, regressors, cluster types)
 # endregion
 
