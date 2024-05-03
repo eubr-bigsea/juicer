@@ -1,5 +1,5 @@
 import pytest
-from tests.scikit_learn.util import read
+from tests.scikit_learn.util import _read_data
 import polars as pl
 import importlib
 from tests.scikit_learn import util
@@ -11,14 +11,14 @@ from tests.scikit_learn import util
 
 @pytest.fixture(scope="session")
 def iris():
-    return read('iris')
+    return _read_data('iris')
 
 def wine(columns=None, size=None):
-    return read('wine', columns, size)
+    return _read_data('wine', columns, size)
 
 
 def titanic(columns=None, size=None):
-    return read('titanic', columns, size)
+    return _read_data('titanic', columns, size)
 
 
 def _identity(x): return x
@@ -32,7 +32,7 @@ def get_parametrize(module_name: str, op_name: str):
         dict: Dict containing parameters as defined in pytest.mark.parametrize()
     """
     def instantiate(variant: str):
-        final_name = (f'juicer.scikit_learn.{variant}.{module_name}_operation' 
+        final_name = (f'juicer.scikit_learn.{variant}.{module_name}_operation'
             if variant else f'juicer.scikit_learn.{module_name}_operation')
         module = importlib.import_module(final_name)
         return getattr(module, op_name)
