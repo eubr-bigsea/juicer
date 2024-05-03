@@ -1,7 +1,6 @@
 import dataclasses
 import json
 import re
-import unicodedata
 from collections import namedtuple
 from functools import reduce
 from gettext import gettext
@@ -15,6 +14,7 @@ from juicer.spark.data_operation import DataReaderOperation
 from juicer.spark.data_operation import SaveOperation as SparkSaveOperation
 from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOperation
 from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
+from juicer.util.template_util import strip_accents
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -35,16 +35,20 @@ class HyperparameterInfo:
             return '<INVALID hyperparameter type>'
 
 
-_pythonize_expr = re.compile(r'[\W_]+')
 
+non_word_chars_pattern = re.compile(r'[^a-zA-Z0-9_]+', re.U)
 
-def strip_accents(s):
-    return ''.join(c for c in unicodedata.normalize('NFD', s)
-                   if unicodedata.category(c) != 'Mn')
+def pythonize(s: str) -> str:
+    """
+    Pythonize a string by removing accents and replacing non-word characters
+    with underscores.
 
-
-def pythonize(s):
-    return _pythonize_expr.sub('_', strip_accents(s))
+    Args:
+        s (str): The input string.
+    Returns:
+        str: The pythonized string.
+    """
+    return non_word_chars_pattern.sub('_', strip_accents(s))
 
 
 def _as_list(input_values, transform=None, size=None, validate=None):
@@ -2156,8 +2160,10 @@ class BisectingKMeansOperation(ClusteringOperation):
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-            'minDivisibleClusterSize': _as_float_list(parameters.get('min_divisible_clusterSize'), self.grid_info),
-            'distanceMeasure': _as_string_list(parameters.get('distance'), self.in_list('euclidean')),
+            'minDivisibleClusterSize': _as_float_list(
+                parameters.get('min_divisible_clusterSize'), self.grid_info),
+            'distanceMeasure': _as_string_list(
+                parameters.get('distance'), self.in_list('euclidean')),
         }
         self.name = 'BisectingKMeans'
 

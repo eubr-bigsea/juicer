@@ -67,18 +67,6 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endif %}
 {%- endfor %}
 {%- endmacro %}
-{%- macro define_colors(op) %}
-# define_colors()
-{%- if op.palette %}
-    {%- if not op.fill_opacity is none %}
-transparent_colors = [{% for c in op.palette%}'{{hex_to_rgba(c, op.fill_opacity)}}', {% endfor %}]
-    {%- endif %}
-colors = {{op.palette}}
-{%- else %}
-colors = []
-transparent_colors = []
-{%- endif %}
-{%- endmacro %}
 
 {%- macro prepare_aggregations(op) %}
 # prepare_aggregations()
@@ -120,7 +108,7 @@ dimensions = [
     pl.col('{{op.animation.attribute}}'), # animation
     {%- endif %}
 
-    {%- if type in ('scatter', 'bubble') %}
+    {%- if op.scatter_family %}
     {%- if op.color_attribute and op.color_attribute.attribute%}
     pl.col('{{op.color_attribute.attribute}}'), #color
     {%- endif %}
@@ -249,20 +237,19 @@ df = df
 {#------- End Macros --------------#}
 
 {%- set type = op.type.lower() %}
-{%- set pie_family = type in ('pie', 'donut') %}
 {%- set treemap_family = type in ('treemap', 'sunburst') %}
 {%- set map_family = type in ('scattermapbox', ) %}
 
-{%- if pie_family %}
+{%- if op.pie_family %}
 {%- set x_values = op.x[:1] %}
 {%- else %}
 {%- set x_values = op.x %}
-{%- endif %}
+{%- endif -%}
 
 df = {{input}}.clone()
 {{ prepare_group_others(op, x_values, op.y) }}
 
-{{ define_colors(op) }}
+colors = {{op.discrete_colors}}
 
 {%- if map_family %}
 {%- elif type == 'indicator' %}
@@ -293,7 +280,7 @@ pandas_df = df.collect().to_pandas()
 
 
 #  Chart definition
-{%- if type in ('line', 'filled-area', 'stacked-filled-area',
+{%- if type in ('line', 'stacked-area', 'stacked-area-100',
     'bar', 'stacked-bar', 'horizontal-bar',
     'stacked-horizontal-bar', 'scatter', 'bubble',
     ) or treemap_family %}
@@ -317,7 +304,7 @@ axis2 = [
 {%- endif %}
 
 fig = px.
-    {%- if type in ('stacked-filled-area', 'filled-area') -%}
+    {%- if type in ('stacked-area-100', 'stacked-area') -%}
     area
     {%- elif type in ('stacked-bar', 'stacked-horizontal-bar', 'horizontal-bar') -%}
     bar
@@ -345,7 +332,8 @@ fig = px.
         {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
         color='dim_1',{% endif %}
         {%- if not treemap_family %}
-        log_y={{op.y_axis.logScale}},
+        log_y={{op.y_axis.get('logScale', False)}},
+        log_x={{op.x_axis.get('logScale', False)}},
         {%- endif %}
 
         {%- if op.blackWhite %}
@@ -353,14 +341,14 @@ fig = px.
         color_discrete_sequence=n_colors(
             'rgb(0, 0, 0)', 'rgb(255, 255, 255)', pandas_df.shape[1] + 1, colortype='rgb')[:-1],
         {%- else %}
-        color_discrete_sequence=colors,
+        color_discrete_sequence={{op.discrete_colors}},
         {%- endif %}
         {%- if op.title %}title='{{op.title}}',{% endif %}
         {%- if type in ('bar', 'horizontal-bar') %}barmode='group',{% endif %}
-        {%- if type in ('stacked-bar', 'stacked-horizontal-bar') %}barmode='stack',{% endif %}
-        {%- if type in ('stacked-horizontal-bar', 'horizontal-bar') %}orientation='h',{% endif %}
-        {%- if type in ('filled-area', 'stacked-filled-area') %}orientation='v',{% endif %}
-        {%- if type in ('stacked-filled-area', ) %}groupnorm='percent',{% endif %}
+        {%- if op.stacked_family %}barmode='stack',{% endif %}
+        {%- if op.horizontal_bar_family %}orientation='h',{% endif %}
+        {%- if op.filled_area_family %}orientation='v',{% endif %}
+        {%- if type in ('stacked-area-100', ) %}groupnorm='percent',{% endif %}
 
         {%- if type in ('scatter', 'bubble')%}
         {%- if  op.color_attribute and op.color_attribute.attribute %}
@@ -388,38 +376,57 @@ fig = px.
         {%- if op.width %}width={{op.width}},{% endif %}
         {%- if op.height %}height={{op.height}},{% endif %}
 )
+# Update labels
+update_labels = lambda _labels: (
+        lambda t: t.update(name = _labels.get(t.name, t.name),
+                legendgroup = _labels.get(t.name, t.name),
+                hovertemplate = t.hovertemplate.replace(
+                    t.name, _labels.get(t.name, t.name))
+        ))
+fig.for_each_trace(update_labels(labels))
+
 #fig.update_layout(xaxis_categoryorder='total ascending')
-#fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))
-#{%- if op.x_axis.label %}
-#fig.update_layout(
-#     xaxis_title='{{op.x_axis.label}}',
-#)
-{%- endif %}
+# fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))
+# {{op.y_axis}}
 fig.update_yaxes(
-    {%- if op.y_axis.label %}title='{{op.y_axis.label}}',{% endif %}
+    {%- if op.y_axis.get('displayLabel', True) %}
+        {%- if op.y_axis.label %}
+    title_text='{{op.y_axis.label}}',
+        {%- endif %}
+    {%- else %}
+    title_text=None,
+    {% endif %}
     showgrid=True,
     gridcolor="rgba(255,0,0,.10)",
-    visible={{op.y_axis.display}}, tickformat=
-        {%- if type == 'stacked-filled-area' %}None{% else %}'.3f'{% endif %},
-        {%- if op.y_axis.prefix %}tickprefix='{{op.y_axis.prefix}}',{% endif %}
-        {%- if op.y_axis.suffix %}
-        ticksuffix=
-        {%- if type == 'stacked-filled-area' %}'%'{% else %}'{{op.y_axis.suffix}}'{% endif %},
-        {%- endif %}
-        #showtickprefix="first",
-        #showticksuffix="last"
+    visible={{op.y_axis.get('display', True)}},
+    tickformat={%- if type == 'stacked-area-100' %}None{% else %}'.{{op.y_axis.get('decimal_places', 2)}}f'{% endif %},
+    {%- if op.y_axis.prefix %}tickprefix='{{op.y_axis.prefix}}',{% endif %}
+    {%- if op.y_axis.suffix %}
+    ticksuffix=
+    {%- if type == 'stacked-area-100' %}'%'{% else %}'{{op.y_axis.suffix}}'{% endif %},
+    {%- endif %}
+    range={{op.y_range}},
+    #showtickprefix="first",
+    #showticksuffix="last"
 )
-fig.update_yaxes(
-    {%- if op.x_axis.label %}title='{{op.x_axis.label}}',{% endif %}
+fig.update_xaxes(
+    {%- if op.x_axis.get('displayLabel', True) %}
+        {%- if op.x_axis.label %}
+    title_text='{{op.x_axis.label}}',
+        {%- endif %}
+    {%- else %}
+    title_text=None,
+    {% endif %}
     showgrid=True,
     gridcolor="rgba(255,0,0,.10)",
-    visible={{op.x_axis.display}}, tickformat=
-        {%- if type == 'stacked-filled-area' %}None{% else %}'.3f'{% endif %},
-        {%- if op.x_axis.prefix %}tickprefix='{{op.x_axis.prefix}}',{% endif %}
-        {%- if op.x_axis.suffix %}
-        ticksuffix=
-        {%- if type == 'stacked-filled-area' %}'%'{% else %}'{{op.x_axis.suffix}}'{% endif %},
-        {%- endif %}
+    categoryorder='trace', # Sorting follow the one defined for the input data
+    visible={{op.x_axis.get('display', True)}},
+    tickformat= {%- if type == 'stacked-area-100' %}None{% else %}'.3f'{% endif %},
+    {%- if op.x_axis.prefix %}tickprefix='{{op.x_axis.prefix}}',{% endif %}
+    {%- if op.x_axis.suffix %}
+    ticksuffix=
+    {%- if type == 'stacked-area-100' %}'%'{% else %}'{{op.x_axis.suffix}}'{% endif %},
+    {%- endif %}
 )
 {%- if op.smoothing and type == 'line' %}
 fig.update_traces(line={'shape': 'spline', 'smoothing': 0.4})
@@ -461,7 +468,7 @@ fig = px.imshow(
     y='{{op.y[0].attribute}}',
     text_auto=True, aspect='auto'
 )
-{%- elif pie_family %}
+{%- elif op.pie_family %}
 fig = px.pie(pandas_df, values='aggr_0',
     names='dim_0',
     {%- if op.blackWhite %}
@@ -734,17 +741,17 @@ fig.update_layout(
     {%- endif %}
 )
 
-{%- if (op.custom_colors) and (not pie_family) and (not map_family) %}
+{%- if False and (op.custom_colors) and (not op.pie_family) and (not map_family) %}
 {%- for inx, c in op.custom_colors %}
 {%- if c %}
 fig.update_traces(dict(
     {%- if type.endswith('bar') %}marker{% else %}line{% endif -%}
-    ={'color': '{{c}}'}), {{inx}})
+    ={'color': '{{op.y[inx].line_color or c}}'}), {{inx}})
 {%- endif %}
 {%- endfor %}
 {%- endif %}
 
-{%- if op.shapes and type not in ('line',) and not pie_family and not map_family  %}
+{%- if op.shapes and type not in ('line',) and not op.pie_family and not map_family  %}
 # Shapes {{op.shapes}}
 {%- for inx, c in op.shapes %}
 fig.update_traces(dict(
@@ -760,12 +767,12 @@ fig.update_layout(template='{{op.template_}}')
 
 # fig.update_traces(marker={'line': {'color': colors, 'width': 5}, 'pattern': {'shape': '.', 'fillmode':'replace' }})
 
-{%- if not op.fill_opacity is none %}
+{%- if False and  not op.fill_opacity is none %}
 # Fill transparency
-{%- if not pie_family and not map_family and op.palette and not treemap_family %}
-cycle = itertools.cycle(transparent_colors)
-fig.for_each_trace(
-    lambda trace:
+{%- if not op.pie_family and not map_family and op.palette and not treemap_family %}
+def _fill_transparency(transparent_colors):
+    cycle = itertools.cycle(transparent_colors)
+    def f(trace):
         trace.update(
             marker={
                 'line': {'color': trace.marker.color, 'width': 1.5},
@@ -773,8 +780,11 @@ fig.for_each_trace(
                 'color': next(cycle),
             }
         )
-)
-{%- elif pie_family %}
+    return f
+
+fig.for_each_trace(_fill_transparency(transparent_colors))
+
+{%- elif op.pie_family %}
 fig.update_traces(marker=dict(colors=transparent_colors))
 {%- endif %}
 {%- endif %}
@@ -786,7 +796,7 @@ fig.update_traces(marker=dict(colors=transparent_colors))
 #)
 {%- if not map_family and op.y[0].decimal_places is not none and op.y[0].decimal_places != ''%}
 # Rounding
-{%- if pie_family and op.text_info %}
+{%- if op.pie_family and op.text_info %}
 fig.update_traces(
     texttemplate='
     {%- if 'label' in op.text_info %}%{label}<br>{% endif %}
@@ -794,7 +804,7 @@ fig.update_traces(
     {%- if 'percent' in op.text_info %}%{percent:.{{2 + op.y[0].decimal_places}}p}{% endif -%}
     '
 )
-{%- elif pie_family and op.text_info %}-
+{%- elif op.pie_family and op.text_info %}-
 fig.update_traces(textinfo='{{op.text_info}}')
 {%- endif %}
 # fig.update_traces(texttemplate='%{value:.6f}')
@@ -812,17 +822,13 @@ fig.update_layout(
 )
 {%- endif %}
 
-# Sorting follow the one defined for the input data
-fig.update_xaxes(categoryorder='trace')
-
-{%- if op.animation and not pie_family %}
+{%- if op.animation and not op.pie_family %}
 # Animation configuration
 fig.update_layout(transition = {'duration': 1000})
 fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
 {%- endif %}
 
 d = json.loads(fig.to_json())
-# del d.get('layout')['template']
 emit_event(
     'update task', status='COMPLETED',
     identifier='{{op.task_id}}',
