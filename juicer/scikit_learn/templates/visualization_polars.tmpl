@@ -237,7 +237,6 @@ df = df
 {#------- End Macros --------------#}
 
 {%- set type = op.type.lower() %}
-{%- set treemap_family = type in ('treemap', 'sunburst') %}
 {%- set map_family = type in ('scattermapbox', ) %}
 
 {%- if op.pie_family %}
@@ -263,11 +262,11 @@ df = df.select(aggregations)
 df = df.limit({{op.limit}})
 {%- endif %}
 
-{%- if x_values|length > 1 and not treemap_family %}
+{%- if x_values|length > 1 and not op.treemap_family %}
 {{fix_missing_in_serie(op) }}
 {%- endif %}
 
-{%- if treemap_family %}
+{%- if op.treemap_family %}
 {{ fix_zeroes_in_chart(op) }}
 {%- endif %}
 
@@ -283,7 +282,7 @@ pandas_df = df.collect().to_pandas()
 {%- if type in ('line', 'stacked-area', 'stacked-area-100',
     'bar', 'stacked-bar', 'horizontal-bar',
     'stacked-horizontal-bar', 'scatter', 'bubble',
-    ) or treemap_family %}
+    ) or op.treemap_family %}
 
 {%- if x_values|length == 1 or type.endswith('bar')%}
 axis1 = 'dim_0'
@@ -316,7 +315,7 @@ fig = px.
         # Invert axis values
         x=axis2,
         y=axis1,
-        {%- elif treemap_family %}
+        {%- elif op.treemap_family %}
         path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
         values='aggr_0',
         {%- else %}
@@ -331,7 +330,7 @@ fig = px.
         line_group='dim_1', color='dim_1',
         {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
         color='dim_1',{% endif %}
-        {%- if not treemap_family %}
+        {%- if not op.treemap_family %}
         log_y={{op.y_axis.get('logScale', False)}},
         log_x={{op.x_axis.get('logScale', False)}},
         {%- endif %}
@@ -379,7 +378,9 @@ fig = px.
 # Update labels
 update_labels = lambda _labels: (
         lambda t: t.update(name = _labels.get(t.name, t.name),
+                {%- if not op.treemap_family %}
                 legendgroup = _labels.get(t.name, t.name),
+                {%- endif %}
                 hovertemplate = t.hovertemplate.replace(
                     t.name, _labels.get(t.name, t.name))
         ))
@@ -660,7 +661,7 @@ fig.update_traces(contours_coloring="fill",
     #colorscale = {{op.color_scale}},
     contours_showlabels = True)
 
-{%- elif treemap_family %}
+{%- elif op.treemap_family %}
 fig = px.{{type}}(
     pandas_df,
     path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
@@ -769,7 +770,7 @@ fig.update_layout(template='{{op.template_}}')
 
 {%- if False and  not op.fill_opacity is none %}
 # Fill transparency
-{%- if not op.pie_family and not map_family and op.palette and not treemap_family %}
+{%- if not op.pie_family and not map_family and op.palette and not op.treemap_family %}
 def _fill_transparency(transparent_colors):
     cycle = itertools.cycle(transparent_colors)
     def f(trace):

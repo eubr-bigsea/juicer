@@ -194,11 +194,12 @@ class VisualizationOperation(Operation):
         self.y_range = f"[{lower_y}, {upper_y}]"
 
         # Families
-        self.pie_family = self.type in ("pie", "donut")
-        self.stacked_family = self.type in ("stacked-bar",
-                                            "stacked-horizontal-bar")
-        self.horizontal_bar_family = self.type in ("horizontal-bar",
-                                                    "stacked-horizontal-bar")
+        self.pie_family = self.type in ('pie', 'donut')
+        self.treemap_family = self.type in ('treemap', 'sunburst')
+        self.stacked_family = self.type in ('stacked-bar',
+                                            'stacked-horizontal-bar')
+        self.horizontal_bar_family = self.type in ('horizontal-bar',
+                                                    'stacked-horizontal-bar')
         self.filled_area_family = self.type in ('stacked-area',
                                                 'stacked-area-100')
         self.scatter_family = self.type in ('scatter', 'bubble')
