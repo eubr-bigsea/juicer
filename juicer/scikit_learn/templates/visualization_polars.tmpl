@@ -346,7 +346,7 @@ axis2 = [
 {%- if op.subgraph and op.subgraph.attribute != '' %}
 # Sort data by the subgraph "{{op.subgraph.attribute}}" column
 pandas_df = pandas_df.sort_values(
-    ['{{op.subgraph.attribute}}'] + current_sort, 
+    ['{{op.subgraph.attribute}}'] + current_sort,
     ascending=[True, True])
 {%- endif %}
 fig = px.
@@ -568,15 +568,17 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) and not op.aggregations %}
 fig = make_subplots(cols=1, rows={{op.y|length}},
-   subplot_titles=[{%for y in op.y %}'{{y.attribute}}',{% endfor %}])
+   subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}],
+   vertical_spacing=0.1,)
 
 {%- for y in op.literal %}
 fig.add_trace(
 	go.Box(x=pandas_df['dim_0'], y=pandas_df['{{y.attribute}}'],
-		name='{{y.attribute}}'), col=1, row={{loop.index}})
+		name='{{y.attribute}}'), col=1, row={{loop.index}},)
 {%- endfor %}
 
 fig.update_traces(quartilemethod="exclusive")
+
 {%- elif type in ('boxplot',) and op.aggregations %}
 fig = px.box(pandas_df,
              x='dim_0',
@@ -855,7 +857,7 @@ fig.data = fig.data[1:] + (fig.data[0], )
 fig.update_traces(opacity={{op.opacity}})
 {%- endif %}
 
-# Legend and separators.
+# Legend, separators, title and size.
 fig.update_layout(
     {%- if op.number_format %}separators='{{op.number_format}}',{% endif %}
     {%-if op.display_legend == 'HIDE' %}
@@ -880,6 +882,12 @@ fig.update_layout(
         bordercolor='#222',
     ),
     {%- endif %}
+    {%- if op.width or op.height %}
+    {%- if op.width %}width={{op.width}},{% endif %}
+    {%- if op.height %}height={{op.height}},{% endif %}
+    {%- endif %}
+    {%- if op.title %}title_text='{{op.title}}',{% endif %}
+
 )
 
 {%- if False and (op.custom_colors) and (not op.pie_family) and (not map_family) %}
