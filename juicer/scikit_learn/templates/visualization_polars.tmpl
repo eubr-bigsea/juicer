@@ -94,6 +94,7 @@ aggregations = [
     {%- endfor %}
 ]
 # Group data
+{%- if x_values %}
 dimensions = [
     {%- for x in x_values %}
     (pl.col('dim_{{loop.index0}}') {%- if x.multiplier %} * {{x.multiplier}}{% endif -%})
@@ -119,6 +120,10 @@ dimensions = [
     {%- endif %}
 ]
 df = df.groupby(dimensions).agg(aggregations)
+{%- else %}
+# No x value specified!
+df = df.select(aggregations)
+{%- endif %}
 {%- else %}
 # Test, not working!
 dimensions = [
@@ -252,7 +257,8 @@ colors = {{op.discrete_colors}}
 
 {%- if map_family %}
 {%- elif type == 'indicator' %}
-df = df.select(aggregations)
+{{ prepare_aggregations(op) }}
+#### df = df.select(aggregations)
 {%- else %}
 {{ prepare_x_axis(x_values) }}
 {{ prepare_aggregations(op) }}
@@ -270,7 +276,9 @@ df = df.limit({{op.limit}})
 {{ fix_zeroes_in_chart(op) }}
 {%- endif %}
 
+{%- if x_values %}
 {{ handle_sort(op, x_values) }}
+{%- endif %}
 
 pandas_df = df.collect().to_pandas()
 {%- if not map_family %}
@@ -326,7 +334,7 @@ fig = px.
         color='dim_1',
         pattern_shape="dim_1",
         template="simple_white",
-        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar') and not type.endswith('bar')-%}
+        {%- elif x_values|length > 1 and type not in ('scatter', 'bubble', 'bar') and not type.endswith('bar') and not op.treemap_family -%}
         line_group='dim_1', color='dim_1',
         {%- elif x_values|length > 1 and type not in ('scatter', 'bubble') -%}
         color='dim_1',{% endif %}
@@ -339,6 +347,8 @@ fig = px.
         # Remove white color (last one generated)
         color_discrete_sequence=n_colors(
             'rgb(0, 0, 0)', 'rgb(255, 255, 255)', pandas_df.shape[1] + 1, colortype='rgb')[:-1],
+        {%- elif op.treemap_family %}
+        {%- if op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
         {%- else %}
         color_discrete_sequence={{op.discrete_colors}},
         {%- endif %}
@@ -662,15 +672,16 @@ fig.update_traces(contours_coloring="fill",
     contours_showlabels = True)
 
 {%- elif op.treemap_family %}
-fig = px.{{type}}(
-    pandas_df,
-    path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
-    values='aggr_0',
-    color='aggr_0',
-    {%- if op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
-    title='{{op.title}}',
-    labels=labels,
-)
+#
+#fig = px.{{type}}(
+#    pandas_df,
+#    path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
+#    values='aggr_0',
+#    color='aggr_0',
+#    {%- if op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
+#    title='{{op.title}}',
+#    labels=labels,
+#)
 
 # fig.update_layout(margin = dict(t=50, l=25, r=25, b=25)) # FIXME
 
@@ -761,7 +772,7 @@ fig.update_traces(dict(
 {%- endfor %}
 {%- endif %}
 
-{%- if op.template_ and op.template != 'none' %}
+{%- if op.template_ and op.template_ != 'none' %}
 # Template/theme
 fig.update_layout(template='{{op.template_}}')
 {%- endif %}
