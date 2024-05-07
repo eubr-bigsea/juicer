@@ -9,7 +9,7 @@ def get_df():
     return util.iris_polars()
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def get_arguments(updated_params):
     result = {
         "parameters": {
@@ -62,10 +62,8 @@ def get_arguments(updated_params):
                 },
             ],
             "type": "line",
-            "x_axis": {
-            },
-            "y_axis": {
-            },
+            "x_axis": {},
+            "y_axis": {},
             "auto_margin": True,
             "task_id": "ababababa",
         },
@@ -232,13 +230,14 @@ def test_x_axis_display_title_success(generated_chart, expected):
                 "y_axis.displayLabel": True,
                 "y_axis.label": "",
             },
-            {"text": "value"}, # Don't know why this is the default
+            {"text": "value"},  # Don't know why this is the default
         ),
     ],
 )
 def test_y_axis_display_title_success(generated_chart, expected):
     _, layout = generated_chart
     assert layout["yaxis"].get("title") == expected
+
 
 @pytest.mark.parametrize(
     "updated_params, expected",
@@ -253,7 +252,7 @@ def test_y_axis_display_title_success(generated_chart, expected):
         ),
         (
             {"type": "line", "x_axis.display": False},
-           False,
+            False,
         ),
     ],
 )
@@ -275,7 +274,7 @@ def test_x_axis_display_success(generated_chart, expected):
         ),
         (
             {"type": "line", "y_axis.display": False},
-           False,
+            False,
         ),
     ],
 )
@@ -283,17 +282,18 @@ def test_y_axis_display_success(generated_chart, expected):
     _, layout = generated_chart
     assert layout["yaxis"].get("visible") == expected
 
+
 @pytest.mark.parametrize(
     "updated_params, expected",
     [
         (
-            {"type": "line", "x_axis.prefix": '^^', 'x_axis.suffix': '$$'},
+            {"type": "line", "x_axis.prefix": "^^", "x_axis.suffix": "$$"},
             ("^^", "$$"),
         ),
         (
             {"type": "line"},
             (None, None),
-        )
+        ),
     ],
 )
 def test_x_axis_prefix_suffix_success(generated_chart, expected):
@@ -302,17 +302,18 @@ def test_x_axis_prefix_suffix_success(generated_chart, expected):
     assert layout["xaxis"].get("tickprefix") == expected[0]
     assert layout["xaxis"].get("ticksuffix") == expected[1]
 
+
 @pytest.mark.parametrize(
     "updated_params, expected",
     [
         (
-            {"type": "line", "y_axis.prefix": '^^', 'y_axis.suffix': '$$'},
+            {"type": "line", "y_axis.prefix": "^^", "y_axis.suffix": "$$"},
             ("^^", "$$"),
         ),
         (
             {"type": "line"},
             (None, None),
-        )
+        ),
     ],
 )
 def test_y_axis_prefix_suffix_success(generated_chart, expected):
@@ -320,5 +321,52 @@ def test_y_axis_prefix_suffix_success(generated_chart, expected):
     assert layout["yaxis"].get("tickprefix") == expected[0]
     assert layout["yaxis"].get("ticksuffix") == expected[1]
 
+
+@pytest.mark.parametrize(
+    "updated_params, expected",
+    [
+        (
+            {
+                "x": [
+                    {
+                        "bins": 20,
+                        "binSize": 10,
+                        "max_displayed": 5,
+                         "group_others": True,
+                        "sorting": "NATURAL",
+                        "attribute": "class",
+                    },
+                    {
+                        "bins": 20,
+                        "binSize": 10,
+                        "max_displayed": 5,
+                        "group_others": True,
+                        "sorting": "NATURAL",
+                        "attribute": "sepalwidth",
+                    },
+                ],
+                "type": "treemap",
+                "color_scale": [
+                    "#c4e6c3",
+                    "#96d2a4",
+                    "#6dbc90",
+                    "#4da284",
+                    "#36877a",
+                    "#266b6e",
+                    "#1d4f60",
+                ],
+            },
+            {"type": "treemap"},
+        ),
+    ],
+)
+def test_y_axis_treemap_family_success(generated_chart, expected):
+    _, layout = generated_chart
+    #breakpoint()
+    #util.save_chart(_, layout)
+class
+
 # TODO: implement test for the range limits. There is a bug in plotly
 # See https://github.com/plotly/plotly.py/issues/3634
+
+# How to implement the function of limit to top N when using 2 valores for the x-axis?

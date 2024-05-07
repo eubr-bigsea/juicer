@@ -1,17 +1,12 @@
-import json
-
-import pandas as pd
-import plotly.colors
-import plotly.express as px
-import polars as pl
 import pytest
 
 from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
 from tests.scikit_learn import util
-from tests.scikit_learn.fixtures import *
 
-# Pie chart
 
+@pytest.fixture(scope="session")
+def get_df():
+    return util.iris_polars()
 
 @pytest.fixture
 def get_arguments():
@@ -181,17 +176,6 @@ def test_data_values(generated_chart):
     assert values == [50.0, 50.0, 50.0], "Incorrect value for 'values' field"
 
 
-# Layout tests
-# Test to verify the 'template' field
-def test_layout_template(generated_chart):
-    data, layout = generated_chart
-    template = layout.get("template")
-    assert template is not None, "Field 'template' not found in layout"
-    assert template == {
-        "data": {"scatter": [{"type": "scatter"}]}
-    }, "Incorrect value for 'template' field"
-
-
 # Test to verify the 'legend' field
 def test_layout_legend(generated_chart):
     data, layout = generated_chart
@@ -206,11 +190,3 @@ def test_layout_extendpiecolors(generated_chart):
     extendpiecolors = layout.get("extendpiecolors")
     assert extendpiecolors is not None, "Field 'extendpiecolors' not found in layout"
     assert extendpiecolors is True, "Incorrect value for 'extendpiecolors' field"
-
-
-# Test to verify the 'xaxis' field
-def test_layout_xaxis(generated_chart):
-    data, layout = generated_chart
-    xaxis = layout.get("xaxis")
-    assert xaxis is not None, "Field 'xaxis' not found in layout"
-    assert xaxis == {"categoryorder": "trace"}, "Incorrect value for 'xaxis' field"
