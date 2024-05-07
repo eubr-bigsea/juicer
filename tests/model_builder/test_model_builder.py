@@ -842,6 +842,44 @@ def test_pic_operation_no_hyperparams_success():
     print(gm.generate_random_hyperparameters_code())
     '''
 
+def test_pic_operation_hyperparams_success():
+    task_id = '123143-3411-23cf-233'
+    operation_id = 2364
+    name = 'PIC'
+    params = {
+        'workflow': {'forms': {}},
+        'task': {
+            'id': task_id,
+            'name': name,
+            'operation': {'id': operation_id}
+        },
+        'number_of_clusters': {'type': 'list', 'list': [4, 10]},
+        'init_mode': {'type': 'list', 'list': ['random', 'degree||'],
+                       'enabled': True},
+        'max_iterations': {'type': 'range', 'list': [0.0, 1], 'enabled': True, 
+                      'quantity': 4},
+        'weight': 'weight',
+    }
+    pic = PowerIterationClusteringOperation(params, {}, {})
+    expected_code = dedent(f"""
+        grid_kmeans = (tuning.ParamGridBuilder()
+            .baseOn({{pipeline.stages: common_stages + [gaussian_mix] }})
+            .addGrid(pic.k, [4, 10])
+            .addGrid(pic.initMode, ['random', 'degree||'])
+            .addGrid(pic.maxIter , np.linspace(0, 3, 4, dtype=int).tolist())
+            .addGrid(pic.weightCol, ['weight'])  # Correção aqui
+            .build()
+        )""")
+    import pdb; pdb.set_trace()
+    code = pic.generate_hyperparameters_code()
+    print(code)
+    result, msg = compare_ast(ast.parse(expected_code), ast.parse(code))
+    assert result, format_code_comparison(expected_code, code, msg)
+
+    assert pic.get_hyperparameter_count() == 6
+
+    print(pic.generate_random_hyperparameters_code())
+
 # TODO: test all estimators (classifiers, regressors, cluster types)
 # endregion
 

@@ -126,9 +126,9 @@ class MetaTranspiler(Transpiler):
             'grid': ops.GridOperation,
             'k-means': ops.KMeansOperation,
             'gaussian-mix': ops.GaussianMixOperation,
-            'pic':ops.PowerIterationClusteringOperation,
-            'lda':ops.LDAOperation,
-            'bkm':ops.BisectingKMeansOperation,
+            'pic_clustering':ops.PowerIterationClusteringOperation,
+            'lda_clustering':ops.LDAOperation,
+            'bkm_clustering':ops.BisectingKMeansOperation,
             'decision-tree-classifier': ops.DecisionTreeClassifierOperation,
             'gbt-classifier': ops.GBTClassifierOperation,
             'naive-bayes': ops.NaiveBayesClassifierOperation,
@@ -173,7 +173,7 @@ class MetaTranspiler(Transpiler):
             _type_: Model builder parameters
         """
 
-        estimators = {'k-means', 'gaussian-mix', 'decision-tree-classifier',
+        estimators = {'k-means', 'gaussian-mix', 'pic_clustering', 'lda_clustering', 'bkm_clustering', 'decision-tree-classifier',
                       'gbt-classifier', 'naive-bayes', 'perceptron',
                       'random-forest-classifier', 'logistic-regression', 'svm',
                       'linear-regression', 'isotonic-regression', 
