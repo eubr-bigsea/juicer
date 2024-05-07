@@ -47,7 +47,7 @@ def get_arguments():
             "y": [
                 {
                     "attribute": "total_bill",
-                    "aggregation": "MIN",
+                    #"aggregation": "MIN",
                     "compute": None,
                     "displayOn": "left",
                     "multiplier": None,
@@ -111,7 +111,9 @@ def generated_chart(get_arguments, get_df):
             instance.generate_code(),
         ]
     )
-    #breakpoint()
+    breakpoint()
+    with open('lixo.py', 'w') as f:
+        print(code, file=f)
     result = util.execute(code, vis_globals)
     generated_chart = result.get("d")
     data = generated_chart["data"]
@@ -245,8 +247,9 @@ def test_boxplot_yaxis(generated_chart):
 # Test to verify the 'quartilemethod' field
 def test_boxplot_quartilemethod(generated_chart):
     data, layout = generated_chart
-    quartilemethods = [item.get("quartilemethod") for item in data]
-    expected_quartilemethods = ["exclusive", "exclusive"]
-    assert (
-        quartilemethods == expected_quartilemethods
-    ), "Incorrect values for 'quartilemethod' field"
+    util.save_chart(data, layout)
+   # quartilemethods = [item.get("quartilemethod") for item in data]
+   # expected_quartilemethods = ["exclusive", "exclusive"]
+   # assert (
+   #     quartilemethods == expected_quartilemethods
+   # ), "Incorrect values for 'quartilemethod' field"

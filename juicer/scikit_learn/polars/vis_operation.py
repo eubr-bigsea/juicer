@@ -86,6 +86,11 @@ class VisualizationOperation(Operation):
             self.aggregations = [y for y in self.y if y.get("aggregation")]
             self.literal = [y for y in self.y if not y.get("aggregation")]
 
+            if self.aggregations and self.literal:
+                raise(ValueError(gettext(
+                    'Y-axis cannot include both values'
+                     ' and aggregation functions')))
+
             self.x_axis = self.get_required_parameter(parameters, "x_axis")
             self.y_axis = self.get_required_parameter(parameters, "y_axis")
 
@@ -210,7 +215,7 @@ class VisualizationOperation(Operation):
                 palette_options = itertools.cycle(self.palette)
                 for y in self.y:
                     series_color = y.get("color") or next(palette_options)
-                    if self.fill_opacity < 1:
+                    if self.fill_opacity is not None and self.fill_opacity < 1:
                         series_color = _hex_to_rgba(
                             series_color, self.fill_opacity
                         )

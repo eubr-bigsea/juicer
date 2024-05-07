@@ -69,7 +69,6 @@ df = df.with_columns([col.alias('dim_{{loop.index0}}')])
 {%- endmacro %}
 
 {%- macro prepare_aggregations(op) %}
-# prepare_aggregations()
 {%- if op.aggregations %} {# aggregations #}
 aggregations = [
     {%- for y in op.aggregations %}
@@ -179,9 +178,11 @@ labels = {
     'aggr_{{loop.index0}}':
     {%- if y.label -%}
     '{{y.label}}',
-    {%- else -%}
+    {%- elif op.aggregations -%}
     '{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}
         ({{y.attribute}})',
+    {%- else %}
+    '{{y.attribute}}',
     {%- endif %}
     {%- endfor -%}
     {%- for x in x_values -%}
@@ -515,12 +516,18 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) and not op.aggregations %}
 fig = make_subplots(rows=1, cols={{op.y|length}},
-	subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
+   subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
 
-{%- for y in op.y %}
+{# Only one is supported #}
+{%- for y in op.aggregations %}
 fig.add_trace(
 	go.Box(x=pandas_df['dim_0'], y=pandas_df['aggr_0'],
-		name=labels['aggr_0']), row=1, col={{loop.index}})
+		name=labels['aggr_0']))
+{%- endfor %}
+{%- for y in op.literal %}
+fig.add_trace(
+	go.Box(x=pandas_df['dim_0'], y=pandas_df['{{y.attribute}}'],
+		name='{{y.attribute}}'))
 {%- endfor %}
 
 fig.update_traces(quartilemethod="exclusive")
