@@ -13,7 +13,9 @@ def get_arguments():
     return {
         "parameters": {
             "type": "boxplot",
+            "height": 600, 'width': 500,
             "display_legend": "RIGHT",
+            "title": "Box plot example",
             "x": [
                 {
                     "binning": None,
@@ -110,7 +112,7 @@ def get_arguments():
                 "lowerBound": None,
                 "upperBound": None,
                 "logScale": False,
-                "display": True,
+                "display": False,
                 "displayLabel": True,
                 "label": None,
                 "multiplier": None,
@@ -143,9 +145,9 @@ def generated_chart(get_arguments, get_df):
             instance.generate_code(),
         ]
     )
-    breakpoint()
-    with open('lixo.py', 'w') as f:
-        print(code, file=f)
+    #breakpoint()
+    #with open('lixo.py', 'w') as f:
+    #    print(code, file=f)
     result = util.execute(code, vis_globals)
     generated_chart = result.get("d")
     data = generated_chart["data"]
