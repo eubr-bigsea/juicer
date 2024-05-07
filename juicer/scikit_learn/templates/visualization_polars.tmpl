@@ -515,19 +515,13 @@ fig.update_traces(
 {%- endif %}
 
 {%- elif type in ('boxplot',) and not op.aggregations %}
-fig = make_subplots(rows=1, cols={{op.y|length}},
+fig = make_subplots(cols=1, rows={{op.y|length}},
    subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
 
-{# Only one is supported #}
-{%- for y in op.aggregations %}
-fig.add_trace(
-	go.Box(x=pandas_df['dim_0'], y=pandas_df['aggr_0'],
-		name=labels['aggr_0']))
-{%- endfor %}
 {%- for y in op.literal %}
 fig.add_trace(
 	go.Box(x=pandas_df['dim_0'], y=pandas_df['{{y.attribute}}'],
-		name='{{y.attribute}}'))
+		name='{{y.attribute}}'), col=1, row={{loop.index}})
 {%- endfor %}
 
 fig.update_traces(quartilemethod="exclusive")
