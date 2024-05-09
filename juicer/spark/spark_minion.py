@@ -315,60 +315,7 @@ class SparkMinion(Minion):
 
             # Add general parameters in the form param1=value1,param2=value2
             try:
-                general_parameters = cluster_info.get('general_parameters')
-                if general_parameters:
-                    if general_parameters[0] == '{': # JSON
-                        gp = json.loads(general_parameters)
-                        for (key, value) in gp.get('spark', {}).items():
-                            self.cluster_options[key.strip()] = value.strip()
-                        for (key, value) in gp.get('environment', {}).items():
-                            os.environ[key] = value
-                        if gp.get('python'):
-                            self.cluster_options[
-                                    'spark.submit.pyFiles'] = ','.join(
-                                            gp.get('python'))
-                        if gp.get('lemonade.spark.version'):
-                            self.transpiler.spark_version = tuple([
-                                int(v) for v in
-                                gp.get('lemonade.spark.version').split('.')
-                            ])
-                        if gp.get('lemonade.spark.dir'):
-                            self.spark_dir = gp.get('lemonade.spark.dir')
-                            log.info('Setting SPARK_HOME={}', self.spark_dir)
-                            os.environ['SPARK_HOME'] = self.spark_dir
-                            # Find the Py4J version
-                            py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/*.zip'
-                            files = glob.glob(py4j_dir)
-                            sys.path = [p for p in self.default_sys_path]
-                            for f in files:
-                                if f not in sys.path:
-                                    sys.path[:0 ] = [f] # adding at begining
-                        self.cluster_options['build.dist_file'] =  gp.get(
-                            'lemonade.spark.build.dist_file', True)
-                        self.cluster_options['remote'] = gp.get(
-                            'lemonade.spark.remote', False)
-                        self.cluster_options['remote.address'] = gp.get(
-                            'lemonade.spark.remote.address')
-
-                    else:
-                        parameters = general_parameters.split(',')
-                        for parameter in parameters:
-                            key, value = parameter.split('=')
-                            if key.startswith('spark'):
-                                self.cluster_options[key.strip()] = value.strip()
-                if '/lib/native' not in os.environ.get('LD_LIBRARY_PATH', ''):
-                    os.environ['LD_LIBRARY_PATH'] = ':'.join([
-                        os.environ.get('LD_LIBRARY_PATH', ''),
-                        os.environ.get('HADOOP_HOME', '/opt/hadoop').rstrip('/')
-                            + '/lib/native'])
-                print('*' * 20)
-                print(os.environ['SPARK_HOME'])
-                print(sys.path)
-                if self.spark_dir:
-                    py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
-                    files = glob.glob(py4j_dir)
-                    print(py4j_dir, files)
-                    print('*' * 20)
+                self.define_cluster_parameters(cluster_info)
             except Exception as ex:
                 msg = _("Error in general cluster parameters: {}").format(ex)
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -439,7 +386,8 @@ class SparkMinion(Minion):
                 self.job_future.result()
 
             self.job_future = self._execute_future(job_id, workflow,
-                                                   app_configs)
+                                                   app_configs,
+                                                   msg_info.get('code'))
             log.info(_('Execute message finished'))
 
         elif msg_type == juicer_protocol.TERMINATE:
@@ -460,9 +408,65 @@ class SparkMinion(Minion):
             log.warn(_('Unknown message type %s'), msg_type)
             self._generate_output(_('Unknown message type %s') % msg_type)
 
-    def _execute_future(self, job_id, workflow, app_configs):
+    def define_cluster_parameters(self, cluster_info):
+        general_parameters = cluster_info.get('general_parameters')
+        if general_parameters:
+            if general_parameters[0] == '{': # JSON
+                gp = json.loads(general_parameters)
+                for (key, value) in gp.get('spark', {}).items():
+                    self.cluster_options[key.strip()] = value.strip()
+                for (key, value) in gp.get('environment', {}).items():
+                    os.environ[key] = value
+                if gp.get('python'):
+                    self.cluster_options[
+                                    'spark.submit.pyFiles'] = ','.join(
+                                            gp.get('python'))
+                if gp.get('lemonade.spark.version'):
+                    self.transpiler.spark_version = tuple([
+                                int(v) for v in
+                                gp.get('lemonade.spark.version').split('.')
+                            ])
+                if gp.get('lemonade.spark.dir'):
+                    self.spark_dir = gp.get('lemonade.spark.dir')
+                    log.info('Setting SPARK_HOME={}', self.spark_dir)
+                    os.environ['SPARK_HOME'] = self.spark_dir
+                            # Find the Py4J version
+                    py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/*.zip'
+                    files = glob.glob(py4j_dir)
+                    sys.path = [p for p in self.default_sys_path]
+                    for f in files:
+                        if f not in sys.path:
+                            sys.path[:0 ] = [f] # adding at begining
+                self.cluster_options['build.dist_file'] =  gp.get(
+                            'lemonade.spark.build.dist_file', True)
+                self.cluster_options['remote'] = gp.get(
+                            'lemonade.spark.remote', False)
+                self.cluster_options['remote.address'] = gp.get(
+                            'lemonade.spark.remote.address')
+
+            else:
+                parameters = general_parameters.split(',')
+                for parameter in parameters:
+                    key, value = parameter.split('=')
+                    if key.startswith('spark'):
+                        self.cluster_options[key.strip()] = value.strip()
+        if '/lib/native' not in os.environ.get('LD_LIBRARY_PATH', ''):
+            os.environ['LD_LIBRARY_PATH'] = ':'.join([
+                        os.environ.get('LD_LIBRARY_PATH', ''),
+                        os.environ.get('HADOOP_HOME', '/opt/hadoop').rstrip('/')
+                            + '/lib/native'])
+        print('*' * 20)
+        print(os.environ['SPARK_HOME'])
+        print(sys.path)
+        if self.spark_dir:
+            py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
+            files = glob.glob(py4j_dir)
+            print(py4j_dir, files)
+            print('*' * 20)
+
+    def _execute_future(self, job_id, workflow, app_configs, code=None):
         return self.executor.submit(self.perform_execute,
-                                    job_id, workflow, app_configs)
+                                    job_id, workflow, app_configs, code)
 
     def perform_execute(self, job_id, workflow, app_configs, code=None):
 
