@@ -1,31 +1,31 @@
-# coding=utf-8
-
-
-from typing import Callable
-import autopep8
 import datetime
 import hashlib
 import inspect
-import jinja2
 import json
 import logging
-import networkx as nx
 import os
-import redis
+import pprint
+import re
 import sys
 import tempfile
 import uuid
 from collections import OrderedDict
-from rq import Queue
-from urllib.parse import urlparse
+from dataclasses import dataclass
 from textwrap import dedent
+from typing import Callable
+from urllib.parse import urlparse
+
+import autopep8
+import jinja2
+import networkx as nx
+import redis
+from rq import Queue
 
 from juicer import auditing
 from juicer.util.jinja2_custom import AutoPep8Extension
+
 from .service import stand_service
 from .util.template_util import HandleExceptionExtension
-
-from dataclasses import dataclass
 
 AUDITING_QUEUE_NAME = 'auditing'
 AUDITING_JOB_NAME = 'seed.jobs.auditing'
@@ -123,6 +123,9 @@ class Transpiler(object):
     def get_meta_template(self):
         return "templates/meta.tmpl"
 
+    def get_sql_template(self):
+        return "templates/sql.tmpl"
+
     def get_batch_template(self):
         return "templates/batch.tmpl"
 
@@ -173,6 +176,9 @@ class Transpiler(object):
         audit_events = []
         for i, task_id in enumerate(opt.tasks_ids):
             if task_id not in graph.nodes:
+                print('*' * 20)
+                print('Task not in graph', task_id)
+                print('*' * 20)
                 continue
             task = graph.nodes[task_id]['attr_dict']
             task['parents'] = graph.nodes[task_id]['parents']
@@ -285,29 +291,28 @@ class Transpiler(object):
 
     def generate_code(self, opt: GenerateCodeParams):
         workflow = opt.workflow
-        if opt.deploy:
-            # To be able to convert, workflow must obey all these rules:
-            # - 1 and exactly 1 data source;
-            # - Data source must be defined in Limonero with its attributes in
-            # order to define the schema for data input;
-            # - For ML models, it is required to have a Save Model operation;
-            total_ds = 0
-            for task in workflow['tasks']:
-                if not task.get('enabled', False):
-                    continue
-                if task['operation']['slug'] in self.DATA_SOURCE_OPS:
-                    total_ds += 1
+        # if opt.deploy:
+        #     # To be able to convert, workflow must obey all these rules:
+        #     # - 1 and exactly 1 data source;
+        #     # - Data source must be defined in Limonero with its attributes in
+        #     # order to define the schema for data input;
+        #     # - For ML models, it is required to have a Save Model operation;
+        #     total_ds = 0
+        #     for task in workflow['tasks']:
+        #         if not task.get('enabled', False):
+        #             continue
+        #         if task['operation']['slug'] in self.DATA_SOURCE_OPS:
+        #             total_ds += 1
 
-            if total_ds < 1:
-                raise ValueError(_(
-                    'Workflow must have at least 1 data source to be deployed.')
-                )
-            tasks_ids = reversed(opt.tasks_ids)
-        else:
-            tasks_ids = opt.tasks_ids
+        #     if total_ds < 1:
+        #         raise ValueError(gettext(
+        #             'Workflow must have at least 1 data source to be deployed.')
+        #         )
+        #     tasks_ids = reversed(opt.tasks_ids)
+        # else:
+        #     tasks_ids = opt.tasks_ids
 
         instances, audit_events = self.get_instances(opt)
-
         if audit_events:
 
             redis_url = self.configuration['juicer']['servers']['redis_url']
@@ -387,19 +392,21 @@ class Transpiler(object):
             # env_setup['slug_to_port_id'] = self.slug_to_port_id
             env_setup['id_mapping'] = {}
             template = template_env.get_template(self.get_deploy_template())
-            out.write(template.render(env_setup))
+            opt.out.write(template.render(env_setup))
         elif opt.export_notebook:
             template = template_env.get_template(self.get_notebook_template())
-            out.write(template.render(env_setup))
+            opt.out.write(template.render(env_setup))
         elif opt.plain:
             template = template_env.get_template(self.get_plain_template())
-            out.write(template.render(env_setup))
+            opt.out.write(template.render(env_setup))
         else:
             workflow_type = workflow.get('type')
             if workflow_type in ('WORKFLOW', 'MODEL_BUILDER'):
                 template = template_env.get_template(self.get_code_template())
             elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
                 template = template_env.get_template(self.get_meta_template())
+            elif workflow_type in ('SQL', ):
+                template = template_env.get_template(self.get_sql_template())
             elif workflow_type == 'BATCH':
                 template = template_env.get_template(self.get_batch_template())
 
@@ -414,7 +421,7 @@ class Transpiler(object):
                 # noinspection PyBroadException
                 try:
                     stand_service.save_job_source_code(
-                        stand_config['url'], stand_config['auth_token'], 
+                        stand_config['url'], stand_config['auth_token'],
                         opt.job_id, gen_source_code)
                 except Exception as ex:
                     log.exception(str(ex))
@@ -598,18 +605,18 @@ class TranspilerUtils(object):
         for instance in instances:
             if instance.import_code:
                 if instance.import_code['layer']:
-                    if not instance.import_code['layer'] in layer_list:
+                    if instance.import_code['layer'] not in layer_list:
                         layer_list.append(instance.import_code['layer'])
                 if instance.import_code['callbacks']:
                     for callback in instance.import_code['callbacks']:
                         if callback not in callbacks_list:
                             callbacks_list.append(callback)
                 if instance.import_code['model']:
-                    if not instance.import_code['model'] in model_list:
+                    if instance.import_code['model'] not in model_list:
                         model_list.append(instance.import_code['model'])
                 if instance.import_code['preprocessing_image']:
-                    if not instance.import_code[
-                               'preprocessing_image'] in preprocessing_image_list:
+                    if instance.import_code['preprocessing_image'
+                                            ] not in preprocessing_image_list:
                         preprocessing_image_list.append(
                             instance.import_code['preprocessing_image'])
                 if instance.import_code['others']:
@@ -659,6 +666,10 @@ class TranspilerUtils(object):
             'unicode-escape').decode('utf-8')
 
     @staticmethod
+    def pprint(obj):
+        return pprint.pformat(obj)
+
+    @staticmethod
     def gen_port_name(flow, seq):
         name = flow.get('source_port_name', 'data')
         parts = name.split()
@@ -692,9 +703,28 @@ class TranspilerUtils(object):
     def __unicode__(self):
         return 'TranspilerUtils object'
 
-    def render_template(self, template: str, context: dict):
+    def render_template(self, template: str, context: dict,
+                        install_gettext: bool = False):
         """
         Render a Jinja2 template using the information provided by context.
         """
         tm = jinja2.Template(template)
+        if install_gettext:
+            tm.environment.add_extension('jinja2.ext.i18n')
+
         return tm.render(**context)
+
+    def text_to_identifier(self, text: str) -> str:
+        # Remove leading/trailing whitespaces
+        text = text.strip()
+        # Replace spaces with underscores
+        text = text.replace(" ", "_")
+        # Add underscore if the first character is not a letter
+        if not text[0].isalpha():
+            text = "_" + text
+        # Remove invalid characters
+        text = re.sub(r'\W|^(?=\d)', '_', text)
+        # Limit the length to 40 characters
+        text = text[:40]
+        return text
+

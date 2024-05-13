@@ -569,8 +569,15 @@ class Workflow(object):
         now = datetime.datetime.now()
         date_at_min = datetime.datetime.combine(datetime.datetime.now(), datetime.time.min)
         date_at_max = datetime.datetime.combine(datetime.datetime.now(), datetime.time.max)
-
         all_vars = {
+            'second': now.strftime('%S'),
+            'minute': now.strftime('%M'),
+            'hour': now.strftime('%H'),
+            'day': now.strftime('%d'),
+            'week_day': now.isoweekday(),
+            'month': now.strftime('%m'),
+            'year': now.strftime('%Y'),
+            'year2': now.strftime('%y'),
             'date': now.strftime('%Y-%m-%d'),
             'now': now.strftime('%Y-%m-%d %H:%M:%S'),
             'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
@@ -582,6 +589,7 @@ class Workflow(object):
             'workflow_name': self.workflow['name'],
             'workflow_id': self.workflow['id'],
         }
+        
         if custom_vars:
             all_vars.update(custom_vars)
         for variable in self.workflow.get('variables', []):
