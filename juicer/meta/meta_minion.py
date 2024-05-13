@@ -152,6 +152,7 @@ class MetaMinion(Minion):
                 status='RUNNING', identifier=job_id)
 
             app_configs = msg_info.get('app_configs', {})
+            cluster_info = msg_info.get('cluster', {})
 
             # Sample size can be informed in API, limited to 1000 rows.
 
@@ -160,7 +161,8 @@ class MetaMinion(Minion):
 
             try:
                 self.job_future = self._execute_future(job_id, workflow,
-                                                       app_configs)
+                                                       app_configs,
+                                                       cluster_info)
                 log.info(gettext.gettext('Execute message finished'))
             except ValueError as e:
                 self._emit_event(room=job_id, namespace='/stand')(
@@ -230,16 +232,16 @@ class MetaMinion(Minion):
             target_workflow = self._get_target_workflow(
                 job_id, msg_info['workflow'], app_configs,
                 msg_info['target_platform'])
-            
+
             tahiti_config = self.config['juicer']['services']['tahiti']
             base_url = tahiti_config.get('url')
             token = str(tahiti_config.get('auth_token'))
 
             # ids = "&".join(
             #     [f'ids[]={t.get("id")}' for t in target_workflow.get('tasks')])
-            # ops = tahiti_service.query_tahiti(base_url, '/operations', token, 
+            # ops = tahiti_service.query_tahiti(base_url, '/operations', token,
             #     None, qs=f"platform=1&fields=id,ports&{ids}").get('data')
-            wf_id = tahiti_service.save_workflow(base_url, token, 
+            wf_id = tahiti_service.save_workflow(base_url, token,
                 json.dumps(target_workflow))
 
             self._emit_event(room=job_id, namespace='/stand')(
@@ -254,8 +256,8 @@ class MetaMinion(Minion):
             self._generate_output(gettext.gettext(
                 'Unknown message type %s') % msg_type)
 
-    def _execute_future(self, job_id, workflow, app_configs):
-        return self.perform_execute(job_id, workflow, app_configs)
+    def _execute_future(self, job_id, workflow, app_configs, cluster_info):
+        return self.perform_execute(job_id, workflow, app_configs, cluster_info)
 
     def _get_target_workflow(self, job_id, workflow, app_configs,
                              target_platform, include_disabled=False):
@@ -278,15 +280,20 @@ class MetaMinion(Minion):
         target_workflow['app_configs'] = app_configs
         return target_workflow
 
-    def perform_execute(self, job_id, workflow, app_configs):
+    def perform_execute(self, job_id, workflow, app_configs, cluster_info):
         if workflow.get('type') == 'MODEL_BUILDER':
-            self._execute_model_builder(job_id, workflow, app_configs)
+            self._execute_model_builder(job_id, workflow, app_configs,
+                                        cluster_info)
+        elif workflow.get('type') == 'SQL':
+            self._execute_sql_workflow(job_id, workflow, app_configs,
+                                        cluster_info)
         elif workflow.get('type') == 'BATCH':
-            self._execute_batch(job_id, workflow, app_configs)
+            self._execute_batch(job_id, workflow, app_configs, cluster_info)
         else:
-            self._execute_target_workflow(job_id, workflow, app_configs)
+            self._execute_target_workflow(job_id, workflow, app_configs,
+                                          cluster_info)
 
-    def _execute_batch(self, job_id, workflow, app_configs):
+    def _execute_batch(self, job_id, workflow, app_configs, cluster_info=None):
         loader = Workflow(workflow, self.config, lang=self.current_lang)
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
@@ -305,7 +312,8 @@ class MetaMinion(Minion):
 
         self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
-    def _execute_model_builder(self, job_id, workflow, app_configs):
+    def _execute_model_builder(self, job_id, workflow, app_configs,
+                               cluster_info=None):
         loader = Workflow(workflow, self.config, lang=self.current_lang)
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
@@ -324,7 +332,43 @@ class MetaMinion(Minion):
 
         self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
-    def _execute_target_workflow(self, job_id, workflow, app_configs):
+    def _execute_sql_workflow(self, job_id, workflow, app_configs,
+                              cluster_info=None):
+
+        loader = Workflow(workflow, self.config, lang=self.current_lang)
+        loader.handle_variables({'job_id': job_id})
+        out = StringIO()
+
+        self.transpiler.transpile(loader.workflow, loader.graph,
+                                  self.config, out, job_id,
+                                  persist=app_configs.get('persist'))
+        out.seek(0)
+        code = out.read()
+
+        if self.target_minion is None:
+            # Only Spark is supported
+            self.target_minion = SparkMinion(
+                self.redis_conn, self.workflow_id,
+                self.app_id, self.config, self.current_lang)
+            # self.target_minion.transpiler.requires_hive = True
+
+
+        msg = json.dumps({
+            'workflow_id': self.workflow_id,
+            'app_id': self.app_id,
+            'job_id': job_id,
+            'workflow': workflow,
+            'app_configs': app_configs,
+            'code': code,
+            'type': juicer_protocol.EXECUTE,
+            'cluster': cluster_info
+        })
+        self.target_minion.state_control.push_app_queue(self.app_id, msg)
+        self.target_minion._process_message()
+        ##self.target_minion.perform_execute(job_id, workflow, app_configs, code)
+
+    def _execute_target_workflow(self, job_id, workflow, app_configs,
+                                 cluster_info=None):
         app_configs['persist'] = False
         # print(app_configs)
         log.info('Converting workflow to platform %s',

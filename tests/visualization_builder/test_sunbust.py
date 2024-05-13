@@ -1,18 +1,7 @@
-from tests.scikit_learn import util
-from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
-
-import json
 import pytest
-import pandas as pd
-import polars as pl
-import plotly.express as px
-import plotly.colors
 
-
-# sunburst
-
-
-df = util.titanic_polars()
+from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
+from tests.scikit_learn import util
 
 
 @pytest.fixture
@@ -43,7 +32,13 @@ def get_arguments():
                     "attribute": "pclass",
                 }
             ],
-            "color_scale": ["#000000", "#e60000", "#e6d200", "#ffffff", "#a0c8ff"],
+            "color_scale": [
+                "#000000",
+                "#e60000",
+                "#e6d200",
+                "#ffffff",
+                "#a0c8ff",
+            ],
             "y": [
                 {
                     "attribute": "*",
@@ -124,7 +119,9 @@ def test_data_branchvalues(generated_chart):
     data, layout = generated_chart
     sunburst_data = data[0]
     branchvalues = sunburst_data.get("branchvalues")
-    assert branchvalues is not None, "Field 'branchvalues' not found in data object"
+    assert (
+        branchvalues is not None
+    ), "Field 'branchvalues' not found in data object"
     assert branchvalues == "total", "Incorrect value for 'branchvalues' field"
 
 
@@ -135,7 +132,9 @@ def test_data_customdata(generated_chart):
     customdata = sunburst_data.get("customdata")
     assert customdata is not None, "Field 'customdata' not found in data object"
     expected_customdata = [[323.0], [277.0], [709.0]]
-    assert customdata == expected_customdata, "Incorrect value for 'customdata' field"
+    assert (
+        customdata == expected_customdata
+    ), "Incorrect value for 'customdata' field"
 
 
 # Test for verifying the 'domain' field
@@ -200,16 +199,22 @@ def test_data_type(generated_chart):
 def test_layout_template(generated_chart):
     data, layout = generated_chart
     layout_template = layout.get("template")
-    assert layout_template is not None, "Field 'template' not found in layout object"
+    assert (
+        layout_template is not None
+    ), "Field 'template' not found in layout object"
     expected_template = {"data": {"scatter": [{"type": "scatter"}]}}
-    assert layout_template == expected_template, "Incorrect values for 'template' field"
+    assert (
+        layout_template == expected_template
+    ), "Incorrect values for 'template' field"
 
 
 # Test for verifying the 'coloraxis' field
 def test_layout_coloraxis(generated_chart):
     data, layout = generated_chart
     layout_coloraxis = layout.get("coloraxis")
-    assert layout_coloraxis is not None, "Field 'coloraxis' not found in layout object"
+    assert (
+        layout_coloraxis is not None
+    ), "Field 'coloraxis' not found in layout object"
     expected_coloraxis = {
         "colorbar": {"title": {"text": "count(*)"}},
         "colorscale": [
@@ -231,7 +236,9 @@ def test_layout_legend(generated_chart):
     layout_legend = layout.get("legend")
     assert layout_legend is not None, "Field 'legend' not found in layout object"
     expected_legend = {"tracegroupgap": 0}
-    assert layout_legend == expected_legend, "Incorrect values for 'legend' field"
+    assert (
+        layout_legend == expected_legend
+    ), "Incorrect values for 'legend' field"
 
 
 # Test for verifying the 'xaxis' field

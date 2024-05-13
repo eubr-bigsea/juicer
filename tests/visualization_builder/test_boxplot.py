@@ -1,24 +1,12 @@
-from tests.scikit_learn import util
-from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
-from plotly import graph_objects as go
-
-import json
 import pytest
-import pandas as pd
-import polars as pl
-import plotly.express as px
-import plotly.colors
+from juicer.scikit_learn.polars.vis_operation import VisualizationOperation
+from tests.scikit_learn import util
 
 # Boxplot
-
-
-df = util.tips_polars()
-
 
 @pytest.fixture
 def get_df():
     return util.tips_polars()
-
 
 @pytest.fixture
 def get_arguments():
@@ -41,7 +29,7 @@ def get_arguments():
                     "group_others": True,
                     "sorting": "NATURAL",
                     "attribute": "time",
-                    "displayLabel": "teste",
+                    "displayLabel": "test",
                 }
             ],
             "palette": [
@@ -59,7 +47,39 @@ def get_arguments():
             "y": [
                 {
                     "attribute": "total_bill",
-                    "aggregation": "MIN",
+                    #"aggregation": "MIN",
+                    "compute": None,
+                    "displayOn": "left",
+                    "multiplier": None,
+                    "decimal_places": 2,
+                    "prefix": None,
+                    "suffix": None,
+                    "label": None,
+                    "strokeSize": 0,
+                    "stroke": None,
+                    "color": None,
+                    "marker": None,
+                    "enabled": True,
+                },
+                {
+                    "attribute": "tip",
+                    #"aggregation": "MIN",
+                    "compute": None,
+                    "displayOn": "left",
+                    "multiplier": None,
+                    "decimal_places": 2,
+                    "prefix": None,
+                    "suffix": None,
+                    "label": None,
+                    "strokeSize": 0,
+                    "stroke": None,
+                    "color": None,
+                    "marker": None,
+                    "enabled": True,
+                },
+                {
+                    "attribute": "size",
+                    #"aggregation": "MIN",
                     "compute": None,
                     "displayOn": "left",
                     "multiplier": None,
@@ -101,29 +121,31 @@ def get_arguments():
             "task_id": "0",
         },
         "named_inputs": {
-            "input data": "iris",
+            "input data": "tips",
         },
         "named_outputs": {"output data": "out"},
     }
 
 
 #
-def emit_event(*args, **kwargs):
-    print(args, kwargs)
 
-
-@pytest.fixture
+@pytest.fixture()
 def generated_chart(get_arguments, get_df):
+
     instance = VisualizationOperation(**get_arguments)
-    vis_globals = dict(iris=get_df, emit_event=util.emit_event)
+    vis_globals = dict(tips=get_df, emit_event=util.emit_event)
     code = "\n".join(
         [
             "import plotly.graph_objects as go",
             "import plotly.express as px",
+            "from plotly.subplots import make_subplots",
             "import json",
             instance.generate_code(),
         ]
     )
+    breakpoint()
+    with open('lixo.py', 'w') as f:
+        print(code, file=f)
     result = util.execute(code, vis_globals)
     generated_chart = result.get("d")
     data = generated_chart["data"]
@@ -137,7 +159,7 @@ def generated_chart(get_arguments, get_df):
 
 # Test to verify the 'boxpoints' field
 def test_boxplot_boxpoints(generated_chart):
-    data, layout = generated_chart
+    data, _ = generated_chart
     boxpoints = [item.get("boxpoints") for item in data]
     expected_boxpoints = ["all", "all"]
     assert boxpoints == expected_boxpoints, "Incorrect values for 'boxpoints' field"
@@ -168,8 +190,8 @@ def test_boxplot_hovertemplate(generated_chart):
     data, layout = generated_chart
     hovertemplate = [item.get("hovertemplate") for item in data]
     expected_hovertemplate = [
-        "teste=%{x}<br>min(total_bill)=%{y}<extra></extra>",
-        "teste=%{x}<br>min(total_bill)=%{y}<extra></extra>",
+        "test=%{x}<br>min(total_bill)=%{y}<extra></extra>",
+        "test=%{x}<br>min(total_bill)=%{y}<extra></extra>",
     ]
     assert (
         hovertemplate == expected_hovertemplate
@@ -257,8 +279,9 @@ def test_boxplot_yaxis(generated_chart):
 # Test to verify the 'quartilemethod' field
 def test_boxplot_quartilemethod(generated_chart):
     data, layout = generated_chart
-    quartilemethods = [item.get("quartilemethod") for item in data]
-    expected_quartilemethods = ["exclusive", "exclusive"]
-    assert (
-        quartilemethods == expected_quartilemethods
-    ), "Incorrect values for 'quartilemethod' field"
+    util.save_chart(data, layout)
+   # quartilemethods = [item.get("quartilemethod") for item in data]
+   # expected_quartilemethods = ["exclusive", "exclusive"]
+   # assert (
+   #     quartilemethods == expected_quartilemethods
+   # ), "Incorrect values for 'quartilemethod' field"

@@ -58,25 +58,57 @@ class HandleExceptionExtension(Extension):
 
 
 def strip_accents(s):
+    """
+    Remove accents from a string.
+
+    Parameters:
+    s (str): The input string.
+
+    Returns:
+    str: The input string with accents removed.
+
+    Notes:
+    This function uses the Unicode normalization form 'NFD' to decompose the
+    input string into its constituent characters and diacritical marks.
+    It then filters out the diacritical marks, leaving only the base characters.
+
+    Examples:
+    >>> strip_accents("ça été une expérience")
+    'ca ete une experience'
+    """
     return ''.join(c for c in unicodedata.normalize('NFD', s)
                    if unicodedata.category(c) != 'Mn')
 
 
-def convert_variable_name(task_name):
+
+def convert_variable_name(task_name: str) -> str:
+    """
+    Convert a task name to a valid Python variable name.
+
+    Args:
+        task_name (str): The input task name.
+
+    Returns:
+        str: A valid Python variable name.
+
+    Raises:
+        ValueError: If the input task name is invalid.
+    """
+    # Remove accents and normalize the string
     name = strip_accents(task_name)
-    name = re.sub(r"^\s+|\s+$", "", name)
-    name = re.sub(r"\s+|\-+", "_", name)
-    name = re.sub(r"\_+", "_", name)
 
-    variable_name = ""
-    for c in name:
-        if c.isalnum() or c is '_':
-            variable_name += ''.join(c)
+    # Replace whitespace and dashes with underscores
+    name = re.sub(r"[^\w_]+", "_", name)
 
-    variable_name = variable_name.lower()
+    # Remove duplicate underscores
+    name = re.sub(r"_+", "_", name)
 
-    if is_valid_var_name(variable_name):
-        return str(variable_name)
+    # Convert to lowercase
+    name = name.lower()
+
+    # Validate the variable name
+    if is_valid_var_name(name):
+        return name
     else:
         raise ValueError(gettext('Parameter task name is invalid.'))
 
@@ -92,7 +124,7 @@ def convert_parents_to_variable_name(parents=[]):
 
         variable_name = ""
         for c in name:
-            if c.isalnum() or c is '_':
+            if c.isalnum() or c == '_':
                 variable_name += ''.join(c)
 
         variable_name = variable_name.lower()
@@ -178,10 +210,19 @@ def string_to_list(field):
     return field
 
 
-def string_to_dictionary(field):
+def string_to_dictionary(field: str) -> dict:
+    """
+    Converts a JSON-formatted string to a dictionary.
+
+    Args:
+        field (str): The input string to be converted.
+
+    Returns:
+        dict | None: A dictionary representation of the input string, or None if parsing fails.
+    """
     try:
         return json.loads(field)
-    except:
+    except json.JSONDecodeError:
         return None
 
 

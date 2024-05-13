@@ -111,9 +111,6 @@ class Operation(object):
             _("Method generate_code should be implemented "
               "in {} subclass").format(self.__class__))
 
-    def render_template(self, context: dict):
-        return self.transpiler_utils.render_template(self.template, context)
-
     # noinspection PyMethodMayBeStatic
     def get_auxiliary_code(self):
         return []
@@ -191,8 +188,14 @@ class Operation(object):
         """
         return []
 
-    def render_template(self, context: dict):
-        return self.transpiler_utils.render_template(self.template, context)
+    def render_str_template(self, template: str, context: dict,
+                            install_gettext: bool=False):
+        return self.transpiler_utils.render_template(template, context,
+                                                     install_gettext)
+
+    def render_template(self, context: dict, install_gettext: bool = False):
+        return self.render_str_template(self.template, context,
+                                        install_gettext)
 
     def to_deploy_format(self, id_mapping):
         params = self.parameters['task']['forms']

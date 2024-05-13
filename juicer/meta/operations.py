@@ -1,20 +1,20 @@
 import dataclasses
-from functools import reduce
 import json
 import re
-from typing import List
-import unicodedata
 from collections import namedtuple
+from functools import reduce
 from gettext import gettext
 from itertools import zip_longest as zip_longest
-from textwrap import dedent
+from textwrap import dedent, indent
+from typing import List
 
 from juicer.operation import Operation
-from juicer.spark.data_operation import DataReaderOperation
-from juicer.spark.etl_operation import AggregationOperation
-from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
-from juicer.spark.etl_operation import SampleOrPartitionOperation
 from juicer.service import limonero_service
+from juicer.spark.data_operation import DataReaderOperation
+from juicer.spark.data_operation import SaveOperation as SparkSaveOperation
+from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOperation
+from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
+from juicer.util.template_util import strip_accents
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -35,16 +35,20 @@ class HyperparameterInfo:
             return '<INVALID hyperparameter type>'
 
 
-_pythonize_expr = re.compile(r'[\W_]+')
 
+non_word_chars_pattern = re.compile(r'[^a-zA-Z0-9_]+', re.U)
 
-def strip_accents(s):
-    return ''.join(c for c in unicodedata.normalize('NFD', s)
-                   if unicodedata.category(c) != 'Mn')
+def pythonize(s: str) -> str:
+    """
+    Pythonize a string by removing accents and replacing non-word characters
+    with underscores.
 
-
-def pythonize(s):
-    return _pythonize_expr.sub('_', strip_accents(s))
+    Args:
+        s (str): The input string.
+    Returns:
+        str: The pythonized string.
+    """
+    return non_word_chars_pattern.sub('_', strip_accents(s))
 
 
 def _as_list(input_values, transform=None, size=None, validate=None):
@@ -53,7 +57,7 @@ def _as_list(input_values, transform=None, size=None, validate=None):
     https://towardsdatascience.com/why-is-the-log-uniform-distribution-useful-for-hyperparameter-tuning-63c8d331698
     """
     if (input_values is None or not isinstance(input_values, dict) or
-            False == input_values.get('enabled')):
+            (not input_values.get('enabled', True))):
         return None
     param_type = input_values.get('type')
 
@@ -62,7 +66,7 @@ def _as_list(input_values, transform=None, size=None, validate=None):
             values = values.get('list')
             return (values, f'np.random.choice({values})')
         elif param_type == 'range':
-            qty = size or values.get('quantity') or 3
+            qty = size or values.get('quantity') or values.get('size', 3)
             _min = values.get('min', 0)
             _max = values.get('max', 3)
             if values.get('distribution') == 'log_uniform':
@@ -82,15 +86,20 @@ def _as_list(input_values, transform=None, size=None, validate=None):
     result, random_generator = apply(input_values)
     if param_type == 'list' and len(result) == 0:
         return None
-    if transform and param_type == 'list':
-        if validate:
-            _validate(validate, result)
-        transformed = [transform(x) for x in result if x is not None]
-        return HyperparameterInfo(
-            value=transformed, param_type='list', values_count=len(transformed),
-            random_generator=random_generator)
+    if param_type == 'list':
+        if transform:
+            if validate:
+                _validate(validate, result)
+            transformed = [transform(x) for x in result if x is not None]
+            return HyperparameterInfo(
+                value=transformed, param_type='list', values_count=len(transformed),
+                random_generator=random_generator)
+        else:
+            return HyperparameterInfo(
+                value=result, param_type='list', values_count=len(result),
+                random_generator=random_generator)
 
-    qty = size or input_values.get('quantity') or 3
+    qty = size or input_values.get('quantity') or input_values.get('size', 3)
     return HyperparameterInfo(
         value=result, param_type='range', values_count=qty,
         random_generator=random_generator)
@@ -277,11 +286,71 @@ class ReadDataOperation(MetaPlatformOperation):
     def visualization_builder_code(self):
         return self.model_builder_code()
 
+    def sql_code(self):
+        return self.model_builder_code()
+
+class ExecuteSQLOperation(MetaPlatformOperation):
+    TARGET_OP = 93
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+        self.query = self.get_required_parameter(
+            parameters, 'query')
+        self.input_port_name = 'input data 1'
+        self.save = parameters.get('save') in (1, '1', 'true', True)
+        if self.save:
+            self.transpiler_utils.add_import(
+                'from juicer.service.limonero_service import register_datasource')
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+            "query": {"value": self.query},
+        })
+        task_obj['operation'] = {"id": self.TARGET_OP}
+        return json.dumps(task_obj)
+
+    def _not_first(self):
+        """Creates a function returning False only the first time."""
+        _first_time_call = True
+
+        def fn(_) -> bool:
+            nonlocal _first_time_call
+
+            res = not _first_time_call
+            _first_time_call = False
+            return res
+
+        return fn
+    def sql_code(self):
+        sql = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
+            '"""', '')
+        code = []
+
+        code.append(dedent(
+            f"""
+            sql = \"\"\"
+                {indent(dedent(sql), ' '*15, self._not_first())}
+            \"\"\"
+            result = spark_session.sql(sql)
+            """).strip())
+
+        if self.save:
+            params = {}
+            params.update(self.parameters)
+            params['name'] = self.parameters.get('new_name')
+            params['format'] = 'PARQUET' # FIXME
+            params['path'] = params.get('path', '')
+
+            dro = SparkSaveOperation(params, {'input data': 'df'}, {})
+            code.append(dro.generate_code())
+        return '\n'.join(code)
+
 @dataclasses.dataclass
 class TransformParam:
     function: str
-    args: List[any] = dataclasses.field(default_factory=list) 
-    transform: List[callable] = dataclasses.field(default_factory=list) 
+    args: List[any] = dataclasses.field(default_factory=list)
+    transform: List[callable] = dataclasses.field(default_factory=list)
 
 class TransformOperation(MetaPlatformOperation):
     TARGET_OP = 7
@@ -291,10 +360,10 @@ class TransformOperation(MetaPlatformOperation):
         # 'extract-numbers': Transform()'regexp_extract', [number_re, 1],
         #                    [str, None]),
         'extract-numbers': TransformParam('extract_numbers', [], []),
-        'extract-with-regex': TransformParam('regexp_extract', ['{regex}'], 
+        'extract-with-regex': TransformParam('regexp_extract', ['{regex}'],
                                              [str]),
         'replace-with-regex': TransformParam(
-            'regexp_replace', ['{regex}', '{replace}'], 
+            'regexp_replace', ['{regex}', '{replace}'],
             [str, lambda v: '' if v is None else v]),
         'to-upper': TransformParam('upper', None, None),
         'to-lower': TransformParam('lower', None, None),
@@ -304,11 +373,11 @@ class TransformOperation(MetaPlatformOperation):
         'split': TransformParam('split', None, None),
         'trim': TransformParam('trim', None, None),
         'normalize': TransformParam('FIXME', None, None),
-        'regexp_extract': TransformParam('regexp_extract', ['{delimiter}'], 
+        'regexp_extract': TransformParam('regexp_extract', ['{delimiter}'],
                                          [str]),
         'round-number': TransformParam('round', ['{decimals}'], [int]),
         'split-into-words': TransformParam('split', ['{delimiter}'], [str]),
-        'truncate-text': TransformParam('substring', ['0', '{characters}'], 
+        'truncate-text': TransformParam('substring', ['0', '{characters}'],
                                         [int, int]),
         'ts-to-date': TransformParam('from_unixtime', None, None),
         'date-to-ts': TransformParam('unix_timestamp', None, None),
@@ -319,13 +388,13 @@ class TransformOperation(MetaPlatformOperation):
         #'extract-from-array': TransformParam('None', None, None),
         'concat-array': TransformParam('array_join', ['{delimiter}'], [str]),
         'sort-array': TransformParam('array_sort', None, None),
-        'change-array-type': TransformParam('array_cast', ['{new_type}'], 
+        'change-array-type': TransformParam('array_cast', ['{new_type}'],
                                             [str]),
         'flag-empty': TransformParam('isnull', None, None),
         #'flag-with-formula': TransformParam('None', None, None),
     }
     SUPPORTED_FUNCTIONS = list(SLUG_TO_EXPR.keys()) + [
-        'invert-boolean', 'date-add', 'date-part', 'extract-from-array', 
+        'invert-boolean', 'date-add', 'date-part', 'extract-from-array',
         'flag-with-formula']
     ALIASES = {
         'flag-empty': '_na'
@@ -367,13 +436,13 @@ class TransformOperation(MetaPlatformOperation):
         if function_name is not None:
             self.form_parameters = {}
             param_names = []
-            for i, (arg, transform) in enumerate(zip(info.args or [], 
+            for i, (arg, transform) in enumerate(zip(info.args or [],
                                                      info.transform or [])):
                 if transform is not None:
                     if arg[0] == '{' and arg[-1] == '}':
                         param_name = arg[1:-1]
                         self.form_parameters[param_name] = transform(
-                            self.get_required_parameter(self.parameters, 
+                            self.get_required_parameter(self.parameters,
                                                         param_name))
                         param_names.append(param_name)
                     else:
@@ -432,7 +501,7 @@ class TransformOperation(MetaPlatformOperation):
             else:
                 source = self.parameters.get('value_attribute').get(0)
 
-            
+
             component = self.parameters.get('component', 'day')
             f = self.DATE_COMPONENT_2_FN.get(component)
             for attr in self.attributes:
@@ -615,7 +684,7 @@ class SampleOperation(MetaPlatformOperation):
             self.fraction = float(self.fraction)
         self.output_port_name = 'sampled data'
         self.has_code = (
-            (self.value is not None and self.value > 0) or 
+            (self.value is not None and self.value > 0) or
                 (self.fraction is not None and self.fraction > 0))
 
     def generate_code(self):
@@ -623,8 +692,8 @@ class SampleOperation(MetaPlatformOperation):
         task_obj['forms'].update({
             'type': {'value': self.type},
             'value': {'value': self.value},
-            'fraction': {'value': 
-                         100 * self.fraction if self.fraction is not None 
+            'fraction': {'value':
+                         100 * self.fraction if self.fraction is not None
                          else None},
             'seed': {'value': self.seed},
         })
@@ -1007,7 +1076,12 @@ class DateDiffOperation(MetaPlatformOperation):
         self.value = parameters.get('value')
 
     def generate_code(self):
+        """ FIXME Code is not correct"""
         task_obj = self._get_task_obj()
+        function_name = ''
+        attr = ''
+        final_args_str = ''
+        final_args = []
         formula = {
             'alias': self.alias,
             'expression': f'{function_name}({attr}{final_args_str})',
@@ -1019,6 +1093,7 @@ class DateDiffOperation(MetaPlatformOperation):
         }
         task_obj['forms'].update({
             "expression": {"value": self.formula},
+            'formula': formula
         })
         task_obj['operation'] = {"id": 7}
 
@@ -1259,8 +1334,10 @@ class EstimatorMetaOperation(ModelMetaOperation):
         self.name = "CHANGE_NAME"
         self.hyperparameters: dict[str, HyperparameterInfo] = {}
         self.task_type = task_type
-        self.grid_info = parameters.get('workflow').get(
-            'forms', {}).get('$grid', {})
+        #self.grid_info = parameters.get('workflow').get(
+            #'forms', {}).get('$grid', {})
+        self.grid_info = parameters.get('workflow', {}).get('forms', {}).get('$grid', {})
+
 
     def get_constrained_params(self):
         return None
@@ -1276,7 +1353,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 operation_id = self.task.get('operation').get('id')
                 code.append(dedent(f"""
                     {var}_{i} = {self.task_type}.{klass}(**common_params)
-        
+
                     # Lemonade internal use
                     {var}_{i}.task_id = '{self.task.get('id')}'
                     {var}_{i}.task_name = '{self.task.get('name')} ({klass})'
@@ -1285,7 +1362,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
         else:
             code.append(dedent(f"""
                 {var} = {self.task_type}.{name}(**common_params)
-    
+
                 # Lemonade internal use
                 {var}.task_id = '{self.task.get('id')}'
                 {var}.task_name = '{self.task.get('name')}'
@@ -1382,7 +1459,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 }
                 #generated_param_values.add(tuple(param_dict.values())
                 grid_{{var}}.append(param_dict)
-            
+
         """
         ctx = {
             'var': self.var, 'seed': seed, 'n': n,
@@ -1427,7 +1504,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 grid_{self.var} = []
                 for grid_p, rand_p in tmp_{self.var}:
                     grid_{self.var}.append({{**grid_p, **dict(rand_p)}})
-                    
+
             """).strip())
         constrained = self.get_constrained_params()
         if constrained:
@@ -1487,14 +1564,14 @@ class EstimatorMetaOperation(ModelMetaOperation):
 
     def ge(self, compare_to):
         return lambda x: [v for v in x if v < compare_to]
-    
+
     def gt(self, compare_to):
         compare_to_int = int(compare_to)
         return lambda x: [v for v in x if v <= compare_to]
-    
+
     '''
     def gt(self, compare_to):
-        compare_to_str = str(compare_to)  
+        compare_to_str = str(compare_to)
         return lambda x: [v for v in x if v <= compare_to_str]
     '''
     '''
@@ -1572,7 +1649,7 @@ class FeaturesOperation(ModelMetaOperation):
         'quantis': 'quantis',
         'buckets': 'buckets'
     }
-    __slots__ = ('all_attributes', 'label', 'features', 'numerical_features',
+    __slots__ = ('all_attributes', 'label', 'features', 'features',
                  'categorical_features', 'textual_features', 'features_names'
                  'features_and_label', 'task_type', 'supervisioned'
                  )
@@ -1707,7 +1784,7 @@ class FeaturesOperation(ModelMetaOperation):
                     ...
                 elif transform == 'binarize':
                     final_name = final_name + '_bin'
-                    threshold = self.parameters.get('threshold', 0.0)
+                    threshold = self.parameters.get('threshold', f['threshold'])
                     code.append(dedent(f"""
                         {f['var']}_bin = feature.Binarizer(
                             threshold={threshold}, inputCol='{f['na_name']}',
@@ -1807,8 +1884,62 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{old_final_name}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_ohe) """))
-
                 self.features_names.append(final_name)
+            elif data_type == 'textual':
+                if transform == 'token_hash':
+                    token_name = final_name + '_tkn'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.Tokenizer(
+                            inputCol='{f['na_name']}',
+                            outputCol='{token_name}')
+                        features_stages.append({f['var']}_tkn) """))
+
+                    final_name = token_name + '_hash'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.HashingTF(
+                            inputCol='{token_name}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_tkn_hash) """))
+
+                elif transform == 'token_stop_hash':
+                    stop_name = final_name + '_stop'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.StopWordsRemover(
+                            inputCol='{f['na_name']}',
+                            outputCol='{stop_name}')
+                        features_stages.append({f['var']}_stop) """))
+
+                    token_name = stop_name + '_tkn'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.Tokenizer(
+                            inputCol='{stop_name}',
+                            outputCol='{token_name}')
+                        features_stages.append({f['var']}_stop_tkn) """))
+
+                    final_name = token_name + '_hash'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.HashingTF(
+                            inputCol='{token_name}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_stop_tkn_hash) """))
+
+                elif transform == 'count_vectorizer':
+                    final_name = final_name + '_count_vectorizer'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.CountVectorizer(
+                            inputCol='{f['na_name']}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_count_vectorizer) """))
+
+                elif transform == 'word_2_vect':
+                    final_name = final_name + '_word2vect'
+                    code.append(dedent(f"""
+                        {f['var']}_tkn = feature.Word2Vec(
+                            inputCol='{f['na_name']}',
+                            outputCol='{final_name}')
+                        features_stages.append({f['var']}_word2vect) """))
+
+            self.features_names.append(final_name)
             if f['usage'] == 'label':
                 label = final_name
 
@@ -1948,7 +2079,7 @@ class SplitOperation(ModelMetaOperation):
 
 class GridOperation(ModelMetaOperation):
     """
-    See: 
+    See:
     https://medium.com/storebrand-tech/random-search-in-spark-ml-5370dc908bd7
     https://towardsdatascience.com/hyperparameters-part-ii-random-search-on-spark-77667e68b606
     """
@@ -2021,7 +2152,7 @@ class KMeansOperation(ClusteringOperation):
             result.append(['KMeans', {}])
         return result
     '''
-    
+
     '''
     def get_variations(self):
         result = []
@@ -2034,7 +2165,7 @@ class KMeansOperation(ClusteringOperation):
             result.append(['KMeans', {}])
         return result
     '''
-    
+
     def get_variations(self):
         result = []
         #import pdb; pdb.set_trace()
@@ -2047,7 +2178,7 @@ class KMeansOperation(ClusteringOperation):
         if len(result) == 0:
             result.append(['KMeans', {}])
         return result
-    
+
 
 
 class GaussianMixOperation(ClusteringOperation):
@@ -2079,8 +2210,10 @@ class BisectingKMeansOperation(ClusteringOperation):
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-            'minDivisibleClusterSize': _as_float_list(parameters.get('min_divisible_clusterSize'), self.grid_info),
-            'distanceMeasure': _as_string_list(parameters.get('distance'), self.in_list('euclidean')),
+            'minDivisibleClusterSize': _as_float_list(
+                parameters.get('min_divisible_clusterSize'), self.grid_info),
+            'distanceMeasure': _as_string_list(
+                parameters.get('distance'), self.in_list('euclidean')),
         }
         self.name = 'BisectingKMeans'
 
@@ -2091,7 +2224,7 @@ class LDAOperation(ClusteringOperation):
         self.var = 'lda'
         self.hyperparameters = {
             'k': _as_int_list(
-                parameters.get('number_of_clusters'), self.grid_info, 
+                parameters.get('number_of_clusters'), self.grid_info,
                 self.gt(1)),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
@@ -2099,7 +2232,7 @@ class LDAOperation(ClusteringOperation):
             'featuresCol':_as_string_list(parameters.get('features')),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
             'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info, self.ge(0)),
-            'optimizer':_as_string_list(parameters.get('optimizer'), 
+            'optimizer':_as_string_list(parameters.get('optimizer'),
                     self.in_list('online')),
             'learningOffset':_as_float_list(
                 parameters.get('learning_offset'), self.grid_info),
@@ -2124,10 +2257,10 @@ class PowerIterationClusteringOperation(ClusteringOperation):
         self.var = 'pic'
         self.hyperparameters = {
             'k': _as_int_list(
-                parameters.get('number_of_clusters'), self.grid_info, 
+                parameters.get('number_of_clusters'), self.grid_info,
                 self.gt(1)),
-            'initMode': _as_string_list(parameters.get('init_mode'), 
-                    self.in_list('random', 'degree||')),
+            'initMode': _as_string_list(parameters.get('init_mode'),
+                    self.in_list('random', 'degree')),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
             #'weightCol': _as_string_list(parameters.get('weight_col')),
@@ -2194,24 +2327,7 @@ class GBTClassifierOperation(ClassificationOperation):
 
         self.hyperparameters = dict([
             (p, _as_list(parameters.get(v))) for p, v in params.items()])
-        # self.hyperparameters = {
-        #     'cacheNodeIds': _as_list(parameters.get('cache_node_ids'), None),
-        #     'checkpointInterval': _as_list(parameters.get('checkpoint_interval')),
-        #     'lossType': _as_list(parameters.get('loss_type')),
-        #     'maxBins': _as_list(parameters.get('max_bins')),
-        #     'maxDepth': _as_int_list(
-        #         parameters.get('max_depth'), self.grid_info),
-        #     'maxIter': _as_int_list(
-        #         parameters.get('max_iter'), self.grid_info),
-        #     'minInfoGain': _as_float_list(
-        #         parameters.get('min_info_gain'), self.grid_info),
-        #     'minInstancesPerNode': _as_int_list(
-        #         parameters.get('min_instances_per_node'), self.grid_info),
-        #     'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-        #     'stepSize': parameters.get('step_size'),
-        #     'subsamplingRate': parameters.get('subsampling_rate'),
 
-        # }
         self.var = 'gbt_classifier'
         self.name = 'GBTClassifier'
 
@@ -2245,6 +2361,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
 
         layers = None
+        '''
         if parameters.get('layers'):
             value = tuple(int(x.strip())
                           for x in parameters.get('layers').split(','))
@@ -2252,6 +2369,14 @@ class PerceptronClassifierOperation(ClassificationOperation):
                 value=(value,), param_type='list',
                 values_count=1,
                 random_generator='random_generator')
+        '''
+        if 'layers' in parameters and 'list' in parameters['layers']:
+            layers = HyperparameterInfo(
+            value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
+            param_type='list',
+            values_count=1,
+            random_generator='random_generator'
+            )
 
         self.hyperparameters = {
             'layers': layers,
@@ -2264,6 +2389,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
         }
         self.var = 'mlp_classifier'
         self.name = 'MultilayerPerceptronClassifier'
+
 
 
 class RandomForestClassifierOperation(ClassificationOperation):
@@ -2342,9 +2468,9 @@ class FactorizationMachinesClassifierOperation(ClassificationOperation):
             'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
             'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
             'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
-            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
+            'stepSize': _as_int_list(parameters.get('step_size'), self.grid_info),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
             'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
             'seed': _as_int_list(parameters.get('seed'), None),
@@ -2366,30 +2492,28 @@ class LinearRegressionOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
 
-        seed = 0
-        max_iter = 5
         self.hyperparameters = {
-            'aggregationDepth':
-                _as_int_list(parameters.get('aggregation_depth'), None,
-                             self.ge(2)),
+            'aggregationDepth': # FIXME Missing in interface
+            _as_int_list(parameters.get('aggregation_depth'), None,
+                            self.ge(2)),
             'elasticNetParam':
                 _as_float_list(parameters.get('elastic_net'), self.grid_info,
-                               self.between(0, 1)),
+                            self.between(0, 1)),
             'epsilon':
                 _as_float_list(parameters.get('epsilon'), self.grid_info,
-                               self.gt(1)),
+                            self.gt(1)),
             'fitIntercept': _as_boolean_list(parameters.get('fit_intercept')),
             'loss': _as_string_list(parameters.get('loss'),
                                     self.in_list('huber', 'squaredError')),
             'maxIter': _as_int_list(
                 parameters.get('max_iter'), self.grid_info,  self.ge(0)),
             'regParam': _as_float_list(parameters.get('reg_param'),
-                                       self.grid_info, self.ge(0)),
+                                    self.grid_info, self.ge(0)),
             'solver': _as_string_list(parameters.get('solver'),
-                                      self.in_list('auto', 'normal', 'l-bfgs')),
+                                    self.in_list('auto', 'normal', 'l-bfgs')),
             'standardization': _as_boolean_list(parameters.get('standardization')),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
-            'weightCol': parameters.get('weight'),
+            'weightCol': parameters.get('weight'), # Missing in interface
         }
         self.var = 'linear_reg'
         self.name = 'LinearRegression'
@@ -2408,7 +2532,7 @@ class IsotonicRegressionOperation(RegressionOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'isotonic': _as_boolean_list(parameters.get('isotonic')),
-            'weightCol': parameters.get('weight'),
+            'weightCol': _as_string_list(parameters.get('weight_col')),
         }
         self.var = 'isotonic_reg'
         self.name = 'IsotonicRegression'
@@ -2419,22 +2543,22 @@ class GBTRegressorOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval': parameters.get('checkpoint_interval'),
-            'featureSubsetStrategy': parameters.get('feature_subset_strategy'),
-            'impurity': parameters.get('impurity'),
-            'leafCol': parameters.get('leaf_col'),
-            'lossType': parameters.get('loss_type'),
-            'maxBins': parameters.get('max_bins'),
+            'cacheNodeIds': _as_boolean_list(parameters.get('cache_node_ids')),
+            'checkpointInterval': _as_int_list(parameters.get('checkpoint_interval')),
+            'featureSubsetStrategy': _as_string_list(parameters.get('feature_subset_strategy')),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'leafCol': _as_string_list(parameters.get('leaf_col')),
+            'lossType': _as_string_list(parameters.get('loss_type')),
+            'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxIter': parameters.get('max_iter'),
+            'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
             'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
             'minInfoGain':  _as_float_list(parameters.get('min_info_gain'), self.grid_info),
             'minInstancesPerNode': _as_int_list(parameters.get('min_instance'), self.grid_info),
             'minWeightFractionPerNode':
                 parameters.get('min_weight_fraction_per_node'),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
+            'stepSize': _as_int_list(parameters.get('step_size'), self.grid_info),
             'subsamplingRate': parameters.get('subsampling_rate'),
             'validationIndicatorCol':
             parameters.get('validation_indicator_col'),
@@ -2454,8 +2578,7 @@ class DecisionTreeRegressorOperation(RegressionOperation):
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
             'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
+            'minInstancesPerNode':  _as_int_list(parameters.get('min_instances_per_node'), self.grid_info),
         }
         self.var = 'dt_reg'
         self.name = 'DecisionTreeRegressor'
@@ -2466,26 +2589,22 @@ class RandomForestRegressorOperation(RegressionOperation):
         RegressionOperation.__init__(
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
-            'bootstrap': parameters.get('bootstrap'),
-            'cacheNodeIds': parameters.get('cache_node_ids'),
-            'checkpointInterval':
-                parameters.get('checkpoint_interval'),
-            'featureSubsetStrategy':
-                _as_string_list(parameters.get('feature_subset_strategy')),
-            'impurity': parameters.get('impurity'),
-            'leafCol': parameters.get('leaf_col'),
+            'bootstrap': _as_boolean_list(parameters.get('bootstrap')),
+            'cacheNodeIds':_as_boolean_list(parameters.get('cache_node_ids')),
+            'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info),
+            'featureSubsetStrategy':_as_string_list(parameters.get('feature_subset_strategy')),
+            'impurity': _as_string_list(parameters.get('impurity')),
+            'leafCol': _as_string_list(parameters.get('leaf_col')),
             'maxBins': _as_int_list(parameters.get('max_bins'), self.grid_info),
             'maxDepth': _as_int_list(parameters.get('max_depth'), self.grid_info),
-            'maxMemoryInMB': parameters.get('max_memory_in_m_b'),
+            'maxMemoryInMB': _as_int_list(parameters.get('max_memory_in_m_b'), self.grid_info),
             'minInfoGain': _as_float_list(parameters.get('min_info_gain'), self.grid_info),
-            'minInstancesPerNode':
-                parameters.get('min_instances_per_node'),
-            'minWeightFractionPerNode':
-                parameters.get('min_weight_fraction_per_node'),
+            'minInstancesPerNode': _as_list(parameters.get('min_instances_per_node')),
+            'minWeightFractionPerNode': _as_float_list(parameters.get('min_weight_fraction_per_node'), self.grid_info),
             'numTrees': _as_int_list(parameters.get('num_trees'), self.grid_info),
-            'seed': parameters.get('seed'),
-            'subsamplingRate': parameters.get('subsampling_rate'),
-            'weightCol': parameters.get('weight_col')
+            'seed': _as_int_list(parameters.get('seed'), self.grid_info),
+            'subsamplingRate': _as_float_list(parameters.get('subsampling_rate'), self.grid_info),
+            'weightCol': _as_string_list(parameters.get('weight_col'))
         }
         self.var = 'rand_forest_reg'
         self.name = 'RandomForestRegressor'
@@ -2497,8 +2616,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.family_link = parameters.get('family_link') or []
         if 'solver' in parameters:
-            parameters['solver'] = [s for s in parameters['solver']
-                                    if s != 'auto']
+            parameters['solver'] = dict((s, v) for s, v in parameters['solver'].items()
+                                    if s != 'auto')
 
         self.hyperparameters = {
             # 'aggregationDepth': parameters.get('aggregation_depth'),
@@ -2519,7 +2638,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
     def get_constrained_params(self):
         result = []
-        for family, link in [x.split(':') for x in self.family_link]:
+        for family, link in [x.split(':')
+                for x in self.family_link.get('list', [])]:
             result.append(
                 f'{{{self.var}.family: {repr(family)}, '
                 f'{self.var}.link: {repr(link)}}}')
@@ -2534,18 +2654,18 @@ class FactorizationMachinesRegressionOperation(RegressionOperation):
             'fitLinear': _as_boolean_list(parameters.get('fit_linear')),
             'regParam': _as_float_list(parameters.get('reg_param'), self.grid_info), #int or float ??
             'miniBatchFraction': _as_float_list(parameters.get('min_batch'), self.grid_info),
-            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info), 
+            'initStd': _as_float_list(parameters.get('init_std'), self.grid_info),
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'stepSize': parameters.get('step_size'),
+            'stepSize': _as_int_list(parameters.get('step_size'), self.grid_info),
             'tol': _as_float_list(parameters.get('tolerance'), self.grid_info),
             'solver': _as_string_list(parameters.get('solver'),self.in_list('adamW', 'gd')),
             'seed': _as_int_list(parameters.get('seed'), None),
             #'weightCol': _as_string_list(parameters.get('weight_attr')),
             #'stringIndexerOrderType': _as_string_list(parameters.get('stringIndexerOrderType'),self.in_list('frequencyDesc', 'frequencyAsc', 'alphabetDesc',
             #'alphabetAsc')),
-            
+
         }
-        
+
         self.var = 'fm_reg'
         self.name = 'FMRegressor'
 
@@ -2653,7 +2773,7 @@ class ConvertDataSourceFormat(BatchMetaOperation):
         schema = types.StructType()
         {%- for attr in attributes %}
         schema.add('{{attr.name}}', {{attr.data_type}}, {{attr.nullable}})
-        {%- endfor %} 
+        {%- endfor %}
         {%- elif infer_schema == 'FROM_DATA' %}
         schema = None
         {%- endif %}
@@ -2674,7 +2794,7 @@ class ConvertDataSourceFormat(BatchMetaOperation):
                 {%- endif %}
                 ignoreTrailingWhiteSpace=True, # Handle \\r
                 encoding='{{encoding}}',
-                header={{header}}, 
+                header={{header}},
                 sep='{{sep}}',
                 inferSchema={{infer_schema == 'FROM_DATA'}},
                 mode='IGNORE'
@@ -2774,3 +2894,5 @@ class ConvertDataSourceFormat(BatchMetaOperation):
             'url': url,
         }
         return dedent(self.render_template(ctx))
+
+

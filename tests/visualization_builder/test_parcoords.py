@@ -7,7 +7,7 @@ import pytest
 import pandas as pd
 import polars as pl
 import plotly.express as px
-import plotly.colors
+import plotly.colors as pc
 
 
 # parcoords
@@ -160,6 +160,7 @@ def generated_chart(get_arguments, get_df):
         [
             "import plotly.graph_objects as go",
             "import plotly.express as px",
+            "import plotly.colors",
             "import json",
             instance.generate_code(),
         ]
@@ -168,7 +169,6 @@ def generated_chart(get_arguments, get_df):
     generated_chart = result.get("d")
     data = generated_chart["data"]
     layout = generated_chart["layout"]
-
     return data, layout
 
 
@@ -297,6 +297,7 @@ def test_data_domain(generated_chart):
 
 
 # Test to verify the 'line' field
+
 def test_data_line(generated_chart):
     data, layout = generated_chart
     data_line = data[0].get("line")

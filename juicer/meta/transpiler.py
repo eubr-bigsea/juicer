@@ -7,6 +7,13 @@ import juicer.meta.operations as ops
 from collections import namedtuple
 from juicer.transpiler import Transpiler
 
+class SqlWorkflowTemplateParams:
+    def __init__(self, readers=None, sqls=None):
+        self.readers: list[ops.DataReaderOperation] = sorted(
+            readers, key=lambda x: x.task.get('display_order'))
+        self.sqls: list[ops.ExecuteSQLOperation] = sorted(
+            sqls, key=lambda x: x.task.get('display_order'))
+
 
 class ModelBuilderTemplateParams:
     __all__ = ('evaluator', 'estimators', 'grid', 'read_data', 'sample', 
@@ -62,6 +69,7 @@ class MetaTranspiler(Transpiler):
 
     def _assign_operations(self):
         self.operations = {
+            'execute-sql': ops.ExecuteSQLOperation,
             'add-by-formula': ops.AddByFormulaOperation,
             'cast': ops.CastOperation,
             'clean-missing': ops.CleanMissingOperation,
@@ -160,7 +168,6 @@ class MetaTranspiler(Transpiler):
 
         for f in transform:
             self.operations[f] = ops.TransformOperation
-
     def prepare_model_builder_parameters(self, ops) -> \
             ModelBuilderTemplateParams:
         """ Organize operations to be used in the code generation
@@ -194,3 +201,23 @@ class MetaTranspiler(Transpiler):
         if (not param_dict.get('estimators')):
             raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
         return ModelBuilderTemplateParams(**param_dict)
+
+    def prepare_sql_workflow_parameters(self, ops) -> \
+            SqlWorkflowTemplateParams:
+        """ Organize operations to be used in the code generation
+        template. 
+
+        Args:
+            ops (list): List of operations
+
+        Returns:
+            _type_: Sql Workflow parameters
+        """
+        param_dict = {'readers': [], 'sqls': []}
+        for op in ops:
+            slug = op.task.get('operation').get('slug')
+            if slug == 'read-data':
+                param_dict['readers'].append(op)
+            elif slug == 'execute-sql':
+                param_dict['sqls'].append(op)
+        return SqlWorkflowTemplateParams(**param_dict)
