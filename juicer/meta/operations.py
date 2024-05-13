@@ -143,7 +143,7 @@ def _as_boolean_list(values):
     values['list'] = [v for v in values['list'] if v in [False, True]]
     return _as_list(values)
 
-
+'''
 def _as_int_list(values, grid_info=None, validate=None):
     return _as_list(values, int, validate=validate)
     size = None
@@ -152,6 +152,14 @@ def _as_int_list(values, grid_info=None, validate=None):
         if value.get('strategy') == 'random':
             size = value.get('max_iterations')
     return _as_list(values, int, size)
+'''
+def _as_int_list(values, grid_info=None, validate=None):
+    size = None
+    if grid_info and 'value' in grid_info:
+        value = grid_info['value']
+        if value.get('strategy') == 'random':
+            size = value.get('max_iterations')
+    return _as_list(values, int, size, validate=validate)
 
 
 def _as_float_list(values, grid_info, validate=None):
@@ -1558,7 +1566,18 @@ class EstimatorMetaOperation(ModelMetaOperation):
         return lambda x: [v for v in x if v < compare_to]
 
     def gt(self, compare_to):
+        compare_to_int = int(compare_to)
         return lambda x: [v for v in x if v <= compare_to]
+
+    '''
+    def gt(self, compare_to):
+        compare_to_str = str(compare_to)
+        return lambda x: [v for v in x if v <= compare_to_str]
+    '''
+    '''
+    def gt(self, compare_to):
+        return lambda x: [int(v) if isinstance(v, str) else v for v in x if isinstance(v, int) or (isinstance(v, str) and isinstance(compare_to, str) )]
+    '''
 
     def between(self, start, end, include_start=True, include_end=True):
         # Define the comparison operators based on inclusion options
@@ -2119,9 +2138,12 @@ class KMeansOperation(ClusteringOperation):
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
         self.name = 'KMeans'
-
+    '''
     def get_variations(self):
         result = []
+        #import pdb; pdb.set_trace()
+        #print(type(self.types))
+        #print(self.types.value)
         if 'kmeans' in self.types:
             result.append(['KMeans', {}])
         if 'bisecting' in self.types:
@@ -2129,6 +2151,34 @@ class KMeansOperation(ClusteringOperation):
         if len(result) == 0:
             result.append(['KMeans', {}])
         return result
+    '''
+
+    '''
+    def get_variations(self):
+        result = []
+        types_values = types_values = self.types  # Acessando os valores do objeto HyperparameterInfo
+        if 'kmeans' in types_values:
+            result.append(['KMeans', {}])
+        if 'bisecting' in types_values:
+            result.append(['BisectingKMeans', {'invalid': ['initMode']}])
+        if len(result) == 0:
+            result.append(['KMeans', {}])
+        return result
+    '''
+
+    def get_variations(self):
+        result = []
+        #import pdb; pdb.set_trace()
+        #print(type(self.types))
+        #print(self.types.value)
+        if 'kmeans' in self.types.value:
+            result.append(['KMeans', {}])
+        if 'bisecting' in self.types.value:
+            result.append(['BisectingKMeans', {'invalid': ['initMode']}])
+        if len(result) == 0:
+            result.append(['KMeans', {}])
+        return result
+
 
 
 class GaussianMixOperation(ClusteringOperation):
@@ -2178,7 +2228,7 @@ class LDAOperation(ClusteringOperation):
                 self.gt(1)),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
-            'weightCol': _as_string_list(parameters.get('weight_col')),
+            #'weightCol': _as_string_list(parameters.get('weight_col')),
             'featuresCol':_as_string_list(parameters.get('features')),
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
             'checkpointInterval':_as_int_list(parameters.get('checkpoint_interval'), self.grid_info, self.ge(0)),
@@ -2188,7 +2238,8 @@ class LDAOperation(ClusteringOperation):
                 parameters.get('learning_offset'), self.grid_info),
             'learningDecay':_as_float_list(
                 parameters.get('learning_decay'), self.grid_info),
-            'subsamplingRate': parameters.get('subsampling_rate'),
+            'subsamplingRate': _as_float_list(
+                parameters.get('subsampling_rate'), self.grid_info),
             'optimizeDocConcentration':_as_boolean_list(
                 parameters.get('optimize_doc_concentration')),
             'docConcentration':_as_float_list(parameters.get('doc_concentration'), self.grid_info),
@@ -2212,7 +2263,8 @@ class PowerIterationClusteringOperation(ClusteringOperation):
                     self.in_list('random', 'degree')),
             'maxIter ': _as_int_list(
                 parameters.get('max_iterations'), self.grid_info, self.ge(0)),
-            'weightCol': _as_string_list(parameters.get('weight_col')),
+            #'weightCol': _as_string_list(parameters.get('weight_col')),
+            'weightCol': parameters.get('weight'),
         }
         self.name = 'PIC'
 
