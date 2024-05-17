@@ -194,6 +194,9 @@ class Transpiler(object):
                                 if d['value'] is not None]
 
             task['forms'] = dict(not_empty_params)
+            # Updates hash with display_order
+            # Some flows requires this (see meta platform)
+            opt.task_hash.update(str(task['display_order']).encode('utf8'))
             for parameter, definition in list(task['forms'].items()):
                 # @FIXME: Fix wrong name of form category
                 # (using name instead of category)
