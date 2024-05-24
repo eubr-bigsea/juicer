@@ -86,6 +86,8 @@ class DataReaderOperation(Operation):
 
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
+        self.connection_factory_function_name = parameters.get(
+                'connection_factory_function_name')
 
     def _set_data_source_parameters(self, parameters):
 
@@ -128,6 +130,11 @@ class DataReaderOperation(Operation):
         self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
                                            self.INFER_FROM_LIMONERO)
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
+        self.use_hive_warehouse_connector = (
+            self.metadata['storage']['type'] == 'HIVE_WAREHOUSE')
+        if self.use_hive_warehouse_connector:
+            self.transpiler_utils.add_import(
+                'from pyspark_llap import HiveWarehouseSession')
 
     def generate_code(self):
 
@@ -245,29 +252,7 @@ class DataReaderOperation(Operation):
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
                 # parsed = urlparse(self.metadata['url'])
-                if self.metadata['storage']['type'] == 'HIVE_WAREHOUSE':
-                    code_hive = dedent("""
-                        from pyspark_llap import HiveWarehouseSession
-                        if spark_session.conf.get(
-                            'spark.sql.hive.hiveserver2.jdbc.url') is None:
-                             raise ValueError('{missing_config}')
-                        hive = HiveWarehouseSession.session(spark_session).build();
-                        {out} = hive.executeQuery('''{sql}''')
-                    """.format(sql=self.metadata.get('command').replace('\n', ' '),
-                           out=self.output,
-                           missing_config=_(
-                            'Cluster is not configured for Hive Warehouse')))
-                else:
-                    # Notifies the transpiler that Hive is required.
-                    # In order to support Hive, SparkSession must be
-                    # correctly configured.
-                    self.parameters['transpiler'].on(
-                        'requires-hive', self.metadata)
-                    code_hive = dedent("""
-                        {out} = spark_session.sql(
-                            '''{sql}''')
-                    """.format(sql=self.metadata.get('command'),
-                           out=self.output))
+                code_hive = self._get_hwc_code()
                 code.append(code_hive)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
@@ -293,6 +278,41 @@ class DataReaderOperation(Operation):
 
         code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
+
+    def _get_hwc_code(self):
+        """
+        Generates code to connect to Hive Warehouse Connector
+        """
+        if self.use_hive_warehouse_connector:
+            sql = self.metadata.get('command').replace('\n', ' ')
+            if self.connection_factory_function_name:
+                code_hive = dedent(f"""
+                    hive = {self.connection_factory_function_name}(spark_session)
+                    {self.output} = hive.executeQuery('''{sql}''')
+                """)
+            else:
+                missing_config_msg = _(
+                            'Cluster is not configured for Hive Warehouse')
+                code_hive = dedent(f"""
+                    if spark_session.conf.get(
+                            'spark.sql.hive.hiveserver2.jdbc.url') is None:
+                        raise ValueError('{missing_config_msg}')
+                    hive = HiveWarehouseSession.session(spark_session).build()
+                    {self.output} = hive.executeQuery('''{sql}''')
+                    """)
+        else:
+            # Notifies the transpiler that Hive is required.
+            # In order to support Hive, SparkSession must be
+            # correctly configured.
+            self.parameters['transpiler'].on(
+                        'requires-hive', self.metadata)
+            code_hive = dedent("""
+                        {out} = spark_session.sql(
+                            '''{sql}''')
+                    """.format(sql=self.metadata.get('command'),
+                           out=self.output))
+
+        return code_hive
 
     def _generate_code_for_jdbc(self, code):
 

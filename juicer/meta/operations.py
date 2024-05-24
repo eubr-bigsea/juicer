@@ -280,6 +280,7 @@ class ReadDataOperation(MetaPlatformOperation):
         params = {}
         params.update(self.parameters)
         params['mode'] = 'PERMISSIVE'
+        params['connection_factory_function_name'] = 'get_hwc_connection'
         dro = DataReaderOperation(params, {}, {'output data': 'df'})
         return dro.generate_code()
 
@@ -297,7 +298,9 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         self.query = self.get_required_parameter(
             parameters, 'query')
         self.input_port_name = 'input data 1'
-        self.save = parameters.get('save') in (1, '1', 'true', True)
+        valid_true = (1, '1', 'true', True)
+        self.save = parameters.get('save') in valid_true
+        self.use_hwc = parameters.get('useHWC', False) in valid_true
         if self.save:
             self.transpiler_utils.add_import(
                 'from juicer.service.limonero_service import register_datasource')
@@ -327,12 +330,16 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             '"""', '')
         code = []
 
+        if self.use_hwc:
+            cmd = 'get_hwc_connection(spark_session).executeSql(sql)'
+        else:
+            cmd = 'spark_session.sql(sql)'
         code.append(dedent(
             f"""
             sql = \"\"\"
                 {indent(dedent(sql), ' '*15, self._not_first())}
             \"\"\"
-            result = spark_session.sql(sql)
+            result = {cmd}
             """).strip())
 
         if self.save:

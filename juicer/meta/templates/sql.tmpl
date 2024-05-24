@@ -11,16 +11,39 @@ import os
 from pyspark.sql import types # type: ignore
 from juicer.util import dataframe_util
 from termcolor import colored
+from gettext import gettext
+{%- set use_hwc = workflow.forms.get('$meta', {}).get('value', {}).get('use_hwc') in [True, 'true'] %}
+{%- if use_hwc %}{{transpiler.add_import('from pyspark_llap import HiveWarehouseSession')}}{%- endif %}
 
 {%- for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
 
 {%- set builder_params = transpiler.transpiler.prepare_sql_workflow_parameters(instances) %}
+
+{%- if use_hwc %}
+
+def get_hwc_connection(spark_session):
+  """
+  Gets a connection to Hive Warehouse Connector (HWC) (creates it if necessary).
+
+  Returns:
+      The HWC connection object.
+  """
+  hive = None
+  def create_connection():
+    nonlocal hive  # Modify the variable within the enclosing function
+    if spark_session.conf.get('spark.sql.hive.hiveserver2.jdbc.url') is None:
+        raise ValueError(gettext('Cluster is not configured for Hive Warehouse')
+    hive = HiveWarehouseSession.session(spark_session).build()
+  if not hive:
+    create_connection()
+  return hive
+{%- endif %}
 {%- for reader in builder_params.readers %}
 {%- set name = transpiler.text_to_identifier(reader.task.name) %}
 
-def read_data_{{name}}(spark_session):
+def read_data_{{name.lower()}}(spark_session):
     """ Read input data."""
     {{reader.sql_code() |  indent(width=4, first=False) }}
     return df
@@ -75,11 +98,13 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endfor %}
 
         # if last command is a SELECT one, display a sample
+        {%- if builder_params.sqls %}
         {%- set last_result = 'result_' + (builder_params.sqls|last).order|string %}
         if {{last_result}}.columns:
             task_id = '{{ builder_params.sqls[-1].task.id}}'
             dataframe_util.emit_sample_data_explorer(
                 task_id, {{last_result}}, emit_event, 'output')
+        {%- endif %}
         return cached_state
 
     except Exception as e:
