@@ -18,7 +18,6 @@ import functools
 import itertools
 import math
 import operator
-import pdb
 import random
 import traceback
 import sys
@@ -26,10 +25,11 @@ import time
 import uuid
 
 import numpy as np
-
+import os
 from juicer.util import dataframe_util
 import dataclasses
-
+{% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
+# FIXME: Do not work
 {% for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
@@ -97,7 +97,7 @@ class CustomTrainValidationSplit():
     __slots__ = ('estimator', 'evaluator', 'train_ratio', 'seed', 'params',
                'train_size', 'test_size', 'num_workers', 'strategy', 'folds',
                'fold_col')
-    def __init__(self, estimator, evaluator, params, 
+    def __init__(self, estimator, evaluator, params,
                  train_ratio=0.7, seed=None,
                  num_workers=4, strategy='split', folds=None):
 
@@ -113,7 +113,7 @@ class CustomTrainValidationSplit():
         self.folds = folds
         self.fold_col = None
 
-    def _perform_training(self, train, test, estimator, evaluator, params, 
+    def _perform_training(self, train, test, estimator, evaluator, params,
                           details, ctx):
         try:
             start = time.time()
@@ -152,11 +152,11 @@ class CustomTrainValidationSplit():
             raise ValueError('Invalid train split: {}'.format(self.strategy))
 
     def _k_fold(self, df):
-        """ Generates k-fold. Based on the PySpark implementation: 
+        """ Generates k-fold. Based on the PySpark implementation:
         https://github.com/apache/spark/blob/master/python/pyspark/ml/tuning.py
         """
         datasets = []
-        
+
         if self.fold_col:
             # FIXME: Implement support to fold_col
             pass
@@ -167,12 +167,12 @@ class CustomTrainValidationSplit():
             for i in range(self.folds):
                 validate_lower_bound = i * h
                 validate_upper_bound = (i + 1) * h
-                condition = ((df[rand_col] >= validate_lower_bound) & 
+                condition = ((df[rand_col] >= validate_lower_bound) &
                              (df[rand_col] < validate_upper_bound))
                 validation = df.filter(condition)
                 train = df.filter(~condition)
                 datasets.append((train, validation))
-            
+
             return datasets
 
     def fit(self, df, emit):
@@ -201,7 +201,7 @@ class CustomTrainValidationSplit():
                     #     else:
                     #         details[param.name] = value
 
-                    ctx = TrainingContext(counter, task_id, task_name, 
+                    ctx = TrainingContext(counter, task_id, task_name,
                         estimator, details, operation_id, time.time(), 0)
                     submission = executor.submit(
                         self._perform_training, train, test, self.estimator,
@@ -257,7 +257,6 @@ def emit_metric(emit_event):
     return functools.partial(
         emit_event, name='task result', type='METRIC')
 
-{% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
 def read_data(spark_session):
     """ Read input data."""
     {%- if builder_params.read_data %}
@@ -340,7 +339,7 @@ def create_pipeline(label: str):
     # See https://stackoverflow.com/a/54992651/1646932
     pipeline = Pipeline(stages=[])
 
-    {#- 
+    {#-
     {%- for estimator in builder_params.estimators %}
     {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
     {%- endfor -%}
@@ -391,7 +390,7 @@ def create_pipeline(label: str):
     distinct_grid = set()
     grid = []
     for row in candidate_grid:
-        key = tuple((p, v if not isinstance(v, list) else tuple(v)) 
+        key = tuple((p, v if not isinstance(v, list) else tuple(v))
             for p, v in row.items() if p.name != 'stages')
         if key not in distinct_grid:
             distinct_grid.add(key)

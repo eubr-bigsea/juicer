@@ -99,6 +99,7 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
 
     ops, slug_to_op_id, port_id_to_port = _get_lookups(
         tahiti_conf, workflow_id, resp, lang)
+
     try:
         if loader.platform['slug'] == "spark":
             from juicer.spark.transpiler import SparkTranspiler
@@ -135,7 +136,6 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             targets = {'spark': {'id': 1, 'slug': 'spark'},
                        'scikit-learn': {'id': 4, 'slug': 'scikit-learn'}}
             loader.workflow['target_meta_platform'] = targets[from_meta]
-
             transpiler.transpile(
                 loader.workflow, loader.graph, params=params, deploy=deploy,
                 export_notebook=export_notebook, plain=plain, job_id=job_id,

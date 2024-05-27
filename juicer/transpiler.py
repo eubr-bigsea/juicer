@@ -176,9 +176,9 @@ class Transpiler(object):
         audit_events = []
         for i, task_id in enumerate(opt.tasks_ids):
             if task_id not in graph.nodes:
-                print('*' * 20)
-                print('Task not in graph', task_id)
-                print('*' * 20)
+                print('*' * 20, file=sys.stderr)
+                print('Task not in graph', task_id, file=sys.stderr)
+                print('*' * 20, file=sys.stderr)
                 continue
             task = graph.nodes[task_id]['attr_dict']
             task['parents'] = graph.nodes[task_id]['parents']
@@ -316,6 +316,7 @@ class Transpiler(object):
         #     tasks_ids = opt.tasks_ids
 
         instances, audit_events = self.get_instances(opt)
+        workflow_type = workflow.get('type')
         if audit_events:
 
             redis_url = self.configuration['juicer']['servers']['redis_url']
@@ -328,15 +329,15 @@ class Transpiler(object):
             q.enqueue(AUDITING_JOB_NAME, json.dumps(audit_events))
 
         # adding information about the parents's multiplicity
-        for task_id in instances:
-            instances[task_id].parameters['multiplicity'] = dict()
-            for p_id in instances[task_id].parameters['task']['parents']:
+        for task_id, task in instances.items():
+            task.parameters['multiplicity'] = dict()
+            for p_id in task.parameters['task']['parents']:
                 for flow in workflow['flows']:
                     if flow['target_id'] == task_id and \
                             flow['source_id'] == p_id:
                         in_port = flow['target_port_name']
                         source_port = flow['source_port']
-                        instances[task_id].parameters['multiplicity'][
+                        task.parameters['multiplicity'][
                             in_port] = sum([1 for f in workflow['flows']
                                             if f['source_port'] == source_port])
 
@@ -403,7 +404,7 @@ class Transpiler(object):
             template = template_env.get_template(self.get_plain_template())
             opt.out.write(template.render(env_setup))
         else:
-            workflow_type = workflow.get('type')
+
             if workflow_type in ('WORKFLOW', 'MODEL_BUILDER'):
                 template = template_env.get_template(self.get_code_template())
             elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
@@ -412,12 +413,12 @@ class Transpiler(object):
                 template = template_env.get_template(self.get_sql_template())
             elif workflow_type == 'BATCH':
                 template = template_env.get_template(self.get_batch_template())
-
             gen_source_code = template.render(env_setup)
             if opt.using_stdout:
                 opt.out.write(gen_source_code)
             else:
                 opt.out.write(gen_source_code)
+
             stand_config = self.configuration.get('juicer', {}).get(
                 'services', {}).get('stand')
             if stand_config and opt.job_id and opt.persist:

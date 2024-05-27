@@ -330,7 +330,19 @@ class MetaMinion(Minion):
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
 
-        self.target_minion.perform_execute(job_id, workflow, app_configs, code)
+        msg = json.dumps({
+            'workflow_id': self.workflow_id,
+            'app_id': self.app_id,
+            'job_id': job_id,
+            'workflow': workflow,
+            'app_configs': app_configs,
+            'code': code,
+            'type': juicer_protocol.EXECUTE,
+            'cluster': cluster_info
+        })
+        self.target_minion.state_control.push_app_queue(self.app_id, msg)
+        self.target_minion._process_message()
+        #self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
     def _execute_sql_workflow(self, job_id, workflow, app_configs,
                               cluster_info=None):
@@ -350,8 +362,6 @@ class MetaMinion(Minion):
             self.target_minion = SparkMinion(
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
-            # self.target_minion.transpiler.requires_hive = True
-
 
         msg = json.dumps({
             'workflow_id': self.workflow_id,
