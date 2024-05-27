@@ -183,8 +183,8 @@ class SampleOrPartitionOperation(Operation):
         self.fold_count = parameters.get(self.FOLD_COUNT_PARAM, 10)
         self.fold_size = parameters.get(self.FOLD_SIZE_PARAM, 1000)
         self.type = parameters.get(self.TYPE_PARAM, self.TYPE_PERCENT)
-        self.withReplacement = parameters.get(self.WITH_REPLACEMENT_PARAM,
-                                              False)
+        self.with_replacement = bool(parameters.get(self.WITH_REPLACEMENT_PARAM,
+                                              False))
 
         if self.type == self.TYPE_PERCENT:
             if self.FRACTION_PARAM in parameters:
@@ -217,18 +217,17 @@ class SampleOrPartitionOperation(Operation):
     def generate_code(self):
         code = ''
         input_data = self.named_inputs.get('input data')
-
         if self.type == self.TYPE_PERCENT:
             code = ("{out} = {input}.sample(withReplacement={wr}, "
                     "fraction={fr}, seed={seed})"
                     .format(out=self.output, input=input_data,
-                            wr=self.withReplacement,
+                            wr=self.with_replacement,
                             fr=self.fraction, seed=self.seed))
         elif self.type == self.VALUE_PARAM:
             # This implementation may be inefficient!
             code = (
                 f"{self.output} = {input_data}.sample(False, "
-                f"fraction={self.value}/{input_data}.count(), seed={self.seed})"
+                f"fraction=float(min(1, {self.value}/{input_data}.count())), seed={self.seed})"
             )
         elif self.type == self.TYPE_HEAD:
             code = "{out} = {input}.limit({limit})" \
@@ -598,9 +597,9 @@ class SelectOperation(Operation):
     MODE_PARAM = 'mode'
     template = """
         {%- if op.mode == 'exclude' %}
-        
+
         exclude = {{op.attributes}}
-        selection = [c.name for c in {{op.input}}.schema 
+        selection = [c.name for c in {{op.input}}.schema
             if c.name not in exclude]
         {{op.output}} = {{op.input}}.select(selection)
 
@@ -659,7 +658,7 @@ class SelectOperation(Operation):
         if self.has_code:
             return dedent(self.render_template(
                 {'op': {'attributes': attributes, 'aliases': aliases, 'mode': self.mode,
-                    'input': self.named_inputs['input data'], 'output': self.output, 
+                    'input': self.named_inputs['input data'], 'output': self.output,
                     'alias_dict': alias_dict} }))
 
     def old_generate_code(self):
@@ -1028,7 +1027,7 @@ class CleanMissingOperation(Operation):
             len(self.named_inputs) > 0]), self.contains_results()])
         self.output = self.named_outputs.get('output result',
                                              'out_{}'.format(self.order))
-        self.transpiler_utils.add_custom_function('cast_value', 
+        self.transpiler_utils.add_custom_function('cast_value',
             dataframe_util.cast_value)
 
     def generate_code(self):

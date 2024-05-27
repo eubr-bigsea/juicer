@@ -63,7 +63,7 @@ class DataReaderOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+            [len(self.named_outputs) > 0, self.contains_results()],)
 
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
@@ -132,9 +132,13 @@ class DataReaderOperation(Operation):
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
         self.use_hive_warehouse_connector = (
             self.metadata['storage']['type'] == 'HIVE_WAREHOUSE')
+        self.use_hdfs = (
+            self.metadata['storage']['type'] == 'HDFS')
         if self.use_hive_warehouse_connector:
             self.transpiler_utils.add_import(
                 'from pyspark_llap import HiveWarehouseSession')
+        if self.use_hdfs:
+            self.transpiler_utils.add_import('import os')
 
     def generate_code(self):
 

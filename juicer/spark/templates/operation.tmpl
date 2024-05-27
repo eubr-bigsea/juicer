@@ -150,7 +150,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
             {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
-            
+
         {%- endif %}
         {%- endfor %}
         {%- endfor %}
@@ -177,7 +177,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
         if isinstance(out, df_types) and name[0:2] != '__']
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     for name, out in outputs:
-        {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER' 
+        {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER'
             or instance.parameters.workflow.get('app_configs', {}).get('sample_style') == 'DATA_EXPLORER' %}
         dataframe_util.emit_sample_data_explorer(task_id, out, emit_event, name)
         {%- else %}
@@ -241,8 +241,8 @@ def main(spark_session, cached_state, emit_event):
                 emit_cache[task_id] = (args, kwargs)
 
         emit_event(*args, **kwargs)
-            
-        
+
+
     try:
         {%- for instance in instances %}
         {%- if instance.has_code and instance.enabled and instance.multiple_inputs %}

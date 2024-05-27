@@ -2173,18 +2173,18 @@ class KMeansOperation(ClusteringOperation):
         return result
     '''
 
-    def get_variations(self):
-        result = []
-        #import pdb; pdb.set_trace()
-        #print(type(self.types))
-        #print(self.types.value)
-        if 'kmeans' in self.types.value:
-            result.append(['KMeans', {}])
-        if 'bisecting' in self.types.value:
-            result.append(['BisectingKMeans', {'invalid': ['initMode']}])
-        if len(result) == 0:
-            result.append(['KMeans', {}])
-        return result
+    # def get_variations(self):
+    #     result = []
+    #     #import pdb; pdb.set_trace()
+    #     #print(type(self.types))
+    #     #print(self.types.value)
+    #     if 'kmeans' in self.types.value:
+    #         result.append(['KMeans', {}])
+    #     if 'bisecting' in self.types.value:
+    #         result.append(['BisectingKMeans', {'invalid': ['initMode']}])
+    #     if len(result) == 0:
+    #         result.append(['KMeans', {}])
+    #     return result
 
 
 
@@ -2203,6 +2203,7 @@ class GaussianMixOperation(ClusteringOperation):
             'seed': _as_int_list(parameters.get('seed'), self.grid_info),
         }
         self.name = 'GaussianMixture'
+        self.var = 'gaussian_mixture'
 
 class BisectingKMeansOperation(ClusteringOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2223,6 +2224,7 @@ class BisectingKMeansOperation(ClusteringOperation):
                 parameters.get('distance'), self.in_list('euclidean')),
         }
         self.name = 'BisectingKMeans'
+        self.var = 'bisecting_kmeans'
 
 class LDAOperation(ClusteringOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2256,6 +2258,7 @@ class LDAOperation(ClusteringOperation):
                 parameters.get('keep_last_checkpoint')),
         }
         self.name = 'LDA'
+        self.var = 'lda'
 
 class PowerIterationClusteringOperation(ClusteringOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2274,6 +2277,7 @@ class PowerIterationClusteringOperation(ClusteringOperation):
             'weightCol': parameters.get('weight'),
         }
         self.name = 'PIC'
+        self.var = 'pic'
 
 
 class ClassificationOperation(EstimatorMetaOperation):
