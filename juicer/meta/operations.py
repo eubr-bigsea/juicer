@@ -331,7 +331,7 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         code = []
 
         if self.use_hwc:
-            cmd = 'get_hwc_connection(spark_session).executeSql(sql)'
+            cmd = 'get_hwc_connection(spark_session).execute(sql)'
         else:
             cmd = 'spark_session.sql(sql)'
         code.append(dedent(
