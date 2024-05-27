@@ -14,9 +14,7 @@ from termcolor import colored
 from gettext import gettext
 
 {%- set use_hwc = workflow.forms.get('$meta', {}).get('value', {}).get('use_hwc') in [True, 'true'] %}
-{%- if use_hwc %}
-{{transpiler.add_import('from pyspark_llap import HiveWarehouseSession')}}
-{%- endif %}
+{%- if use_hwc %}{{transpiler.add_import('from pyspark_llap import HiveWarehouseSession') or ''}}{%- endif %}
 
 {%- for imps in transpiler.imports %}
 {{imps}}
