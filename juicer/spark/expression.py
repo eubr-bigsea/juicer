@@ -16,6 +16,8 @@ class Expression(object):
         self.window = window
         self.code = json_code
         self.functions = {}
+        self.add_import_udf = None
+        self.register_udf_mapping = {}
         self.build_functions_dict()
         self.parsed_expression = self.parse(json_code, params)
 
@@ -270,6 +272,20 @@ class Expression(object):
                                   json.dumps(arguments[3])))
         return result
 
+    def get_expr_function(self, spec, params):
+        """
+        Generate code for Expr spark function (that can be used to access Java Spark UDF)
+        """
+        arguments = [t['name'] for t in spec['arguments']]
+        function_name = spec['callee']['name']
+        result = 'functions.expr("{}({})")'.format(
+            function_name, ', '.join(arguments))
+
+        if function_name in self.register_udf_mapping:
+            self.add_import_udf = self.register_udf_mapping[function_name]
+        
+        return result
+
     def build_functions_dict(self):
         spark_sql_functions = {
             'abs': self.get_function_call,
@@ -437,12 +453,16 @@ class Expression(object):
                                                 data_type='StringType'),
             'set_of_floats': functools.partial(self.get_set_function,
                                                data_type='FloatType'),
-            'strip_accents': self.get_strip_accents_function,
+            'strip_accents2': self.get_strip_accents_function,
             'strip_punctuation': self.get_strip_punctuation_function,
             'when': self.get_when_function,
             'window': self.get_time_window_function,
             'ith': self.get_ith_function,
             # 'translate': self.get_translate_function,
+            "validate_codes": self.get_expr_function,
+            "date_patterning": self.get_expr_function,
+            "physical_or_legal_person": self.get_expr_function,
+            "strip_accents": self.get_expr_function,
         }
 
         column_functions = {
@@ -488,3 +508,10 @@ class Expression(object):
                 'row_number': self.get_window_function,
             }
             self.functions.update(window_functions)
+
+        self.register_udf_mapping = {
+            "validate_codes": 'spark_session.udf.registerJavaFunction("validate_codes", "br.ufmg.dcc.lemonade.udfs.ValidateCodesUDF", types.BooleanType())',
+            "date_patterning": 'spark_session.udf.registerJavaFunction("date_patterning", "br.ufmg.dcc.lemonade.udfs.DatePatterningUDF", types.StringType())',
+            "physical_or_legal_person": 'spark_session.udf.registerJavaFunction("physical_or_legal_person", "br.ufmg.dcc.lemonade.udfs.PhysicalOrLegalPersonUDF", types.StringType())',
+            "strip_accents2": 'spark_session.udf.registerJavaFunction("strip_accents", "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF", types.StringType())',
+        }
