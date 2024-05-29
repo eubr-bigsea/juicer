@@ -12,8 +12,9 @@ from pyspark.sql import types # type: ignore
 from juicer.util import dataframe_util
 from termcolor import colored
 from gettext import gettext
+
 {%- set use_hwc = workflow.forms.get('$meta', {}).get('value', {}).get('use_hwc') in [True, 'true'] %}
-{%- if use_hwc %}{{transpiler.add_import('from pyspark_llap import HiveWarehouseSession')}}{%- endif %}
+{%- if use_hwc %}{{transpiler.add_import('from pyspark_llap import HiveWarehouseSession') or ''}}{%- endif %}
 
 {%- for imps in transpiler.imports %}
 {{imps}}
@@ -34,7 +35,7 @@ def get_hwc_connection(spark_session):
   def create_connection():
     nonlocal hive  # Modify the variable within the enclosing function
     if spark_session.conf.get('spark.sql.hive.hiveserver2.jdbc.url') is None:
-        raise ValueError(gettext('Cluster is not configured for Hive Warehouse')
+        raise ValueError(gettext('Cluster is not configured for Hive Warehouse'))
     hive = HiveWarehouseSession.session(spark_session).build()
   if not hive:
     create_connection()
