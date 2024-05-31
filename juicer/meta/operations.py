@@ -300,7 +300,7 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         self.input_port_name = 'input data 1'
         valid_true = (1, '1', 'true', True)
         self.save = parameters.get('save') in valid_true
-        self.use_hwc = parameters.get('useHWC', False) in valid_true
+        self.use_hwc = parameters.get('useHWC', None)
         if self.save:
             self.transpiler_utils.add_import(
                 'from juicer.service.limonero_service import register_datasource')
@@ -330,8 +330,12 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             '"""', '')
         code = []
 
-        if self.use_hwc:
+        if self.use_hwc == 'execute':
             cmd = 'get_hwc_connection(spark_session).execute(sql)'
+        elif self.use_hwc == 'executeQuery':
+            cmd = 'get_hwc_connection(spark_session).executeQuery(sql)'
+        elif self.use_hwc == 'executeUpdate':
+            cmd = 'get_hwc_connection(spark_session).executeUpdate(sql)'
         else:
             cmd = 'spark_session.sql(sql)'
         code.append(dedent(
