@@ -2,7 +2,7 @@ Babel==2.11.0
 Faker==15.3.4
 GitPython==3.1.30
 Jinja2==3.1.2
-Pillow==9.4.0
+Pillow==10.3.0
 PyMySQL==1.0.2
 PyYAML==6.0
 Pyqtree==1.0.0
