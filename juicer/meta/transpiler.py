@@ -7,11 +7,18 @@ import juicer.meta.operations as ops
 from collections import namedtuple
 from juicer.transpiler import Transpiler
 
+class SqlWorkflowTemplateParams:
+    def __init__(self, readers=None, sqls=None):
+        self.readers: list[ops.DataReaderOperation] = sorted(
+            readers, key=lambda x: x.task.get('display_order'))
+        self.sqls: list[ops.ExecuteSQLOperation] = sorted(
+            sqls, key=lambda x: x.task.get('display_order'))
+
 
 class ModelBuilderTemplateParams:
-    __all__ = ('evaluator', 'estimators', 'grid', 'read_data', 'sample', 
+    __all__ = ('evaluator', 'estimators', 'grid', 'read_data', 'sample',
                'reduction', 'split', 'features', 'enabled')
-    def __init__(self, evaluator=None, estimators=None, grid=None, 
+    def __init__(self, evaluator=None, estimators=None, grid=None,
                  read_data=None, sample=None, reduction=None, split=None,
                  features=None):
         self.evaluator: ops.EvaluatorOperation = evaluator
@@ -27,7 +34,7 @@ class ModelBuilderTemplateParams:
 # noinspection SpellCheckingInspection
 
 # https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
-_: Callable[[str], str] 
+_: Callable[[str], str]
 
 
 class MetaTranspiler(Transpiler):
@@ -62,6 +69,7 @@ class MetaTranspiler(Transpiler):
 
     def _assign_operations(self):
         self.operations = {
+            'execute-sql': ops.ExecuteSQLOperation,
             'add-by-formula': ops.AddByFormulaOperation,
             'cast': ops.CastOperation,
             'clean-missing': ops.CleanMissingOperation,
@@ -126,6 +134,9 @@ class MetaTranspiler(Transpiler):
             'grid': ops.GridOperation,
             'k-means': ops.KMeansOperation,
             'gaussian-mix': ops.GaussianMixOperation,
+            'pic_clustering':ops.PowerIterationClusteringOperation,
+            'lda_clustering':ops.LDAOperation,
+            'bkm_clustering':ops.BisectingKMeansOperation,
             'decision-tree-classifier': ops.DecisionTreeClassifierOperation,
             'gbt-classifier': ops.GBTClassifierOperation,
             'naive-bayes': ops.NaiveBayesClassifierOperation,
@@ -140,6 +151,8 @@ class MetaTranspiler(Transpiler):
             'generalized-linear-regressor':
                 ops.GeneralizedLinearRegressionOperation,
             'decision-tree-regressor': ops.DecisionTreeRegressorOperation,
+            'fm-classifier': ops.FactorizationMachinesClassifierOperation,
+            'fm-regression': ops.FactorizationMachinesRegressionOperation,
         }
 
 
@@ -147,7 +160,7 @@ class MetaTranspiler(Transpiler):
 
         visualizations = {'visualization': ops.VisualizationOperation}
         self.operations.update(visualizations)
-        
+
         batch= {
             'convert-data-source': ops.ConvertDataSourceFormat
         }
@@ -155,11 +168,10 @@ class MetaTranspiler(Transpiler):
 
         for f in transform:
             self.operations[f] = ops.TransformOperation
-
     def prepare_model_builder_parameters(self, ops) -> \
             ModelBuilderTemplateParams:
         """ Organize operations to be used in the code generation
-        template. 
+        template.
 
         Args:
             ops (list): List of operations
@@ -168,12 +180,13 @@ class MetaTranspiler(Transpiler):
             _type_: Model builder parameters
         """
 
-        estimators = {'k-means', 'gaussian-mix', 'decision-tree-classifier',
+        estimators = {'k-means', 'gaussian-mix', 'pic_clustering', 'lda_clustering', 'bkm_clustering', 'decision-tree-classifier',
                       'gbt-classifier', 'naive-bayes', 'perceptron',
                       'random-forest-classifier', 'logistic-regression', 'svm',
-                      'linear-regression', 'isotonic-regression', 
-                      'gbt-regressor', 'random-forest-regressor', 
-                      'generalized-linear-regressor', 'decision-tree-regressor'}
+                      'linear-regression', 'isotonic-regression',
+                      'gbt-regressor', 'random-forest-regressor',
+                      'generalized-linear-regressor', 'decision-tree-regressor',
+                      'fm-classifier', 'fm-regression'}
         param_dict = {'estimators': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
@@ -188,3 +201,23 @@ class MetaTranspiler(Transpiler):
         if (not param_dict.get('estimators')):
             raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
         return ModelBuilderTemplateParams(**param_dict)
+
+    def prepare_sql_workflow_parameters(self, ops) -> \
+            SqlWorkflowTemplateParams:
+        """ Organize operations to be used in the code generation
+        template.
+
+        Args:
+            ops (list): List of operations
+
+        Returns:
+            _type_: Sql Workflow parameters
+        """
+        param_dict = {'readers': [], 'sqls': []}
+        for op in ops:
+            slug = op.task.get('operation').get('slug')
+            if slug == 'read-data':
+                param_dict['readers'].append(op)
+            elif slug == 'execute-sql':
+                param_dict['sqls'].append(op)
+        return SqlWorkflowTemplateParams(**param_dict)

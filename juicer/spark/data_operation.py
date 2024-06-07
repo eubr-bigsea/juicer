@@ -63,7 +63,7 @@ class DataReaderOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+            [len(self.named_outputs) > 0, self.contains_results()],)
 
         if self.has_code:
             if self.DATA_SOURCE_ID_PARAM in parameters:
@@ -86,6 +86,8 @@ class DataReaderOperation(Operation):
 
         self.output = named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
+        self.connection_factory_function_name = parameters.get(
+                'connection_factory_function_name')
 
     def _set_data_source_parameters(self, parameters):
 
@@ -105,7 +107,7 @@ class DataReaderOperation(Operation):
             self.parameters['workflow']['data_source_cache'][
                 self.data_source_id] = self.metadata
 
-        # URL can be empty for HIVE    
+        # URL can be empty for HIVE
         # if not self.metadata.get('url'):
         #    raise ValueError(
         #        _('Incorrect data source configuration (empty url)'))
@@ -128,6 +130,15 @@ class DataReaderOperation(Operation):
         self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
                                            self.INFER_FROM_LIMONERO)
         self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
+        self.use_hive_warehouse_connector = (
+            self.metadata['storage']['type'] == 'HIVE_WAREHOUSE')
+        self.use_hdfs = (
+            self.metadata['storage']['type'] == 'HDFS')
+        if self.use_hive_warehouse_connector:
+            self.transpiler_utils.add_import(
+                'from pyspark_llap import HiveWarehouseSession')
+        if self.use_hdfs:
+            self.transpiler_utils.add_import('import os')
 
     def generate_code(self):
 
@@ -172,17 +183,20 @@ class DataReaderOperation(Operation):
                 code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
                 # Multiple values not supported yet! See SPARK-17878
-                code.append("url = '{url}'".format(url=url))
+                code.append(f"url = '/'.join({repr(url.split('/'))}) #protect 'Protected, please update'")
 
                 if self.metadata['storage'].get('extra_params'):
                     extra_params = json.loads(
                             self.metadata['storage']['extra_params'])
                     if 'user' in extra_params:
-                        code.append('jvm = spark_session._jvm')
-                        code.append(
-                            'jvm.java.lang.System.setProperty('
-                            '"HADOOP_USER_NAME", "' + extra_params.get('user') +
-                            '")')
+                        user = extra_params.get('user')
+                        if user:
+                            code.append('jvm = spark_session._jvm')
+                            code.append(
+                                'jvm.java.lang.System.setProperty('
+                                f'"HADOOP_USER_NAME", "{user}")')
+                            code.append(
+                                f"os.environ['HADOOP_USER_NAME'] = '{user}'")
 
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
@@ -203,7 +217,7 @@ class DataReaderOperation(Operation):
                             'treatEmptyValuesAsNulls', 'true').option(
                             'wholeFile', True).option(
                                 'multiLine', {multiline}).option('escape',
-                                    '"').option('timestampFormat', '{date_fmt}'
+                                    '"').option('timestampFormat', {date_fmt}
                                     ).csv(
                                 url, schema=schema_{output},
                                 quote={quote},
@@ -216,7 +230,7 @@ class DataReaderOperation(Operation):
                         header=self.header or self.metadata.get(
                             'is_first_line_header', False),
                         sep=self.sep,
-                        date_fmt=date_format,
+                        date_fmt=repr(date_format),
                         quote='None' if self.quote is None else "'{}'".format(
                             self.quote),
                         infer_schema=infer_from_data,
@@ -242,29 +256,7 @@ class DataReaderOperation(Operation):
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
                 # parsed = urlparse(self.metadata['url'])
-                if self.metadata['storage']['type'] == 'HIVE_WAREHOUSE':
-                    code_hive = dedent("""
-                        from pyspark_llap import HiveWarehouseSession
-                        if spark_session.conf.get(
-                            'spark.sql.hive.hiveserver2.jdbc.url') is None:
-                             raise ValueError('{missing_config}')
-                        hive = HiveWarehouseSession.session(spark_session).build();
-                        {out} = hive.executeQuery('''{sql}''')
-                    """.format(sql=self.metadata.get('command').replace('\n', ' '),
-                           out=self.output, 
-                           missing_config=_(
-                            'Cluster is not configured for Hive Warehouse')))
-                else:
-                    # Notifies the transpiler that Hive is required.
-                    # In order to support Hive, SparkSession must be
-                    # correctly configured.
-                    self.parameters['transpiler'].on(
-                        'requires-hive', self.metadata)
-                    code_hive = dedent("""
-                        {out} = spark_session.sql(
-                            '''{sql}''')
-                    """.format(sql=self.metadata.get('command'),
-                           out=self.output))
+                code_hive = self._get_hwc_code()
                 code.append(code_hive)
             elif self.metadata['format'] == 'JSON':
                 code_json = dedent("""
@@ -290,6 +282,41 @@ class DataReaderOperation(Operation):
 
         code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
+
+    def _get_hwc_code(self):
+        """
+        Generates code to connect to Hive Warehouse Connector
+        """
+        if self.use_hive_warehouse_connector:
+            sql = self.metadata.get('command').replace('\n', ' ')
+            if self.connection_factory_function_name:
+                code_hive = dedent(f"""
+                    hive = {self.connection_factory_function_name}(spark_session)
+                    {self.output} = hive.executeQuery('''{sql}''')
+                """)
+            else:
+                missing_config_msg = _(
+                            'Cluster is not configured for Hive Warehouse')
+                code_hive = dedent(f"""
+                    if spark_session.conf.get(
+                            'spark.sql.hive.hiveserver2.jdbc.url') is None:
+                        raise ValueError('{missing_config_msg}')
+                    hive = HiveWarehouseSession.session(spark_session).build()
+                    {self.output} = hive.executeQuery('''{sql}''')
+                    """)
+        else:
+            # Notifies the transpiler that Hive is required.
+            # In order to support Hive, SparkSession must be
+            # correctly configured.
+            self.parameters['transpiler'].on(
+                        'requires-hive', self.metadata)
+            code_hive = dedent("""
+                        {out} = spark_session.sql(
+                            '''{sql}''')
+                    """.format(sql=self.metadata.get('command'),
+                           out=self.output))
+
+        return code_hive
 
     def _generate_code_for_jdbc(self, code):
 
@@ -417,7 +444,7 @@ class DataReaderOperation(Operation):
             ))
         else:
             code.append("schema_{0}.add('{1}', {2}, {3})".format(
-                self.output, attr['name'], data_type, 
+                self.output, attr['name'], data_type,
                 attr.get('nullable', True)))
 
     def get_output_names(self, sep=", "):
@@ -530,8 +557,8 @@ class SaveOperation(Operation):
 
         self.tags = parameters.get(self.TAGS_PARAM, [])
         self.path = parameters.get(self.PATH_PARAM)
-        if self.path is None or not self.path.strip():
-            raise ValueError(_('You must specify a path for saving data.'))
+        #if self.path is None or not self.path.strip():
+        #    raise ValueError(_('You must specify a path for saving data.'))
 
         self.workflow_json = parameters.get(self.WORKFLOW_JSON_PARAM, '')
 
@@ -543,6 +570,9 @@ class SaveOperation(Operation):
         self.workflow_version = parameters.get(self.WORKFLOW_VERSION_PARAM)
         self.has_code = len(self.named_inputs) == 1
         self.supports_cache = False
+
+        self.transpiler_utils.add_import(
+            'from juicer.service.limonero_service import register_datasource')
 
     def get_data_out_names(self, sep=','):
         return ''
@@ -558,13 +588,14 @@ class SaveOperation(Operation):
 
         limonero_config = \
             self.parameters['configuration']['juicer']['services']['limonero']
-        url = '{}'.format(limonero_config['url'], self.mode)
+        url =limonero_config['url']
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         final_url = '{}/limonero/user_data/{}/{}/{}'.format(
-            storage['url'], self.user['id'], self.path,
-            strip_accents(self.name.replace(' ', '_')))
+            storage['url'].strip('/'), self.user['id'],
+            self.path.strip('/'),
+            strip_accents(self.name.replace(' ', '_')).strip('/'))
 
         hdfs_user = 'hadoop'
         if storage.get('extra_params'):
@@ -575,40 +606,43 @@ class SaveOperation(Operation):
         register_in_limonero = True
         code_save = ''
         if storage['type'] == 'HIVE_WAREHOUSE':
-            parts = self.path.split('.')
+            parts = self.name.split('.')
             if len(parts) > 1:
-                database_name = parts[0]
-                table_name = parts[1]
+                database_name, table_name = parts[0:2]
             else:
                 database_name = '' # Uses current database
                 table_name = parts[0]
             self.format = 'HIVE'
 
-            code_save = dedent("""
-            from pyspark_llap import HiveWarehouseSession
-            write_header = False
-            if spark_session.conf.get(
-                'spark.sql.hive.hiveserver2.jdbc.url') is None:
-                 raise ValueError('{missing_config}')
-            hive = HiveWarehouseSession.session(spark_session).build();
-            database_name = '{database_name}'
-            if database_name:
-                hive.setDatabase(database_name);
-            {input}.write.mode('{mode}').format(
-                HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
-                    'table', '{table_name}').save();
-            """).format(database_name=database_name, table_name=table_name, 
-                        input=self.named_inputs['input data'],
-                        mode=self.mode,
-                        missing_config=_(
-                            'Cluster is not configured for Hive Warehouse'))
+            template_str = dedent("""
+                # Write results
+                from pyspark_llap import HiveWarehouseSession
+                if spark_session.conf.get(
+                    'spark.sql.hive.hiveserver2.jdbc.url') is None:
+                    raise ValueError('{{ missing_config }}')
+                hive = HiveWarehouseSession.session(spark_session).build();
+                {%- if database_name %}
+                hive.setDatabase('{{database_name}}');
+                {%- endif %}
+                {{ input_data }}.write.mode('{{ mode }}').format(
+                    HiveWarehouseSession.HIVE_WAREHOUSE_CONNECTOR).option(
+                        'table', '{{table_name}}').save();
+                """)
+
+            code_save = self.render_str_template(template_str, dict(
+                database_name=database_name,
+                table_name=table_name,
+                input_data=self.named_inputs['input data'],
+                mode=self.mode,
+                missing_config=_('Cluster is not configured for Hive Warehouse')
+            ))
             register_in_limonero = False
 
         elif storage['type'] == 'KAFKA':
             topic = self.path
             self.format = 'KAFKA'
             parsed = urlparse(storage['url'])
-            
+
             code_save = dedent("""
                  {input}.select(functions.to_json(functions.struct("*")).alias(
                      "value")).selectExpr(
@@ -616,7 +650,7 @@ class SaveOperation(Operation):
                      'kafka.bootstrap.servers', '{kafka_server}').option(
                      'topic', '{topic}').save()
             """).format(topic=topic,
-                        kafka_server=f'{parsed.hostname}:{parsed.port}', 
+                        kafka_server=f'{parsed.hostname}:{parsed.port}',
                         input=self.named_inputs['input data'])
             # A data source will not be registered in Limonero
             register_in_limonero = False
@@ -693,6 +727,7 @@ class SaveOperation(Operation):
             # Need to generate an output, even though it is not used.
             code_save += '\n{0}_tmp = {0}'.format(
                 self.named_inputs['input data'])
+            code_save += '\nwrite_header = False'
         elif self.format == self.FORMAT_JSON:
             code_save = dedent("""
             {}.write.json('{}', mode='{}')""".format(
@@ -703,22 +738,23 @@ class SaveOperation(Operation):
         if register_in_limonero:
             code_api = dedent("""
             # Code to update Limonero metadata information
-            from juicer.service.limonero_service import register_datasource
             types_names = {data_types}
 
             # nullable information is also stored in metadata
             # because Spark ignores this information when loading CSV files
             attributes = []
-            
+
             for att in {input}.schema:
                 type_name = str(att.dataType)
+                if type_name.endswith('()'):
+                    type_name = type_name[:-2]
                 precision = None
                 scale = None
-                found = isinstance(attr.dataType, types.DecimalType)
+                found = isinstance(att.dataType, types.DecimalType)
                 if found:
                     type_name = 'DecimalType'
-                    precision = found[0][0]
-                    scale = found[0][1]
+                    precision = att.dataType.precision
+                    scale = att.dataType.scale
                 attributes.append({{
                   'enumeration': 0,
                   'feature': 0,
@@ -767,7 +803,7 @@ class SaveOperation(Operation):
                 tags=', '.join(self.tags or []),
                 mode=self.mode,
                 data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES, indent=2))
-    
+
             code += dedent(code_api)
         else:
             task_id=self.parameters['task_id']
@@ -780,7 +816,7 @@ class SaveOperation(Operation):
                         identifier='{task_id}')\n""")
 
 
-            
+
         # No return
         code += '{} = None'.format(self.output)
 

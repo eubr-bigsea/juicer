@@ -439,11 +439,11 @@ class Expression(sk_expression.Expression):
                lambda s, p: self._pl_method_call(s, p, 'lit',
                                                  'datetime.datetime.now()')),
             SF('date_add', (any, int),
-                lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
+                lambda s, p: self._series_method_call(s, p, 'dt.offset_by')),
             SF('date_format', (any, str),
                 lambda s, p: self._series_method_call(s, p, 'dt.strftime')),
             SF('date_sub', (any, int),
-                lambda s, p: self._series_method_call(s, p, 'str.offset_by')),
+                lambda s, p: self._series_method_call(s, p, 'dt.offset_by')),
 
             SF('date_trunc', (any, str), self._date_trunc_call),
             SF('datediff', (any, any), self._datediff_call),

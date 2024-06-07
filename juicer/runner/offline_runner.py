@@ -26,7 +26,6 @@ log = logging.getLogger(__name__)
 
 def emit(*a, **kwargs):
     if kwargs.get('type') != 'HTML':
-        # log.debug(json.dumps(kwargs))
         print(colored(json.dumps(kwargs), 'green'))
     else:
         with open('/tmp/lemonade.html', 'a') as f:
@@ -39,8 +38,7 @@ def run(spark, w_id, j_id, cache=None):
     importlib.reload(du)
     if cache is None:
         cache = {}
-    m = importlib.import_module(
-        'juicer_app_{w_id}_{w_id}_{j_id}'.format(w_id=w_id, j_id=j_id))
+    m = importlib.import_module(f'juicer_app_{w_id}_{w_id}_{j_id}')
 
     t = gettext.translation('messages', locales_path, ['en'],
                             fallback=True)

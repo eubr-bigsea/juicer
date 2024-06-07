@@ -21,7 +21,6 @@ import time
 import threading
 import traceback
 import unicodedata
-import juicer.spark.ext as juicer_ext
 
 from textwrap import dedent
 from timeit import default_timer as timer
@@ -85,10 +84,6 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     """
     task_id = '{{task_id}}'
     {%- if task.parents %}
-    juicer_ext.spark_logging(spark_session).info(
-        """Submitting parent task(s)
-        {{task.parents|join(', \n        "')}}
-        before {{task.id}}""")
 
     # If the task's result is not cached, we submit its dependencies first
     {%- set parents = transpiler._get_parent_tasks(instances_by_task_id, instance) %}
@@ -113,8 +108,6 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
     ts_{{parent_instance.output}} = parent_result['time']
     {% endif %}
     {%- endfor %}
-    juicer_ext.spark_logging(spark_session).info(
-        'Parents completed, submitting {}.'.format(task_id))
     {%- endif %}
 
     {%- if not plain %}
@@ -157,7 +150,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
             {%- endif %}
             {{out}} = {{out}}.withColumn('{{trace.attribute}}',
                 functions.col('{{trace.attribute}}').alias('', metadata=meta))
-            
+
         {%- endif %}
         {%- endfor %}
         {%- endfor %}
@@ -184,7 +177,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
         if isinstance(out, df_types) and name[0:2] != '__']
     {%- if instance.has_code and instance.enabled and instance.contains_sample %}
     for name, out in outputs:
-        {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER' 
+        {%- if transpiler.transpiler.sample_style == 'DATA_EXPLORER'
             or instance.parameters.workflow.get('app_configs', {}).get('sample_style') == 'DATA_EXPLORER' %}
         dataframe_util.emit_sample_data_explorer(task_id, out, emit_event, name)
         {%- else %}
@@ -211,14 +204,10 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(spark_session, 
 def emit_task_running(task_id, spark_session, emit_event):
     emit_event(name='update task', message=_('Task running'), status='RUNNING',
                identifier=task_id)
-    juicer_ext.spark_logging(spark_session).info(
-        'Lemonade task {} started'.format(task_id))
 
 def emit_task_completed(task_id, spark_session, emit_event):
     emit_event(name='update task', message=_('Task completed'),
                status='COMPLETED', identifier=task_id)
-    juicer_ext.spark_logging(spark_session).info(
-        'Lemonade task {} completed'.format(task_id))
 
 
 def get_results(_task_futures, task_id):
@@ -237,8 +226,6 @@ def get_cached_state(task_id, cached_state, emit_event, spark_session,
             if emit_cache and task_id in emit_cache:
                 args, kwargs = emit_cache[task_id]
                 emit_event(*args, **kwargs)
-            juicer_ext.spark_logging(spark_session).info(
-                'Cache hit for operation {}'.format(task_id))
             results = cached
     return results
 
@@ -254,8 +241,8 @@ def main(spark_session, cached_state, emit_event):
                 emit_cache[task_id] = (args, kwargs)
 
         emit_event(*args, **kwargs)
-            
-        
+
+
     try:
         {%- for instance in instances %}
         {%- if instance.has_code and instance.enabled and instance.multiple_inputs %}
