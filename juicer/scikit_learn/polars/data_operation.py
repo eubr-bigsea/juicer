@@ -119,7 +119,7 @@ class DataReaderOperation(sk.DataReaderOperation):
         {%- if format == 'PARQUET' %}
         ds = pq.ParquetDataset('{{parsed.path}}', filesystem=hdfs)
         {%- else %}
-        f = hdfs.open_input_file('{{parsed.path}}')
+        f = hdfs.open_input_stream('{{parsed.path}}')
         {%- endif %}
         {%- elif parsed.scheme == 'file' %}
         f = '{{parsed.path}}'
