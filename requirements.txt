@@ -31,7 +31,7 @@ polars-lts-cpu==0.18.4
 prefixspan==0.5.2
 py4j==0.10.9.7
 pyaml==21.10.1
-pyarrow==10.0.1
+pyarrow==14.0.1
 pyfpgrowth==1.0
 pylint==2.15.9
 pyinotify==0.9.6
