@@ -522,7 +522,7 @@ class SaveOperation(Operation):
     STORAGE_ID_PARAM = 'storage'
     FORMAT_PARAM = 'format'
     TAGS_PARAM = 'tags'
-    OVERWRITE_MODE_PARAM = 'mode'
+    MODE_PARAM = 'mode'
     HEADER_PARAM = 'header'
 
     MODE_ERROR = 'error'
@@ -537,6 +537,7 @@ class SaveOperation(Operation):
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
     WORKFLOW_VERSION_PARAM = 'workflow_version'
+    SAVE_TO_LIMONERO = 'save_to_limonero'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -562,7 +563,7 @@ class SaveOperation(Operation):
 
         self.workflow_json = parameters.get(self.WORKFLOW_JSON_PARAM, '')
 
-        self.mode = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
+        self.mode = parameters.get(self.MODE_PARAM, self.MODE_ERROR)
         self.header = parameters.get(self.HEADER_PARAM, True) in (1, '1', True)
 
         self.user = parameters.get(self.USER_PARAM)
@@ -570,6 +571,8 @@ class SaveOperation(Operation):
         self.workflow_version = parameters.get(self.WORKFLOW_VERSION_PARAM)
         self.has_code = len(self.named_inputs) == 1
         self.supports_cache = False
+        self.save_to_limonero = parameters.get(self.SAVE_TO_LIMONERO, True) in (
+            1, '1', True)
 
         self.transpiler_utils.add_import(
             'from juicer.service.limonero_service import register_datasource')
@@ -702,7 +705,7 @@ class SaveOperation(Operation):
                     fs.delete(path, False)
                     fs_util.copyMergeWithHeader(fs, tmp_path, fs, path, True,
                         conf, header)
-                else:
+                elif mode != 'append':
                     raise ValueError('{error_invalid_mode}')
             else:
                 fs_util.copyMergeWithHeader(fs, tmp_path, fs, path, True, conf,
@@ -735,7 +738,7 @@ class SaveOperation(Operation):
                 final_url, self.mode))
 
         code = dedent(code_save)
-        if register_in_limonero:
+        if register_in_limonero and self.save_to_limonero:
             code_api = dedent("""
             # Code to update Limonero metadata information
             types_names = {data_types}
@@ -805,7 +808,7 @@ class SaveOperation(Operation):
                 data_types=json.dumps(self.SPARK_TO_LIMONERO_DATA_TYPES, indent=2))
 
             code += dedent(code_api)
-        else:
+        elif self.save_to_limonero:
             task_id=self.parameters['task_id']
             warn_ignored=_('Data was written, but was '
                 'not registered as a data source in Lemonade (unsupported).')
@@ -818,7 +821,8 @@ class SaveOperation(Operation):
 
 
         # No return
-        code += '{} = None'.format(self.output)
+        if self.save_to_limonero:
+            code += '{} = None'.format(self.output)
 
         # return dedent(self.render_template(ctx))
         return code

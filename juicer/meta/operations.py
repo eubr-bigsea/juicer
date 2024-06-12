@@ -301,6 +301,8 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         valid_true = (1, '1', 'true', True)
         self.save = parameters.get('save') in valid_true
         self.use_hwc = parameters.get('useHWC', None)
+        self.mode = parameters.get('mode', 'error')
+        self.supports_cache = self.use_hwc not in ('executeUpdate')
         if self.save:
             self.transpiler_utils.add_import(
                 'from juicer.service.limonero_service import register_datasource')
@@ -329,29 +331,32 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         sql = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
             '"""', '')
         code = []
-
-        if self.use_hwc == 'execute':
-            cmd = 'get_hwc_connection(spark_session).execute(sql)'
-        elif self.use_hwc == 'executeQuery':
-            cmd = 'get_hwc_connection(spark_session).executeQuery(sql)'
-        elif self.use_hwc == 'executeUpdate':
-            cmd = 'get_hwc_connection(spark_session).executeUpdate(sql)'
-        else:
-            cmd = 'spark_session.sql(sql)'
         code.append(dedent(
             f"""
             sql = \"\"\"
                 {indent(dedent(sql), ' '*15, self._not_first())}
             \"\"\"
-            result = {cmd}
             """).strip())
 
-        if self.save:
+        if self.use_hwc == 'execute':
+            cmd = 'df = get_hwc_connection(spark_session).execute(sql)'
+        elif self.use_hwc == 'executeQuery':
+            cmd = 'df = get_hwc_connection(spark_session).executeQuery(sql)'
+        elif self.use_hwc == 'executeUpdate':
+            cmd = 'success = get_hwc_connection(spark_session).executeUpdate(sql)'
+        else:
+            cmd = 'df = spark_session.sql(sql)'
+        code.append(cmd)
+
+        if self.use_hwc  != 'executeUpdate' and self.save:
+            # Only Spark dataframes are saved
             params = {}
             params.update(self.parameters)
             params['name'] = self.parameters.get('new_name')
             params['format'] = 'PARQUET' # FIXME
             params['path'] = params.get('path', '')
+            params['save_to_limonero'] = False
+            params['mode'] = self.mode or 'error'
 
             dro = SparkSaveOperation(params, {'input data': 'df'}, {})
             code.append(dro.generate_code())
