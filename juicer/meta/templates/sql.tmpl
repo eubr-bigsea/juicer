@@ -54,10 +54,10 @@ def read_data_{{name.lower()}}(spark_session):
 
 def execute_sql_{{sql.order}}(spark_session):
     """ Execute the query. """
+    df = None
+    success = True
     {{sql.sql_code() |  indent(width=4, first=False) }}
-    {%- if sql.parameters.save %}
-    {%- endif %}
-    return result
+    return (df, success)
 {%- endfor %}
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
@@ -65,6 +65,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
     try:
         {%- for reader in builder_params.readers %}
+         # Data source {{loop.index}}
         {%- set name = transpiler.text_to_identifier(reader.task.name) %}
         (hash, result) = cached_state.get(
             '{{reader.task.id}}', (None, None))
@@ -79,29 +80,39 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         df_{{loop.index0}}.createOrReplaceTempView('`{{reader.task.name}}`')
 
         {%- endfor %}
-
-        # Queries
         {%- for sql in builder_params.sqls %}
+
+        # Query {{loop.index}}
+        {%- if sql.supports_cache %}
         (hash, result) = cached_state.get(
             '{{sql.task.id}}', (None, None))
         if hash == '{{sql.parameters.hash}}':
             result_{{sql.order}} = result
             print(colored('Using cache', 'green'))
         else:
-            result = execute_sql_{{sql.order}}(spark_session)
-            cached_state['{{sql.task.id}}'] = (
-                '{{sql.parameters.hash}}', result)
-            result_{{sql.order}} = result
+            df, success = execute_sql_{{sql.order}}(spark_session)
+            if df is not None:
+                cached_state['{{sql.task.id}}'] = (
+                    '{{sql.parameters.hash}}', df)
+                result_{{sql.order}} = df
+            else:
+                result_{{sql.order}} = None
+        {%- else %}
+        # Does not support caching results
+        df, success = execute_sql_{{sql.order}}(spark_session)
+        result_{{sql.order}} = df
+        {%- endif %}
 
-        {%- if sql.task.name %}
-        result_{{sql.order}}.createOrReplaceTempView('`{{sql.task.name}}`')
+        {%- if sql.task.name and sql.supports_cache %}
+        if ds is not None:
+            result_{{sql.order}}.createOrReplaceTempView('`{{sql.task.name}}`')
         {%- endif %}
         {%- endfor %}
 
         # if last command is a SELECT one, display a sample
         {%- if builder_params.sqls %}
         {%- set last_result = 'result_' + (builder_params.sqls|last).order|string %}
-        if {{last_result}}.columns:
+        if {{last_result}} and {{last_result}}.columns:
             task_id = '{{ builder_params.sqls[-1].task.id}}'
             dataframe_util.emit_sample_data_explorer(
                 task_id, {{last_result}}, emit_event, 'output')
