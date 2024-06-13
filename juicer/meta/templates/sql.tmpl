@@ -104,7 +104,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endif %}
 
         {%- if sql.task.name and sql.supports_cache %}
-        if ds is not None:
+        if df is not None:
             result_{{sql.order}}.createOrReplaceTempView('`{{sql.task.name}}`')
         {%- endif %}
         {%- endfor %}
