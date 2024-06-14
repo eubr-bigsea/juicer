@@ -538,6 +538,7 @@ class SaveOperation(Operation):
     WORKFLOW_ID_PARAM = 'workflow_id'
     WORKFLOW_VERSION_PARAM = 'workflow_version'
     SAVE_TO_LIMONERO = 'save_to_limonero'
+    USE_STORAGE_PATH = 'use_storage_path' # Do not add limonero extra path
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -573,6 +574,8 @@ class SaveOperation(Operation):
         self.supports_cache = False
         self.save_to_limonero = parameters.get(self.SAVE_TO_LIMONERO, True) in (
             1, '1', True)
+        self.use_storage_path = parameters.get(self.USE_STORAGE_PATH, False) in (
+            1, '1', True)
 
         self.transpiler_utils.add_import(
             'from juicer.service.limonero_service import register_datasource')
@@ -595,10 +598,16 @@ class SaveOperation(Operation):
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
-        final_url = '{}/limonero/user_data/{}/{}/{}'.format(
-            storage['url'].strip('/'), self.user['id'],
-            self.path.strip('/'),
-            strip_accents(self.name.replace(' ', '_')).strip('/'))
+        if self.use_storage_path:
+            storage_url = storage['url'].strip('/')
+            path = self.path.strip('/')
+            name = strip_accents(self.name.replace(' ', '_')).strip('/')
+            final_url = f'{storage_url}/{path}/{name}'
+        else:
+            final_url = '{}/limonero/user_data/{}/{}/{}'.format(
+                storage['url'].strip('/'), self.user['id'],
+                self.path.strip('/'),
+                strip_accents(self.name.replace(' ', '_')).strip('/'))
 
         hdfs_user = 'hadoop'
         if storage.get('extra_params'):
@@ -934,10 +943,9 @@ class ChangeAttributeOperation(Operation):
 
     @staticmethod
     def change_meta(output, attr_name, meta_name, value):
-        return dedent("if inx_{0}:\n"
-                      "    {0}.schema.fields[inx_{0}[0]]"
-                      ".metadata['{2}'] = {3}".format(output, attr_name,
-                                                      meta_name, value))
+        return dedent("if inx_{output}:\n"
+                      "    {output}.schema.fields[inx_{ouput}[0]]"
+                      ".metadata['{meta_name}'] = {value}")
 
 
 class ExternalInputOperation(Operation):

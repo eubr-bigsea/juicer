@@ -302,7 +302,8 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         self.save = parameters.get('save') in valid_true
         self.use_hwc = parameters.get('useHWC', None)
         self.mode = parameters.get('mode', 'error')
-        self.supports_cache = self.use_hwc not in ('executeUpdate')
+        self.supports_cache = self.use_hwc != 'executeUpdate'
+
         if self.save:
             self.transpiler_utils.add_import(
                 'from juicer.service.limonero_service import register_datasource')
@@ -356,6 +357,7 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             params['format'] = 'PARQUET' # FIXME
             params['path'] = params.get('path', '')
             params['save_to_limonero'] = False
+            params['use_storage_path'] = True
             params['mode'] = self.mode or 'error'
 
             dro = SparkSaveOperation(params, {'input data': 'df'}, {})
