@@ -716,8 +716,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 functools.partial(polars_df.quantile, .75),
             ]
             result = pl.concat([_cast(m()) for m in metrics])
-            names = [gettext('mean'), gettext('var'), gettext('std'), 
-                     gettext('min'), gettext('max'), gettext('25%'), 
+            names = [gettext('mean'), gettext('var'), gettext('std'),
+                     gettext('min'), gettext('max'), gettext('25%'),
                      gettext('median'), gettext('75%'), ]
 
             result = result.select(
@@ -749,16 +749,16 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             import polars.selectors as cs
             attr_names = df.select(cs.numeric()).columns
             pairs = list(itertools.product(attr_names, attr_names))
-            correlation = [x if not np.isnan(x) else None 
+            correlation = [x if not np.isnan(x) else None
                 for x in [round(x, 4) for x in df.select([
                 pl.corr(*v, method="spearman").alias(str(v)) for v in pairs])
                 .row(0)
             ] ]
             attr_count = len(attr_names)
-            final_corr = [correlation[i:i + attr_count] for i in 
+            final_corr = [correlation[i:i + attr_count] for i in
                      range(0, attr_count**2, attr_count)]
             numeric = [s.is_numeric() or s.is_boolean() for s in df]
-           
+
             result = json.dumps({
                 'table': obj_result,
                 'correlation': final_corr,
@@ -798,9 +798,9 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                          ['mean', 'var', 'std', 'min', 'max',  '25%', 'median',
                           '75%', 'unique', 'skew', 'kurtosis', 'count', 'nulls']]
                 metrics= [polars_df.mean, polars_df.var, polars_df.std,
-                    polars_df.min, polars_df.max, 
+                    polars_df.min, polars_df.max,
                     functools.partial(polars_df.quantile, .25),
-                    polars_df.median, 
+                    polars_df.median,
                     functools.partial(polars_df.quantile, .75),
                 ]
                 result = pl.concat([_cast(m()) for m in metrics])
@@ -812,7 +812,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                         pl.col(attribute).null_count().alias('nulls'),
                         ]).transpose(column_names=[attribute])
                 result = pl.concat([result, extra], how='vertical')
-                info = {'stats': {n:v for n, v in 
+                info = {'stats': {n:v for n, v in
                                   zip(names, result.get_column(attribute))}}
                 info['histogram'] = [x.tolist() for x in np.histogram(
                      series.drop_nulls(), bins=40)]
@@ -841,7 +841,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 )
 
             else: # Non-numeric attributes
-                names = [gettext(n) for n in 
+                names = [gettext(n) for n in
                          ['count', 'nulls', 'min', 'max', 'mode', 'unique']]
                 metrics = [
                     polars_df.min, polars_df.max
@@ -858,7 +858,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                         pl.col(attribute).n_unique().alias('unique'),
                         ])
                 result = extra
-                info = {'stats': {n:v for n, v in 
+                info = {'stats': {n:v for n, v in
                                   zip(names, extra.to_numpy().tolist()[0] )}}
 
                 info['histogram'] = list(zip(*df.select(attribute)
@@ -1030,6 +1030,12 @@ def handle_spark_exception(e):
                     _('Data source does not exist. It may have been '
                             'deleted.'))
             value_expr = re.compile(r'Table or view not found: (.+?);')
+            found = value_expr.findall(err_desc)
+            if found:
+                raise ValueError(
+                    _('Table or view not found: {}').format(found[0]))
+
+            value_expr = re.compile(r'The table or view `(.+?)` cannot be found')
             found = value_expr.findall(err_desc)
             if found:
                 raise ValueError(

@@ -64,6 +64,26 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
 
     try:
+        # Keep the names of valid temporary tables only
+        tables_to_keep = [
+            {%- for reader in builder_params.readers %}
+            '`{{reader.task.name}}`',
+            {%- endfor%}
+            {%- for sql in builder_params.sqls %}
+            {%- if sql.task.name and sql.supports_cache %}
+            '`{{sql.task.name}}`',
+            {%- endif %}
+            {%- endfor%}
+        ]
+        all_temp_tables = spark_session.catalog.listTables()
+        # Filter out the tables that are not in the list to keep
+        tables_to_drop = [table.name for table in all_temp_tables if
+                          table.name not in tables_to_keep]
+
+        # Drop the unwanted temporary tables
+        for table_name in tables_to_drop:
+            spark_session.catalog.dropTempView(table_name)
+
         {%- for reader in builder_params.readers %}
          # Data source {{loop.index}}
         {%- set name = transpiler.text_to_identifier(reader.task.name) %}
@@ -80,6 +100,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         df_{{loop.index0}}.createOrReplaceTempView('`{{reader.task.name}}`')
 
         {%- endfor %}
+
         {%- for sql in builder_params.sqls %}
 
         # Query {{loop.index}}
@@ -88,6 +109,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             '{{sql.task.id}}', (None, None))
         if hash == '{{sql.parameters.hash}}':
             result_{{sql.order}} = result
+            df = result
             print(colored('Using cache', 'green'))
         else:
             df, success = execute_sql_{{sql.order}}(spark_session)
