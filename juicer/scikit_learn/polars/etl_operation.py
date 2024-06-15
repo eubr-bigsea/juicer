@@ -678,7 +678,10 @@ class JoinOperation(sk.JoinOperation):
             for attr in (self.join_parameters.get('secondSelect', []) or [])
             if attr.get('select')
         ])
-
+        self.type = {
+            'full_outer': 'outer',
+            'left_outer': 'left'
+        }.get(self.type, self.type)
         ctx = dict(
             out=self.output,
             in1=input_data1,
