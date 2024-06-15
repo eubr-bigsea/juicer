@@ -2,8 +2,7 @@
 from gettext import gettext
 from textwrap import dedent
 
-from juicer.scikit_learn.polars.expression import (
-    JAVA_2_PYTHON_DATE_FORMAT, Expression)
+from juicer.scikit_learn.polars.expression import (Expression)
 import juicer.scikit_learn.etl_operation as sk
 
 
@@ -572,6 +571,14 @@ class JoinOperation(sk.JoinOperation):
             # Invert the order to use left outer join
             {{out}} = {{in2}}.join({{in1}}, right_on=col_key1, left_on=col_keys2,
                 how='left')
+
+            recover_left_keys = [(l, r) for l, r in zip(keys1, keys2) if l != r]
+            if recover_left_keys:
+                # Polars remove right keys, but the UI may require them.
+                {{out}} = {{out}}.with_columns([
+                    pl.col(r).alias(l) for l, r in recover_left_keys
+                ])
+
             # Revert columns' order
             {{out}} = {{out}}.select(
                 [pl.col(c) if c not in keys1
@@ -583,6 +590,13 @@ class JoinOperation(sk.JoinOperation):
             {{out}} = {{in1}}.join(
                 {{in2}}, left_on=col_keys1, right_on=col_keys2, how='{{type}}')
 
+
+            recover_right_keys = [(l, r) for l, r in zip(keys1, keys2) if l != r]
+            if recover_right_keys:
+                # Polars remove right keys, but the UI may require them.
+                {{out}} = {{out}}.with_columns([
+                    pl.col(l).alias(r) for l, r in recover_right_keys
+                ])
 
             # Select the resulting attributes
             select = []

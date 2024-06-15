@@ -350,9 +350,8 @@ def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook
     try:
         df_aux = df.with_columns([cs.by_dtype(pl.Date).dt.strftime('%Y-%m-%d')])
         result = [df_aux.limit(size).write_json(None)[:-1]]
-    except:
-        raise ValueError(gettext(
-            'Internal error'))
+    except Exception:
+        raise ValueError(gettext('Internal error'))
 
     def get_generic_type(t):
         # Dict does not work because __hash__ implementation is not correct?
