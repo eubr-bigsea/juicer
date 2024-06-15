@@ -272,6 +272,7 @@ class ReadDataOperation(MetaPlatformOperation):
         task_obj['forms'].update({
             "mode": {"value": "PERMISSIVE"},
             "data_source": {"value": self.data_source_id},
+            "infer_schema": {"value": 'NO_IF_PARQUET'},
         })
         task_obj['operation'] = {"id": 18}
         return json.dumps(task_obj)

@@ -345,9 +345,11 @@ def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook
                         describe=False, infer=False, use_types=None, page=1):
 
     import polars as pl
+    import polars.selectors as cs
     # Discard last '}' in order to include more information
     try:
-        result = [df.limit(size).write_json(None)[:-1]]
+        df_aux = df.with_columns([cs.by_dtype(pl.Date).dt.strftime('%Y-%m-%d')])
+        result = [df_aux.limit(size).write_json(None)[:-1]]
     except:
         raise ValueError(gettext(
             'Internal error'))
@@ -506,6 +508,8 @@ def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, noteboo
                 dtypes[x] = 'array'
             elif col_py_type == decimal.Decimal:
                 value = str(row[col])
+            elif col_py_type == datetime.date:
+                value = row[col].strftime('%Y-%m-%d')
             elif types.is_string_dtype(col_py_type):
                 # truncate column if size is bigger than 200 chars.
                 value = row[col]

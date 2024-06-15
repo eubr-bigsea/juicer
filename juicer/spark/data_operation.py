@@ -34,6 +34,7 @@ class DataReaderOperation(Operation):
     INFER_FROM_LIMONERO = 'FROM_LIMONERO'
     INFER_FROM_DATA = 'FROM_VALUES'
     DO_NOT_INFER = 'NO'
+    NO_IF_PARQUET = 'NO_IF_PARQUET'
 
     LIMONERO_TO_SPARK_DATA_TYPES = {
         "BINARY": 'types.BinaryType',
@@ -251,6 +252,9 @@ class DataReaderOperation(Operation):
                                            null_option=null_option))
                     code.append(code_csv)
             elif self.metadata['format'] == 'PARQUET':
+                if self.infer_schema == 'NO_IF_PARQUET':
+                    infer_from_data = True
+                    infer_from_limonero = False
                 self._generate_code_for_parquet(code, infer_from_data,
                                                 infer_from_limonero)
             elif self.metadata['format'] == 'HIVE':
@@ -354,17 +358,17 @@ class DataReaderOperation(Operation):
             "url_{0} = '{1}'".format(self.output, self.metadata['url']))
         if infer_from_limonero:
             code_csv = """
-                {0} = spark_session.read.format('{2}').schema(
+                {0} = spark_session.read.format('parquet').schema(
                 schema_{0}).load(url_{0})
                 # Drop index columns
-                {0} = {0}.drop('__index_level_0__')
-            """.format(self.output, infer_from_data, 'parquet')
+                #{0} = {0}.drop('__index_level_0__')
+            """.format(self.output)
         else:
             code_csv = """
-                {0} = spark_session.read.format('{2}').load(url_{0})
+                {0} = spark_session.read.format('parquet').load(url_{0})
                 # Drop index columns
                 {0} = {0}.drop('__index_level_0__')
-            """.format(self.output, infer_from_data, 'parquet')
+            """.format(self.output)
         code.append(dedent(code_csv))
 
     def _generate_code_for_lib_svm(self, code, infer_from_data):
@@ -373,9 +377,9 @@ class DataReaderOperation(Operation):
         code.append(
             "url_{0} = '{1}'".format(self.output, self.metadata['url']))
         code_csv = """
-            {0} = spark_session.read.format('{2}').load(
+            {0} = spark_session.read.format('libsvm').load(
                 url_{0}, mode='DROPMALFORMED')""".format(
-            self.output, infer_from_data, 'libsvm')
+            self.output)
         code.append(dedent(code_csv))
 
     def _apply_privacy_constraints(self, restrictions):
