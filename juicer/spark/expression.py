@@ -513,5 +513,5 @@ class Expression(object):
             "validate_codes": 'spark_session.udf.registerJavaFunction("validate_codes", "br.ufmg.dcc.lemonade.udfs.ValidateCodesUDF", types.BooleanType())',
             "date_patterning": 'spark_session.udf.registerJavaFunction("date_patterning", "br.ufmg.dcc.lemonade.udfs.DatePatterningUDF", types.StringType())',
             "physical_or_legal_person": 'spark_session.udf.registerJavaFunction("physical_or_legal_person", "br.ufmg.dcc.lemonade.udfs.PhysicalOrLegalPersonUDF", types.StringType())',
-            "strip_accents2": 'spark_session.udf.registerJavaFunction("strip_accents", "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF", types.StringType())',
+            "strip_accents": 'spark_session.udf.registerJavaFunction("strip_accents", "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF", types.StringType())',
         }
