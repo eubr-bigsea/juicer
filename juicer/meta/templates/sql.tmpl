@@ -64,6 +64,15 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
 
     try:
+        # TODO: Evaluate other approach to register Java's UDF
+        spark_session.udf.registerJavaFunction("validate_codes", "br.ufmg.dcc.lemonade.udfs.ValidateCodesUDF", types.BooleanType())
+        spark_session.udf.registerJavaFunction("date_patterning", "br.ufmg.dcc.lemonade.udfs.DatePatterningUDF", types.StringType())
+        spark_session.udf.registerJavaFunction("physical_or_legal_person", "br.ufmg.dcc.lemonade.udfs.PhysicalOrLegalPersonUDF", types.StringType())
+        spark_session.udf.registerJavaFunction("strip_accents", "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF", types.StringType())
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+
+    try:
         # Keep the names of valid temporary tables only
         tables_to_keep = [
             {%- for reader in builder_params.readers %}
