@@ -36,7 +36,7 @@ class FairnessEvaluationOperation(Operation):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.tau = parameters.get(self.TAU_PARAM, 0.8)
-
+        
         self.sensitive = parameters.get(self.SENSITIVE_ATTRIBUTE_PARAM, [])
         if not self.sensitive:
             raise ValueError(
@@ -53,7 +53,10 @@ class FairnessEvaluationOperation(Operation):
             self.LABEL_ATTRIBUTE_PARAM, ['label']) or ['label'])[0]
         self.score = (parameters.get(
             self.SCORE_ATTRIBUTE_PARAM, ['score']) or ['score'])[0]
-        self.type = parameters.get(self.TYPE_PARAM, 'EP')
+        #self.type = parameters.get(self.TYPE_PARAM, 'EP')
+        self.type = 'EP'
+
+        #import pdb; pdb.set_trace();
         if self.type not in self.VALID_TYPES.keys():
             raise ValueError(
                 gettext('Parameter {} must be one of these: {}').format(

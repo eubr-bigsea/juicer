@@ -1,0 +1,47 @@
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <h1>{{ _('Bias Report') }}</h1>
+            </div>
+            <div class="col-md-12">
+                <table class="table table-sm">
+                    <tr>
+                        <th>{{ _('Audit Date') }}:</th>
+                        <td>{{ date }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Data Audited') }}:</th>
+                        <td>{{ data[0]["total_records"]}} {{ _('rows') }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Attribute(s) Audited') }}:</th>
+                        <td>{{ attributes }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Audit Goal(s)') }}:</th>
+                        <td>
+                                {{ _('Equal Parity') }},
+                                {{ _('Proportional Parity') }},
+                                {{ _('False Positive Rate Parity') }},
+                                {{ _('False Discovery Rate Parity') }},
+                                {{ _('False Negative Rate Parity') }},
+                                {{ _('False Omission Rate Parity') }}
+                        </td>
+                     </tr>
+                     <tr>
+                        <td colspan="2" class="text-center">
+                            <img src="http://aequitas.dssg.io/static/images/metrictree.png" style="width:800px; height: auto" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Reference Groups') }}:</th>
+                        <td colspan="3">{{ reference_group }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Fairness Threshold') }}:</th>
+                        <td colspan="3">{{ "{tau:,.2f}".format(tau=tau*100) }}%. {{ _('If disparity for a group is within {tau:,.2f}%% and {inverse_tau:,.2f}%% of the value of the reference group on a group metric (e.g. False Positive Rate), this audit will pass.').format(tau=tau, inverse_tau=100/tau) }}</td>
+                    </tr>
+                </table>
+            </div>
+       </div>
+    </div>

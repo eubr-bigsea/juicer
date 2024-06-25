@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
       curl \
       graphviz \
       locales \
+      wget \
       libffi-dev \
   && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 2 \
   && update-alternatives --install /usr/bin/python python /usr/bin/python3 1 \
@@ -45,7 +46,7 @@ RUN SPARK_LATEST_VERSION=$(\
     ) \
   && SPARK_HADOOP_PKG=${SPARK_LATEST_VERSION}-bin-hadoop${HADOOP_VERSION} \
   && SPARK_HADOOP_URL=${SPARK_BASE_URL}/${SPARK_LATEST_VERSION}/${SPARK_HADOOP_PKG}.tgz \
-  && curl -sL ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  &&\
+  && wget -qO- ${SPARK_HADOOP_URL} | tar -xz -C /usr/local/  &&\
     mv /usr/local/$SPARK_HADOOP_PKG $SPARK_HOME &&\
     ln -s /usr/local/spark /opt/spark
 
@@ -56,8 +57,8 @@ ENV HADOOP_HOME /opt/hadoop-${HADOOP_VERSION_BASE}
 ENV ARROW_LIBHDFS_DIR $HADOOP_HOME/native
 ENV LD_LIBRARY_PATH=$HADOOP_HOME/native:$LD_LIBRARY_PATH
 
-RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /opt/
-
+# RUN curl -sL https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /opt/
+RUN wget -qO- https://archive.apache.org/dist/hadoop/core/hadoop-${HADOOP_VERSION_BASE}/hadoop-${HADOOP_VERSION_BASE}.tar.gz | tar -xz -C /opt/
 COPY requirements.txt $JUICER_HOME
 
 RUN pip3 install -U pip wheel

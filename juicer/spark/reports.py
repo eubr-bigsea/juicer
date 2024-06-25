@@ -207,6 +207,18 @@ class SimpleTableReport(BaseHtmlReport):
 
 class FairnessBiasReport(BaseHtmlReport):
     explanations = {
+        'predicted_positive_rate_k': {
+            'title': 'Equal Parity',
+            'description':
+                """This criteria considers an attribute to have equal parity is
+                every group is equally represented in the selected set.
+                For example, if race (with possible values of white, black,
+                other) has equal parity, it implies that all three races are
+                equally represented (33% each)in the selected/intervention
+                set. """,
+            'usage':
+                """If your desired outcome is to intervene equally on people
+                from all races, then you care about this criteria. """},
         'pred_pos_ratio_k_parity': {
             'title': 'Equal Parity',
             'description':
@@ -287,10 +299,18 @@ class FairnessBiasReport(BaseHtmlReport):
         self.sensitive = sensitive
         self.baseline_value = baseline_value
 
+
     def generate(self):
+        #import pdb; pdb.set_trace()
         data = [row1.asDict() for row1 in self.df.collect()]
-        order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
-                 'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
+        '''
+          Não está encontrando as métricas selecionada no dataframe.
+          Reformular essa parte.
+        '''
+        #order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
+        #         'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
+        order = ['predicted_positive_rate_k']
+        #import pdb; pdb.set_trace()
         summary = [[v, all([row[v] for row in data]),
                     [[row[self.sensitive], row[v],
                       row[v.replace('parity', 'disparity')]]
@@ -300,7 +320,8 @@ class FairnessBiasReport(BaseHtmlReport):
             searchpath=os.path.dirname(__file__))
 
         template_env = jinja2.Environment(loader=template_loader)
-        template = template_env.get_template("templates/bias-report.html")
+        #template = template_env.get_template("templates/bias-report.html")
+        template = template_env.get_template("templates/bias-report2.html")
 
         ctx = {'date': datetime.datetime.now().isoformat(),
                '_': gettext,
