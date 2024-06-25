@@ -320,13 +320,13 @@ def create_pipeline(label: str):
         inputCols=[
             {%- for f in builder_params.features.get_final_features_names() -%}
             '{{f}}',
-            {% endfor %}
+            {%- endfor %}
             {%- if builder_params.reduction.reduction %}'pca_features'
-            {%- endif %}
+            {%- endif -%}
         ])
 
     # Algorithms definition
-    common_params = {'predictionCol': 'prediction',
+    common_params = {#'predictionCol': 'prediction', # LDA does not support
         {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label, {% endif %}
         'featuresCol': 'features'}
 

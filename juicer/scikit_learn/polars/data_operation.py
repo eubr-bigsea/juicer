@@ -29,7 +29,6 @@ class DataReaderOperation(sk.DataReaderOperation):
         sk.DataReaderOperation.__init__(self, parameters, named_inputs,
                                         named_outputs)
         self.transpiler_utils.add_import('import gzip')
-        data_format = self.metadata.get('format')
         self.transpiler_utils.add_import('from pyarrow import fs, parquet as pq')
 
     def generate_code(self):

@@ -1921,26 +1921,27 @@ class FeaturesOperation(ModelMetaOperation):
                         features_stages.append({f['var']}_tkn_hash) """))
 
                 elif transform == 'token_stop_hash':
-                    stop_name = final_name + '_stop'
-                    code.append(dedent(f"""
-                        {f['var']}_tkn = feature.StopWordsRemover(
-                            inputCol='{f['na_name']}',
-                            outputCol='{stop_name}')
-                        features_stages.append({f['var']}_stop) """))
-
-                    token_name = stop_name + '_tkn'
+                    token_name = final_name + '_tkn'
                     code.append(dedent(f"""
                         {f['var']}_tkn = feature.Tokenizer(
-                            inputCol='{stop_name}',
+                            inputCol='{f['na_name']}',
                             outputCol='{token_name}')
-                        features_stages.append({f['var']}_stop_tkn) """))
+                        features_stages.append({token_name}) """))
 
-                    final_name = token_name + '_hash'
+                    stop_name = token_name + '_stop'
                     code.append(dedent(f"""
-                        {f['var']}_tkn = feature.HashingTF(
+                        {stop_name} = feature.StopWordsRemover(
                             inputCol='{token_name}',
+                            outputCol='{stop_name}')
+                        features_stages.append({stop_name}) """))
+
+
+                    final_name = stop_name + '_hash'
+                    code.append(dedent(f"""
+                        {final_name} = feature.HashingTF(
+                            inputCol='{stop_name}',
                             outputCol='{final_name}')
-                        features_stages.append({f['var']}_stop_tkn_hash) """))
+                        features_stages.append({final_name}) """))
 
                 elif transform == 'count_vectorizer':
                     final_name = final_name + '_count_vectorizer'
