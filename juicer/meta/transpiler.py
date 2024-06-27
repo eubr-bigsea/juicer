@@ -8,11 +8,11 @@ from collections import namedtuple
 from juicer.transpiler import Transpiler
 
 class SqlWorkflowTemplateParams:
-    def __init__(self, readers=None, sqls=None):
+    def __init__(self, readers=None, cells=None):
         self.readers: list[ops.DataReaderOperation] = sorted(
             readers, key=lambda x: x.task.get('display_order'))
-        self.sqls: list[ops.ExecuteSQLOperation] = sorted(
-            sqls, key=lambda x: x.task.get('display_order'))
+        self.cells: list[ops.ExecuteSQLOperation] = sorted(
+            cells, key=lambda x: x.task.get('display_order'))
 
 
 class ModelBuilderTemplateParams:
@@ -70,6 +70,7 @@ class MetaTranspiler(Transpiler):
     def _assign_operations(self):
         self.operations = {
             'execute-sql': ops.ExecuteSQLOperation,
+            'execute-python': ops.ExecutePythonOperation,
             'add-by-formula': ops.AddByFormulaOperation,
             'cast': ops.CastOperation,
             'clean-missing': ops.CleanMissingOperation,
@@ -213,11 +214,12 @@ class MetaTranspiler(Transpiler):
         Returns:
             _type_: Sql Workflow parameters
         """
-        param_dict = {'readers': [], 'sqls': []}
+        param_dict = {'readers': [], 'cells': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
             if slug == 'read-data':
                 param_dict['readers'].append(op)
-            elif slug == 'execute-sql':
-                param_dict['sqls'].append(op)
+            #elif slug == 'execute-sql':
+            else:
+                param_dict['cells'].append(op)
         return SqlWorkflowTemplateParams(**param_dict)

@@ -291,6 +291,18 @@ class ReadDataOperation(MetaPlatformOperation):
     def sql_code(self):
         return self.model_builder_code()
 
+def _not_first():
+    """Creates a function returning False only the first time."""
+    _first_time_call = True
+
+    def fn(_) -> bool:
+        nonlocal _first_time_call
+
+        res = not _first_time_call
+        _first_time_call = False
+        return res
+
+    return fn
 class ExecuteSQLOperation(MetaPlatformOperation):
     TARGET_OP = 93
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -298,6 +310,7 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.query = self.get_required_parameter(
             parameters, 'query')
+        self._validate_ast_code()
         self.input_port_name = 'input data 1'
         valid_true = (1, '1', 'true', True)
         self.save = parameters.get('save') in valid_true
@@ -317,18 +330,6 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         task_obj['operation'] = {"id": self.TARGET_OP}
         return json.dumps(task_obj)
 
-    def _not_first(self):
-        """Creates a function returning False only the first time."""
-        _first_time_call = True
-
-        def fn(_) -> bool:
-            nonlocal _first_time_call
-
-            res = not _first_time_call
-            _first_time_call = False
-            return res
-
-        return fn
     def sql_code(self):
         sql = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
             '"""', '')
@@ -336,7 +337,7 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         code.append(dedent(
             f"""
             sql = \"\"\"
-                {indent(dedent(sql), ' '*15, self._not_first())}
+                {indent(dedent(sql), ' '*15, _not_first())}
             \"\"\"
             """).strip())
 
@@ -364,6 +365,64 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             dro = SparkSaveOperation(params, {'input data': 'df'}, {})
             code.append(dro.generate_code())
         return '\n'.join(code)
+    def _validate_ast_code(self):
+        import sqlglot
+        try:
+            sqlglot.transpile(self.query, read="spark")
+            return True
+        except sqlglot.errors.ParseError as e:
+            error = e.errors[0]
+            ctx = (
+                f'{error.get("start_context", "")}'
+                f'{error.get("hightlight", "")} '
+                f'{error.get("end_context", "")}')
+            raise ValueError(
+                gettext(
+                    'Provided SQL code has syntax error(s): '
+                    '{text}, line {l}, offset: {o} ({ctx}) ').format(
+                    text=error['description'],
+                    l=error['line'], o=error['col'], ctx=ctx
+                ))
+
+class ExecutePythonOperation(MetaPlatformOperation):
+    TARGET_OP = 82
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+
+        self.input_port_name = 'input data 1'
+        self.code = self.get_required_parameter(parameters, 'code')
+        self._validate_ast_code()
+        self.code_libraries = parameters.get('code_libraries', [])
+        self.supports_cache = False
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+            "code": {"value": self.query},
+        })
+        task_obj['operation'] = {"id": self.TARGET_OP}
+        return json.dumps(task_obj)
+
+    def sql_code(self):
+        """ Code for SQL Builder """
+        code = [self.code]
+        #code.append(indent(dedent(self.code), ' '*15, _not_first()))
+        return '\n'.join(code)
+
+    def _validate_ast_code(self):
+        try:
+            import ast
+            ast.parse(self.code)
+            return True
+        except SyntaxError as se:
+            raise ValueError(
+                gettext(
+                    'Provided Python code has syntax error(s): '
+                    '{text}, line {l}, offset: {o} ').format(
+                    text=se.text, l=se.lineno, o=se.offset
+                ))
+
 
 @dataclasses.dataclass
 class TransformParam:
