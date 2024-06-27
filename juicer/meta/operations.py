@@ -9,7 +9,7 @@ from textwrap import dedent, indent
 from typing import List
 
 from juicer.operation import Operation
-from juicer.service import limonero_service
+from juicer.service import limonero_service, tahiti_service
 from juicer.spark.data_operation import DataReaderOperation
 from juicer.spark.data_operation import SaveOperation as SparkSaveOperation
 from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOperation
@@ -410,10 +410,38 @@ class ExecutePythonOperation(MetaPlatformOperation):
         #code.append(indent(dedent(self.code), ' '*15, _not_first()))
         return '\n'.join(code)
 
+    def get_auxiliary_code(self):
+        result = []
+        if self.code_libraries:
+            code_libraries = self._get_code_libraries().get('data')
+            for library in code_libraries:
+                result.append(library.get('code', ''))
+        return ['\n'.join(result)]
+
+    def _get_code_libraries(self):
+        tahiti_config = \
+            self.parameters['configuration']['juicer']['services']['tahiti']
+        url =tahiti_config['url']
+        token = str(tahiti_config['auth_token'])
+
+        ids = ','.join([str(i) for i in self.code_libraries])
+        return tahiti_service.query_tahiti(
+            base_url=url, item_path='/source-codes', item_id=None,
+            token=token, qs=f'ids={ids}')
+
+
     def _validate_ast_code(self):
         try:
             import ast
-            ast.parse(self.code)
+            tree = ast.parse(self.code)
+            # Test the code is a function definition
+            for node in tree.body:
+                if not isinstance(node, ast.FunctionDef):
+                    raise ValueError(
+                        gettext(
+                            'Provided Python code is not a function definition. '
+                            'Code libraries must define Python functions.'
+                        ))
             return True
         except SyntaxError as se:
             raise ValueError(

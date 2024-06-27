@@ -20,6 +20,15 @@ from gettext import gettext
 {{imps}}
 {%- endfor %}
 
+{%- set auxiliary_code = transpiler.get_auxiliary_code(instances) %}
+{%- if auxiliary_code %}
+
+# Code from Code Libraries. They must be Python functions.
+{%- for aux in auxiliary_code %}
+{{aux}}
+{%- endfor %}
+{%- endif %}
+
 {%- set builder_params = transpiler.transpiler.prepare_sql_workflow_parameters(instances) %}
 
 {%- if use_hwc %}
@@ -112,7 +121,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
         {%- for reader in builder_params.readers %}
          # Data source {{loop.index}}
-        emit_event('update task', message=_('Task running'), 
+        emit_event('update task', message=_('Task running'),
             status='RUNNING', identifier='{{reader.task.id}}')
         {%- set name = transpiler.text_to_identifier(reader.task.name) %}
         (hash, result) = cached_state.get(
@@ -126,14 +135,14 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 '{{reader.parameters.hash}}', result)
             df_{{loop.index0}} = result
         df_{{loop.index0}}.createOrReplaceTempView('`{{reader.task.name}}`')
-        emit_event('update task', message=_('Task completed'), 
+        emit_event('update task', message=_('Task completed'),
             status='COMPLETED', identifier='{{reader.task.id}}')
         {%- endfor %}
 
         results = []
         {%- for cell in builder_params.cells %}
 
-        emit_event('update task', message=_('Task running'), 
+        emit_event('update task', message=_('Task running'),
             status='RUNNING', identifier='{{cell.task.id}}')
         # Cell {{loop.index}}
         {%- if cell.supports_cache %}
@@ -166,7 +175,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         if df is not None:
             result_{{cell.order}}.createOrReplaceTempView('`{{cell.task.name}}`')
         {%- endif %}
-        emit_event('update task', message=_('Task completed'), 
+        emit_event('update task', message=_('Task completed'),
             status='COMPLETED', identifier='{{cell.task.id}}')
         {%- endfor %}
 
