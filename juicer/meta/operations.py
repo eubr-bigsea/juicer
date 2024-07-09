@@ -2799,7 +2799,7 @@ class VisualizationOperation(MetaPlatformOperation):
     DEFAULT_PALETTE = ['#636EFA', '#EF553B',
                        '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
                        '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
-    CHART_MAP_TYPES = ('scattermapbox', )
+    CHART_MAP_TYPES = ('scattermapbox', 'densitymapbox')
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
@@ -2823,17 +2823,21 @@ class VisualizationOperation(MetaPlatformOperation):
 
         self.parameters = parameters
 
+    def _is_map_family(self):
+        return self.type in VisualizationOperation.CHART_MAP_TYPES
     def generate_code(self):
         task_obj = self._get_task_obj()
         task_obj['forms'].update({
             k: {'value': getattr(self, k)} for k in
             ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
+        breakpoint()
+        series = task_obj['forms']['y'].get('value', []) or []
         task_obj['forms']['y']['value'] = [
-            y for y in task_obj['forms']['y']['value']
+            y for y in series
             if y.get('enabled')
         ]
-        if len(task_obj['forms']['y']['value']) == 0:
+        if len(series) == 0 and not self._is_map_family():
             raise ValueError(gettext('There is no series or none is enabled'))
         for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                   'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
