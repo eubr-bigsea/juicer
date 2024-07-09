@@ -62,6 +62,7 @@ class VisualizationOperation(Operation):
         "sunburst",
         "treemap",
         "violin",
+        'densitymapbox'
     ]
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -142,8 +143,16 @@ class VisualizationOperation(Operation):
         self.top_margin = parameters.get("top_margin", 30)
         self.width = parameters.get("width")
         self.zoom = parameters.get("zoom")
+        self.max_width = parameters.get("max_width")
+        self.max_height = parameters.get("max_height")
 
+        self.hover_name = parameters.get('hover_name')
+        self.hover_data = parameters.get('hover_data')
         self._compute_properties()
+
+        #print('*' * 20)
+        #print(self.hover_data)
+        #print('*' * 20)
 
         self.has_code = len(named_inputs) == 1
         self.transpiler_utils.add_import(
@@ -209,6 +218,11 @@ class VisualizationOperation(Operation):
                                                 'stacked-area-100')
         self.scatter_family = self.type in ('scatter', 'bubble')
 
+        self.use_color_scale = self.type in (
+            'sunburst', 'treemap', 'histogram2dcontour', 'parcoords',
+            'scattergeo', 'densitymapbox','histogram2d')
+        self.use_color_discrete = not self.use_color_scale
+
     def _define_colors(self):
         if self.palette:
             if not self.pie_family:
@@ -252,3 +266,10 @@ class VisualizationOperation(Operation):
         }
         code = self.render_template(ctx, install_gettext=True)
         return dedent(code)
+    def get_plotly_map_type(self):
+        if self.type == 'densitymapbox':
+            return 'density_mapbox'
+        elif self.type == 'scattermapbox':
+            return 'scatter_mapbox'
+        else:
+            raise ValueError('Not a map type')
