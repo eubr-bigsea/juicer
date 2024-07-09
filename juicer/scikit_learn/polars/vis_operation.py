@@ -36,7 +36,7 @@ class VisualizationOperation(Operation):
     """
 
     AGGR = {"COUNTD": "n_unique"}
-    CHART_MAP_TYPES = ("scattermapbox",)
+    CHART_MAP_TYPES = ("scattermapbox", "densitymapbox")
     SCATTER_FAMILY = ("scatter", "indicator", "bubble")
     SUPPORTED_CHARTS = [
         "bar",
@@ -75,7 +75,7 @@ class VisualizationOperation(Operation):
             parameters, "display_legend"
         )
 
-        if self.type not in self.CHART_MAP_TYPES:
+        if not self._is_map_family():
             self.x = self.get_required_parameter(parameters, "x")
 
             self.y_limit = None
@@ -197,6 +197,9 @@ class VisualizationOperation(Operation):
             # [(inx, y.get('shape')) for inx, y in enumerate(self.y)]
 
         self.supports_cache = False
+
+    def _is_map_family(self):
+        return self.type not in self.CHART_MAP_TYPES
 
     def _compute_properties(self):
         """Compute properties used in template"""
