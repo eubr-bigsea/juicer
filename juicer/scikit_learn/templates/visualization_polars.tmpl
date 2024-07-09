@@ -243,7 +243,7 @@ df = df
 {#------- End Macros --------------#}
 
 {%- set type = op.type.lower() %}
-{%- set map_family = type in ('scattermapbox', ) %}
+{%- set map_family = type in ('scattermapbox', 'densitymapbox') %}
 
 {%- if op.pie_family %}
 {%- set x_values = op.x[:1] %}
@@ -327,6 +327,9 @@ fig = px.
         {%- elif op.treemap_family %}
         path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
         values='aggr_0',
+        {%- elif op.map_family %}
+        lat='{{op.latitude}}', lon='{{op.longitude}}',
+        {%- if op.magnitude %}z='{op.magnitude}',{% endif %}
         {%- else %}
         x=axis1,
         y=axis2,
@@ -383,9 +386,10 @@ fig = px.
         animation_frame='{{op.animation.attribute}}',
         animation_group='{{op.animation.attribute}}',
         {%- endif %}
-        {%- if op.width %}width={{op.width}},{% endif %}
-        {%- if op.height %}height={{op.height}},{% endif %}
-)
+        {%- if op.width %}width={{op.width}},{%elif op.max_width%}width={{op.max_width}},{% endif %}
+        {%- if op.height %}height={{op.height}},{%elif op.max_height%}height={{op.max_height}},{% endif %}
+    )
+
 # Update labels
 update_labels = lambda _labels: (
         lambda t: t.update(name = _labels.get(t.name, t.name),
@@ -695,10 +699,10 @@ fig = go.Figure(go.Indicator(
     # domain = {'x': [0, 1], 'y': [0, 1]}
 ))
 {%- elif map_family %}
-fig = px.scatter_mapbox(
+fig = px.{{op.get_plotly_map_type()}}(
     pandas_df, lat='latitude', lon='longitude',
     mapbox_style='{{op.style or 'open-street-map'}}',
-    {%- if op.height %}height={{op.height}},{% endif %}
+    {%- if op.magnitude %}z='{{op.magnitude}}',{% endif %}
     {%- if op.center_latitude or op.center_longitude %}
         center={'lat': {{op.center_latitude or 'None'}},
             'lon': {{op.center_longitude or 'None'}}},
@@ -708,12 +712,20 @@ fig = px.scatter_mapbox(
     {%- if op.text_attribute %}text='{{op.text_attribute}}',{% endif %}
     {%- if op.color_attribute %}color='{{op.color_attribute}}',{% endif %}
     {%- if op.size_attribute %}size='{{op.size_attribute}}',{% endif %}
+    {%- if op.width %}width={{op.width}},{%elif op.max_width%}width={{op.max_width}},{% endif %}
+    {%- if op.height %}height={{op.height}},{%elif op.max_height%}height={{op.max_height}},{% endif %}
+    {%- if op.hover_name %}hover_name='{{op.hover_name}}',{% endif %}
+    {%- if op.hover_data %}hover_data={{op.hover_data}},{% endif %}
+    {%- if op.use_color_scale and op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
+    {%- if op.use_discrete_colors and op.discrete_colors %}color_discrete_sequence={{op.discrete_colors}},{% endif %}
 )
+{%- if type == 'scattermapbox' %}
 fig.update_traces(
     {%- if op.marker_size %}marker_sizeref={{op.marker_size}},{% endif %}
     {%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
     {%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
 )
+{%- endif %}
 ###fig.update_layout(autosize=True, showlegend=True)
 
 {%- endif %}
