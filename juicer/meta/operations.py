@@ -339,7 +339,7 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             f"""
             sql = \"\"\"
                 {indent(dedent(sql), ' '*15, _not_first())}
-            \"\"\"
+            \"\"\".format(**context)
             """).strip())
 
         if self.use_hwc == 'execute':
@@ -367,6 +367,8 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             code.append(dro.generate_code())
         return '\n'.join(code)
     def _validate_ast_code(self):
+        if '{' in self.query: # Use variables or context
+            return True
         import sqlglot
         try:
             sqlglot.transpile(self.query, read="spark")

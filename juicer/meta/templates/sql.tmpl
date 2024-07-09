@@ -53,7 +53,7 @@ def get_hwc_connection(spark_session):
 {%- for reader in builder_params.readers %}
 {%- set name = transpiler.text_to_identifier(reader.task.name) %}
 
-def read_data_{{name.lower()}}(spark_session):
+def read_data_{{name.lower()}}(spark_session, context):
     """ Read input data."""
     {{reader.sql_code() |  indent(width=4, first=False) }}
     return df
@@ -61,7 +61,7 @@ def read_data_{{name.lower()}}(spark_session):
 
 {%- for cell in builder_params.cells %}
 
-def execute_cell_{{cell.order}}(spark_session):
+def execute_cell_{{cell.order}}(spark_session, context):
 {%- if cell.task.operation.slug == 'execute-sql' %}
     """ Execute the query. """
     df = None
@@ -76,7 +76,7 @@ def execute_cell_{{cell.order}}(spark_session):
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
-
+    context = {}
     try:
         # TODO: Evaluate other approach to register Java's UDF
         spark_session.udf.registerJavaFunction(
@@ -130,7 +130,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             df_{{loop.index0}} = result
             print(colored('Using cache', 'green'))
         else:
-            result = read_data_{{name}}(spark_session)
+            result = read_data_{{name}}(spark_session, context)
             cached_state['{{reader.task.id}}'] = (
                 '{{reader.parameters.hash}}', result)
             df_{{loop.index0}} = result
@@ -153,7 +153,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             df = result
             print(colored('Using cache', 'green'))
         else:
-            df, success = execute_cell_{{cell.order}}(spark_session)
+            df, success = execute_cell_{{cell.order}}(spark_session, context)
             if df is not None:
                 cached_state['{{cell.task.id}}'] = (
                     '{{cell.parameters.hash}}', df)
@@ -163,12 +163,12 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         results.append([df, '{{cell.task.id}}'])
         {%- elif cell.task.operation.slug == 'execute-sql'%}
         # Does not support caching results
-        df, success = execute_cell_{{cell.order}}(spark_session)
+        df, success = execute_cell_{{cell.order}}(spark_session, context)
         result_{{cell.order}} = df
         results.append([df, cell.task.id])
         {%- else %}
         # Python code cell
-        execute_cell_{{cell.order}}(spark_session)
+        execute_cell_{{cell.order}}(spark_session, context)
         {%- endif %}
 
         {%- if cell.task.name and cell.supports_cache %}
