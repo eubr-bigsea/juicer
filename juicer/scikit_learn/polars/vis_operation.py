@@ -199,7 +199,7 @@ class VisualizationOperation(Operation):
         self.supports_cache = False
 
     def _is_map_family(self):
-        return self.type not in self.CHART_MAP_TYPES
+        return self.type in self.CHART_MAP_TYPES
 
     def _compute_properties(self):
         """Compute properties used in template"""
