@@ -2833,7 +2833,6 @@ class VisualizationOperation(MetaPlatformOperation):
             k: {'value': getattr(self, k)} for k in
             ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
-        breakpoint()
         series = task_obj['forms']['y'].get('value', []) or []
         task_obj['forms']['y']['value'] = [
             y for y in series
