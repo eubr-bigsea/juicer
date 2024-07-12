@@ -74,7 +74,10 @@ class VisualizationOperation(Operation):
         self.display_legend = self.get_required_parameter(
             parameters, "display_legend"
         )
-
+        self.x = []
+        self.y = []
+        self.x_axis = {}
+        self.y_axis = {}
         if not self._is_map_family():
             self.x = self.get_required_parameter(parameters, "x")
 
