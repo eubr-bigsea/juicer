@@ -59,7 +59,7 @@ class VisualizationOperation(Operation):
         "stacked-area-100",
         "stacked-bar",
         "stacked-horizontal-bar",
-        "sunburst",
+        "sunburst"
         "treemap",
         "violin",
         'densitymapbox'
