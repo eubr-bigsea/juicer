@@ -700,7 +700,7 @@ fig = go.Figure(go.Indicator(
 ))
 {%- elif map_family %}
 fig = px.{{op.get_plotly_map_type()}}(
-    pandas_df, lat='latitude', lon='longitude',
+    pandas_df, lat='{{op.latitude}}', lon='{{op.longitude}}',
     mapbox_style='{{op.style or 'open-street-map'}}',
     {%- if op.magnitude %}z='{{op.magnitude}}',{% endif %}
     {%- if op.center_latitude or op.center_longitude %}
