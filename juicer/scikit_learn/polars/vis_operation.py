@@ -151,6 +151,7 @@ class VisualizationOperation(Operation):
 
         self.hover_name = parameters.get('hover_name')
         self.hover_data = parameters.get('hover_data')
+        self.magnitude = parameters.get('magnitude')
         self._compute_properties()
 
         #print('*' * 20)
