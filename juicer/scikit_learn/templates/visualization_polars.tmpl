@@ -703,21 +703,34 @@ fig = px.{{op.get_plotly_map_type()}}(
     pandas_df, lat='{{op.latitude}}', lon='{{op.longitude}}',
     mapbox_style='{{op.style or 'open-street-map'}}',
     {%- if op.magnitude %}z='{{op.magnitude}}',{% endif %}
+    {%- if op.marker_size %}radius={{op.marker_size}},{% endif %}
     {%- if op.center_latitude or op.center_longitude %}
-        center={'lat': {{op.center_latitude or 'None'}},
-            'lon': {{op.center_longitude or 'None'}}},
+        center={'lat': {{op.center_latitude or 'None'}}, 'lon': {{op.center_longitude or 'None'}}},
     {%- endif %}
-    {%- if op.zoom %}zoom={{op.zoom}},{% endif %}
-    {%- if op.title %}title='{{op.title}}',{% endif %}
-    {%- if op.text_attribute %}text='{{op.text_attribute}}',{% endif %}
-    {%- if op.color_attribute %}color='{{op.color_attribute}}',{% endif %}
-    {%- if op.size_attribute %}size='{{op.size_attribute}}',{% endif %}
-    {%- if op.width %}width={{op.width}},{%elif op.max_width%}width={{op.max_width}},{% endif %}
-    {%- if op.height %}height={{op.height}},{%elif op.max_height%}height={{op.max_height}},{% endif %}
-    {%- if op.hover_name %}hover_name='{{op.hover_name}}',{% endif %}
-    {%- if op.hover_data %}hover_data={{op.hover_data}},{% endif %}
-    {%- if op.use_color_scale and op.color_scale %}color_continuous_scale={{op.color_scale}},{% endif %}
-    {%- if op.use_discrete_colors and op.discrete_colors %}color_discrete_sequence={{op.discrete_colors}},{% endif %}
+    {%- if op.zoom %}
+        zoom={{op.zoom}},{% endif %}
+    {%- if op.title %}
+        title='{{op.title}}',{% endif %}
+    {%- if op.text_attribute %}
+        text='{{op.text_attribute}}',{% endif %}
+    {%- if op.color_attribute %}
+        color='{{op.color_attribute}}',{% endif %}
+    {%- if op.size_attribute %}
+        size='{{op.size_attribute}}',{% endif %}
+    {%- if op.width %}
+        width={{op.width}},
+    {%elif op.max_width%}
+        width={{op.max_width}},{% endif %}
+    {%- if op.height %}
+        height={{op.height}},{%elif op.max_height%}height={{op.max_height}},{% endif %}
+    {%- if op.hover_name %}
+        hover_name='{{op.hover_name}}',{% endif %}
+    {%- if op.hover_data %}
+        hover_data={{op.hover_data}},{% endif %}
+    {%- if op.use_color_scale and op.color_scale %}
+        color_continuous_scale={{op.color_scale}},{% endif %}
+    {%- if op.use_discrete_colors and op.discrete_colors %}
+        color_discrete_sequence={{op.discrete_colors}},{% endif %}
 )
 {%- if type == 'scattermapbox' %}
 fig.update_traces(
