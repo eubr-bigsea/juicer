@@ -53,12 +53,12 @@ class Expression(sk_expression.Expression):
         self.imports: List[str] = []
 
     def _arg(self, tree: dict, params: dict, inx: int, enclose_literal=False):
-        """Returns the i-th parsed argument of the expression 
+        """Returns the i-th parsed argument of the expression
         Args:
             tree (dict): Expression tree
             params (dict): Expression parameters
             inx (int): Argument index
-            enclose_literal (bool, optional): Enclose literal in quotes. 
+            enclose_literal (bool, optional): Enclose literal in quotes.
                 Defaults to False.
 
         Returns:
@@ -382,7 +382,7 @@ class Expression(sk_expression.Expression):
                 )'''), ['import math']),
             SF('bround', (any, any), lambda s, p: self._series_apply_call(
                 s, p,
-                '''(lambda n: round(n) + 1 if math.isclose(math.modf(n)[0],0.5) 
+                '''(lambda n: round(n) + 1 if math.isclose(math.modf(n)[0],0.5)
                     and int(number) % 2 != 0 else round(number))'''),
                ['import math']),
             SF('cbrt', (any, ), lambda s, p:
@@ -629,48 +629,48 @@ class Expression(sk_expression.Expression):
             SF('array', (any, any),
                 lambda s, p: self._pl_method_call(s, p, 'concat_list')),
             SF('array_contains', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'arr.contains')),
+                lambda s, p: self._series_method_call(s, p, 'list.contains')),
             SF('array_distinct', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'arr.unique')),
+                lambda s, p: self._series_method_call(s, p, 'list.unique')),
             SF('array_except', (any, any), self._array_set_call),
             SF('array_intersect', (any, any), self._array_set_call),
             SF('array_join', (any, any),
-                lambda s, p: self._series_method_call(s, p, 'arr.join')),
+                lambda s, p: self._series_method_call(s, p, 'list.join')),
             SF('array_max', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.max')),
+                lambda s, p: self._series_method_call(s, p, 'list.max')),
             SF('array_min', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.min')),
+                lambda s, p: self._series_method_call(s, p, 'list.min')),
             # https://github.com/pola-rs/polars/issues/5503
             SF('array_position', (any, any), lambda s, p: self._call_fmt(
                 s, p,
-                """(pl.when({0}.arr.contains({1})).then({0}.arr.eval(
+                """(pl.when({0}.list.contains({1})).then({0}.list.eval(
                     (pl.element() == {1}).cast(pl.UInt8).arg_max() + 1
-                ).arr.first()).otherwise(0))""")),
+                ).list.first()).otherwise(0))""")),
 
             SF('array_remove', (any, any), lambda s, p: self._call_fmt(
                 s, p,
-                "({0}.arr.eval(pl.element().filter(pl.element() != {1}})))")),
+                "({0}.list.eval(pl.element().filter(pl.element() != {1}})))")),
             SF('array_repeat', (any, any), lambda s, p:
                 self._pl_method_call(s, p, 'repeat_by')),
             SF('array_sort', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.sort')),
+                lambda s, p: self._series_method_call(s, p, 'list.sort')),
             SF('array_union', (any, any), self._array_set_call),
             # SF('arrays_overlap', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
+            #    lambda s, p: self._series_method_call(s, p, 'list.max')),
             # SF('arrays_zip', (any, any),
-            #    lambda s, p: self._series_method_call(s, p, 'arr.max')),
+            #    lambda s, p: self._series_method_call(s, p, 'list.max')),
             SF('element_at', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.get')),
+                lambda s, p: self._series_method_call(s, p, 'list.get')),
             SF('shuffle', (any, ), lambda s, p: self._series_apply_call(
                 s, p,
                 fn='lambda x: x.shuffle(random.randint(0, sys.maxsize))'),
                 ['import random']),
             SF('size', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.lengths')),
+                lambda s, p: self._series_method_call(s, p, 'list.lengths')),
             SF('slice', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.slice')),
+                lambda s, p: self._series_method_call(s, p, 'list.slice')),
             SF('sort_array', (any, ),
-                lambda s, p: self._series_method_call(s, p, 'arr.sort')),
+                lambda s, p: self._series_method_call(s, p, 'list.sort')),
 
             # Data Explorer
             SF('array_cast', (any, ),
@@ -688,7 +688,7 @@ class Expression(sk_expression.Expression):
             SF('extract_numbers', (any, ), lambda s, p:
                 (f"{self._arg(s, p, 0)}"
                  f".str.extract_all(r'{number_regex}')"
-                 f".arr.eval(pl.element().cast(pl.Float64))"
+                 f".list.eval(pl.element().cast(pl.Float64))"
                  )
                ),
 

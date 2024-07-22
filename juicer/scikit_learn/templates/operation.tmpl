@@ -77,6 +77,8 @@ def _handle_errors(err):
              gettext('Casting from "{}" to "{}" is not supported.')),
             (r"Strict conversion from (.+) to (.+) failed for values \[(.+)\]",
              gettext('Strict conversion from "{}" to "{}" failed for values [{}].')),
+            (r"grouping on list type is only allowed if the inner type is numeric",
+             gettext('Esta operação somente é suportada para atributos numéricos.')),
         ]
     elif exc_type in (pl.exceptions.DuplicateError, ):
          tests = [

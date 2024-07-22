@@ -243,7 +243,7 @@ df = df
 {#------- End Macros --------------#}
 
 {%- set type = op.type.lower() %}
-{%- set map_family = type in ('scattermapbox', 'densitymapbox') %}
+{%- set map_family = type in op.CHART_MAP_TYPES %}
 
 {%- if op.pie_family %}
 {%- set x_values = op.x[:1] %}
@@ -699,24 +699,49 @@ fig = go.Figure(go.Indicator(
     # domain = {'x': [0, 1], 'y': [0, 1]}
 ))
 {%- elif map_family %}
+{%- if op.type == 'choropleth'%}
+# Load GeoJson file, if it is not in cache
+geo_json_url = '{{op.geo_json_url}}'
+tmp_path = Path(tempfile.gettempdir()) / Path(
+    f'{hashlib.md5(geo_json_url.encode()).hexdigest()}.json')
+if tmp_path.exists():
+    with open(tmp_path) as f:
+        geo_json = json.load(f)
+else:
+    resp = requests.get(geo_json_url)
+    if resp.status_code == 200:
+        geo_json = resp.json()
+        with open(tmp_path, 'w') as f:
+            json.dump(geo_json, f)
+    else:
+        raise ValueError(gettext('GeoJson file could not be downloaded'))
+{%- endif %}
 fig = px.{{op.get_plotly_map_type()}}(
-    pandas_df, lat='{{op.latitude}}', lon='{{op.longitude}}',
+    pandas_df,
+    {%- if op.type != 'choropleth'%}
+    lat='{{op.latitude}}', lon='{{op.longitude}}',
     mapbox_style='{{op.style or 'open-street-map'}}',
     {%- if op.magnitude %}z='{{op.magnitude}}',{% endif %}
     {%- if op.marker_size %}radius={{op.marker_size}},{% endif %}
+    {%- if op.zoom %}
+        zoom={{op.zoom}},{% endif %}
+    {%- if op.text_attribute %}
+        text='{{op.text_attribute}}',{% endif %}
+    {%- if op.size_attribute %}
+        size='{{op.size_attribute}}',{% endif %}
+    {%- else %}
+    geojson=geo_json,
+    featureidkey="properties.{{op.feature_id_key}}",
+    locations="{{op.locations}}",
+    scope=None,
+    {%- endif %}
     {%- if op.center_latitude or op.center_longitude %}
         center={'lat': {{op.center_latitude or 'None'}}, 'lon': {{op.center_longitude or 'None'}}},
     {%- endif %}
-    {%- if op.zoom %}
-        zoom={{op.zoom}},{% endif %}
     {%- if op.title %}
         title='{{op.title}}',{% endif %}
-    {%- if op.text_attribute %}
-        text='{{op.text_attribute}}',{% endif %}
     {%- if op.color_attribute %}
         color='{{op.color_attribute}}',{% endif %}
-    {%- if op.size_attribute %}
-        size='{{op.size_attribute}}',{% endif %}
     {%- if op.width %}
         width={{op.width}},
     {%elif op.max_width%}
@@ -738,6 +763,36 @@ fig.update_traces(
     {%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
     {%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
 )
+{%- elif type == 'choropleth' %}
+fig.update_geos(fitbounds="locations", visible=False)
+# Add borders for polygons not present in the dataframe
+found = set(df.select('{{op.locations}}').collect().get_column('{{op.locations}}').to_list())
+for feature in geo_json['features']:
+    key = feature['properties']['{{op.feature_id_key}}']
+    if key not in found:
+        geom = feature['geometry']
+        if geom['type'] == 'Polygon':
+            lon, lat = zip(*geom['coordinates'][0])
+            fig.add_trace(go.Scattergeo(
+                lon = lon,
+                lat = lat,
+                mode = 'lines',
+                line = dict(width=1, color='black'),
+                showlegend = False,
+                hoverinfo='skip',
+            ))
+        elif geom['type'] == 'MultiPolygon':
+            for polygon in geom['coordinates']:
+                lon, lat = zip(*polygon[0])
+                fig.add_trace(go.Scattergeo(
+                    lon = lon,
+                    lat = lat,
+                    mode = 'lines',
+                    line = dict(width=1, color='black'),
+                    showlegend = False,
+                    hoverinfo='skip',
+                ))
+fig.data = fig.data[1:] + (fig.data[0], )
 {%- endif %}
 ###fig.update_layout(autosize=True, showlegend=True)
 
