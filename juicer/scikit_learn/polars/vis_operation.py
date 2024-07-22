@@ -36,7 +36,7 @@ class VisualizationOperation(Operation):
     """
 
     AGGR = {"COUNTD": "n_unique"}
-    CHART_MAP_TYPES = ("scattermapbox", "densitymapbox")
+    CHART_MAP_TYPES = ("scattermapbox", "densitymapbox", "choropleth")
     SCATTER_FAMILY = ("scatter", "indicator", "bubble")
     SUPPORTED_CHARTS = [
         "bar",
@@ -62,7 +62,8 @@ class VisualizationOperation(Operation):
         "sunburst"
         "treemap",
         "violin",
-        'densitymapbox'
+        'densitymapbox',
+        "choropleth"
     ]
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -78,6 +79,7 @@ class VisualizationOperation(Operation):
         self.y = []
         self.x_axis = {}
         self.y_axis = {}
+        self.geo_json_url = None
         if not self._is_map_family():
             self.x = self.get_required_parameter(parameters, "x")
 
@@ -112,6 +114,17 @@ class VisualizationOperation(Operation):
                         f"{tmp[i]}-{tmp[i+1]}%" for i in range(len(tmp) - 1)
                     ]
                     x["quantiles_list"] = [0.01 * q for q in quantiles]
+        elif self.type == 'choropleth':
+            self.transpiler_utils.add_import('from pathlib import Path')
+            self.transpiler_utils.add_import('import hashlib')
+            self.transpiler_utils.add_import('import requests')
+            self.transpiler_utils.add_import('import tempfile')
+
+            self.geo_json_url = self.get_required_parameter(parameters,
+                                                            'geo_json_url')
+            self.locations = self.get_required_parameter(parameters, 'locations')
+            self.feature_id_key = parameters.get('feature_id_key',
+                                                'properties.id')
 
         self.animation = parameters.get("animation")
         self.auto_margin = parameters.get("auto_margin") in (True, 1, "1")
@@ -227,7 +240,7 @@ class VisualizationOperation(Operation):
 
         self.use_color_scale = self.type in (
             'sunburst', 'treemap', 'histogram2dcontour', 'parcoords',
-            'scattergeo', 'densitymapbox','histogram2d')
+            'scattergeo', 'densitymapbox','histogram2d', 'choropleth')
         self.use_color_discrete = not self.use_color_scale
 
     def _define_colors(self):
@@ -278,5 +291,7 @@ class VisualizationOperation(Operation):
             return 'density_mapbox'
         elif self.type == 'scattermapbox':
             return 'scatter_mapbox'
+        elif self.type == 'choropleth':
+            return 'choropleth'
         else:
             raise ValueError('Not a map type')

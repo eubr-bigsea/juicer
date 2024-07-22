@@ -2801,7 +2801,7 @@ class VisualizationOperation(MetaPlatformOperation):
     DEFAULT_PALETTE = ['#636EFA', '#EF553B',
                        '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
                        '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
-    CHART_MAP_TYPES = ('scattermapbox', 'densitymapbox')
+    CHART_MAP_TYPES = ('scattermapbox', 'densitymapbox', 'choropleth')
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
@@ -2840,7 +2840,8 @@ class VisualizationOperation(MetaPlatformOperation):
         ]
         if len(series) == 0 and not self._is_map_family():
             raise ValueError(gettext('There is no series or none is enabled'))
-        for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
+        available_properties = [
+            'hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                   'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
                   'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
                   'animation', 'height', 'width', 'opacity', 'fill_opacity',
@@ -2848,7 +2849,8 @@ class VisualizationOperation(MetaPlatformOperation):
                   'style', 'tooltip_info', 'zoom', 'center_latitude', 'center_longitude',
                   'marker_size', 'limit', 'filter', 'max_height', 'max_width', 'magnitude',
                   'hover_name', 'hover_value', 'hover_data', 'latitude',
-                  'longitude']:
+                  'longitude', 'geo_json_url', 'locations', 'feature_id_key']
+        for p in available_properties:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}
