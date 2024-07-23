@@ -2819,9 +2819,11 @@ class VisualizationOperation(MetaPlatformOperation):
             self.y = None
             self.x_axis = None
             self.y_axis = None
-            self.latitude = self.get_required_parameter(parameters, 'latitude')
-            self.longitude = self.get_required_parameter(
-                parameters, 'longitude')
+            if self.type != 'choropleth':
+                self.latitude = self.get_required_parameter(
+                    parameters, 'latitude')
+                self.longitude = self.get_required_parameter(
+                    parameters, 'longitude')
 
         self.parameters = parameters
 
