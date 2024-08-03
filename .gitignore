@@ -106,4 +106,4 @@ MANIFEST.in
 README
 ajuda.py
 dask-worker-space/
-
+.vscode/
