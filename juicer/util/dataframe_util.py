@@ -14,7 +14,6 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 import simplejson
-from datasketch import MinHash, MinHashLSH
 from nltk import ngrams
 from six import text_type
 from gettext import gettext
@@ -628,6 +627,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             d.append(pandas_df.reindex(d.columns, axis=1).agg(stats))
             result = d.transpose().to_json(orient="split", double_precision=4)
         elif msg.get('cluster'):
+            from datasketch import MinHash, MinHashLSH
             lsh = MinHashLSH(
                 threshold=msg.get('threshold', msg.get('similarity', 0.8)),
                 num_perm=128)
@@ -771,6 +771,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
 
 
         elif msg.get('cluster'):
+            from datasketch import MinHash, MinHashLSH
             lsh=MinHashLSH(
                 threshold = msg.get('threshold', msg.get('similarity', 0.8)),
                 num_perm = 128)
