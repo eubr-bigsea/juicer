@@ -67,12 +67,15 @@ class StateControlRedis:
         return self.redis_conn.hgetall(key)
 
     def get_minion_status(self, app_id):
-        key = 'key_minion_app_{}'.format(app_id)
+        key = f'key_minion_app_{app_id}'
         result = self.redis_conn.get(key)
         return result if result else None
 
     def set_minion_status(self, app_id, status, ex=30, nx=True):
-        key = 'key_minion_app_{}'.format(app_id)
+        """ Keep minion's status, like a 'ping' signaling
+        server minion is still alive """
+
+        key = f'key_minion_app_{app_id}'
         return self.redis_conn.set(key, value=status, ex=ex, nx=nx)
 
     def unset_minion_status(self, app_id):

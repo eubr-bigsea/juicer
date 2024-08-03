@@ -35,7 +35,7 @@ class MetaMinion(Minion):
     """
 
     # max idle time allowed in seconds until this minion self termination
-    IDLENESS_TIMEOUT = 6000
+    IDLENESS_TIMEOUT = 600
     TIMEOUT = 'timeout'
     MSG_PROCESSED = 'message_processed'
 
@@ -107,14 +107,13 @@ class MetaMinion(Minion):
         msg = self.state_control.pop_app_queue(self.app_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
-
+        # No new message, end the minion
         if msg is None and self.active_messages == 0:
             self._timeout_termination()
             return
         if msg is None:
             return
         msg_info = json.loads(msg)
-
         # Sanity check: this minion should not process messages from another
         # workflow/app
         assert str(msg_info['workflow_id']) == self.workflow_id, \
@@ -152,6 +151,8 @@ class MetaMinion(Minion):
                 status='RUNNING', identifier=job_id)
 
             app_configs = msg_info.get('app_configs', {})
+            # Information about job_type
+            app_configs['job_type'] = msg_info.get('job_type')
             cluster_info = msg_info.get('cluster', {})
 
             # Sample size can be informed in API, limited to 1000 rows.
@@ -292,6 +293,9 @@ class MetaMinion(Minion):
         else:
             self._execute_target_workflow(job_id, workflow, app_configs,
                                           cluster_info)
+        if app_configs.get('job_type') == 'BATCH':
+            log.info('Job type is BATCH => Finishing.')
+            self.terminate()
 
     def _execute_batch(self, job_id, workflow, app_configs, cluster_info=None):
         loader = Workflow(workflow, self.config, lang=self.current_lang)

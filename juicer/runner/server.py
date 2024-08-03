@@ -342,7 +342,8 @@ class JuicerServer:
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
-        
+       
+        return
         active_minions = self.redis_conn.hgetall('active_minions')
         if not workflow_id in active_minions:
             log.warn('(%s, %s) not in active minions ', workflow_id, workflow_id)

@@ -757,7 +757,7 @@ class SparkMinion(Minion):
             if not self.cluster_options.get('remote', False):
                 # noinspection PyBroadException
                 try:
-                    log_level = logging.getLevelName(log.getEffectiveLevel())
+                    log_level = logging.getLevelName(logging.getLogger('spark').getEffectiveLevel())
                     self.spark_session.sparkContext.setLogLevel(log_level)
                 except Exception:
                     log_level = 'WARN'
@@ -922,7 +922,6 @@ class SparkMinion(Minion):
                 self.app_id,
                 json.dumps(msg_processed,
                     cls=dataframe_util.CustomEncoder))
-        log.info('Sending message processed message: %s' % msg_processed)
 
     # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):
