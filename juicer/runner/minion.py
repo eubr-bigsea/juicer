@@ -5,6 +5,8 @@ import argparse
 import gettext
 import logging.config
 import os
+import sys
+from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlparse
 
 import matplotlib
@@ -18,8 +20,9 @@ matplotlib.set_loglevel("warning")
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
+load_dotenv(find_dotenv()) 
+sys.path.append('.')
 
-# locale.setlocale(locale.LC_ALL, 'en.UTF-8')
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 if __name__ == '__main__':
