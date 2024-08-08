@@ -771,10 +771,10 @@ class SparkMinion(Minion):
                         self.spark_session.sparkContext.master)
             self.new_session = True
 
-            def _send_listener_log(data):
-                self._emit_event(room=job_id, namespace='/stand')(
-                    name='update job', message=data, status='RUNNING',
-                    identifier=job_id)
+            # def _send_listener_log(data):
+            #     self._emit_event(room=job_id, namespace='/stand')(
+            #         name='update job', message=data, status='RUNNING',
+            #         identifier=job_id)
 
                 # self.listener = SparkListener(_send_listener_log)
                 #
@@ -935,14 +935,10 @@ class SparkMinion(Minion):
         minion. In this case, we stop and release any allocated resource
         (spark_session) and kill the subprocess managed in here.
         """
-        if self.spark_session and multiprocessing.current_process().name == 'main':
+        if self.spark_session and multiprocessing.current_process().name == 'MainProcess':
             try:
-                # sc = self.spark_session.sparkContext
-
                 self.spark_session.stop()
-                # self.spark_session.sparkContext.stop()
                 self.spark_session = None
-                sc._gateway.shutdown_callback_server()
             except:
                 pass # Ignore, maybe destroyed by other process
 
@@ -961,11 +957,6 @@ class SparkMinion(Minion):
 
         self.self_terminate = False
         log.info('Minion finished')
-
-        # Kill remaining processes 
-        parent_pid = os.getppid()
-        process_group_id = os.getpgid(os.getpid())
-        os.killpg(process_group_id, signal.SIGKILL)
 
     def process(self):
         log.info(_(
