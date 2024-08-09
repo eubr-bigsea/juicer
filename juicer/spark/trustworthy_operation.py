@@ -78,104 +78,132 @@ class FairnessEvaluationOperation(Operation):
             'display_text', {'value': 1}).get('value', 1) in (1, '1')
         code = dedent("""
 
-            # from juicer.service import caipirinha_service
-            from juicer.spark.vis_operation import HtmlVisualizationModel
-            from juicer.spark.ext import FairnessEvaluatorTransformer
-            from juicer.spark.reports import FairnessBiasReport
-            from juicer.spark.reports import SimpleTableReport
+                from juicer.spark.vis_operation import HtmlVisualizationModel 
+                from juicer.spark.ext import FairnessEvaluatorSql
+                from juicer.spark.reports import FairnessBiasReport
+                from juicer.spark.reports import SimpleTableReport
 
-            baseline = '{baseline}'
+                baseline = '{baseline}'
 
-            sensitive_column_dt = {input}.schema[str('{sensitive}')].dataType
-            if isinstance(sensitive_column_dt, types.FractionalType):
-                baseline = float(baseline)
-            elif isinstance(sensitive_column_dt, types.IntegralType):
-                baseline = int(baseline)
-            elif not isinstance(sensitive_column_dt, types.StringType):
-                raise ValueError(gettext('Invalid column type: {{}}').format(
-                sensitive_column_dt))
+                sensitive_column_dt = {input}.schema[str('{sensitive}')].dataType
+                if isinstance(sensitive_column_dt, types.FractionalType):
+                    baseline = float(baseline)
+                elif isinstance(sensitive_column_dt, types.IntegralType):
+                    baseline = int(baseline)
+                elif not isinstance(sensitive_column_dt, types.StringType):
+                    raise ValueError(gettext('Invalid column type: {{}}').format(
+                    sensitive_column_dt))
 
-            evaluator = FairnessEvaluatorTransformer(
-                sensitiveColumn='{sensitive}', labelColumn='{label}',
-                   baselineValue=str(baseline), tau={tau},
-                   scoreColumn='{score}')
-            {out} = evaluator.transform({input})
-            display_text = {display_text}
+                #Hardcode - Update    
+                evaluator = FairnessEvaluatorSql(sensitive_column='race', score_column='score', 
+                                                 label_column='label_value', baseline_column='Caucasian', 
+                                                 range_column=[0.8,1.25], type_fairness_sql='list_all_groups_and_metrics',
+                                                 percentage_group_size=10, type_disparity='disparity_by_group'  
+                                                )
+                {input}.createOrReplaceTempView(evaluator.TABLE)
+                sql_result = spark_session.sql(evaluator.get_fairness_sql())
+                {out} = sql_result
+
+                #{out} = evaluator.transform({input})
+                #evaluator = FairnessEvaluatorTransformer(
+                #    sensitiveColumn='{sensitive}', labelColumn='{label}',
+                #       baselineValue=str(baseline), tau={tau},
+                #       scoreColumn='{score}')
+                #{out} = evaluator.transform({input})
+                display_text = {display_text}
 
 
-            headers = {headers}
-            rows = {out}.select('{sensitive}' , '{column_name}',
-                functions.round('{score_column_name}', 2)).collect()
+                headers = {headers}
+                #rows = {out}.select('{sensitive}' , '{column_name}',
+                #    functions.round('{score_column_name}', 2)).collect()
 
-            content = SimpleTableReport(
-                'table table-striped table-bordered table-sm w-auto',
-                headers, rows)
+                #Hardcode - Update    
+                #rows = out_task_1.select('race', 'positive', 'negative', 'predicted_positive', 'predicted_negative', 
+                #                     'group_label_positive', 'group_label_negative', 'true_negative', 'false_positive', 
+                #                     'false_negative', 'true_positive', 'group_size', 'accuracy', 'precision_ppv', 'recall', 
+                #                     'f1_score', 'group_prevalence', 'false_omission_rate', 'false_discovery_rate', 
+                #                     'false_positive_rate', 'false_negative_rate', 'true_negative_rate', 'negative_predictive', 
+                #                     'informedness', 'markedness', 'positive_likelihood_ratio', 'negative_likelihood_ratio', 
+                #                     'prevalence_threshold', 'jaccard_index', 'fowlkes_mallows_index', 
+                #                     'matthews_correlation_coefficient', 'diagnostic_odds_ratio', 'predicted_positive_rate_k', 
+                #                     'predicted_positive_rate_g').collect()
+                rows = out_task_1.select('total_records', 'race', 'attribute', 'for', 'fdr', 'fpr', 'fnr', 
+                                         'pred_pos_ratio_g', 'pred_pos_ratio_k', 'group_size', 
+                                         'fdr_disparity', 'fnr_disparity', 'for_disparity', 'fpr_disparity', 
+                                         'pred_pos_ratio_k_disparity', 'pred_pos_ratio_g_disparity', 
+                                         'fdr_parity', 'fnr_parity', 'for_parity', 'fpr_parity', 
+                                         'pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity' 
+                                        ).collect()
 
-            emit_event(
-                'update task', status='COMPLETED',
-                identifier='{task_id}',
-                message='{fairness_metric}' + content.generate(),
-                type='HTML', title='{fairness_metric}',
-                task={{'id': '{task_id}'}},
-                operation={{'id': {operation_id}}},
-                operation_id={operation_id})
+                content = SimpleTableReport(
+                    'table table-striped table-bordered table-sm w-auto',
+                    headers, rows)
 
-            # Records metric value
-            props = ['group', 'acceptable', 'value']
-            msg = json.dumps({{
-                    'metric': '{metric_id}',
-                    'workflow_id': '{workflow_id}',
-                    'values': [dict(zip(props, x)) for x in rows]
-                }})
-            emit_event(
-                'task result', status='COMPLETED',
-                identifier='{task_id}',
-                content=msg,
-                message=msg,
-                type='METRIC', title='{fairness_metric}',
-                task={{'id': '{task_id}'}},
-                operation={{'id': {operation_id}}},
-                operation_id={operation_id})
-
-            if display_text:
-                html = FairnessBiasReport({out},
-                            '{sensitive}', baseline).generate()
-                visualization = {{
-                    'job_id': '{job_id}', 'task_id': '{task_id}',
-                    'title': '{title}',
-                    'type': {{'id': 1, 'name': 'HTML'}},
-                    'model': HtmlVisualizationModel(title='{title}'),
-                    'data': json.dumps({{
-                        'html': html,
-                        'xhtml': '''
-                            <a href="" target="_blank">
-                            {title} ({open})
-                            </a>'''
-                    }}),
-                }}
                 emit_event(
-                            'update task', status='COMPLETED',
-                            identifier='{task_id}',
-                            message=html,
-                            type='HTML', title='{title}',
-                            task={{'id': '{task_id}'}},
-                            operation={{'id': {operation_id}}},
-                            operation_id={operation_id})
-                {config}
-                # emit_event(
-                #             'update task', status='COMPLETED',
-                #             identifier='{task_id}',
-                #             message=base64.b64encode(fig_file.getvalue()),
-                #             type='IMAGE', title='{title}',
-                #             task={{'id': '{task_id}'}},
-                #             operation={{'id': {operation_id}}},
-                #             operation_id={operation_id})
+                    'update task', status='COMPLETED',
+                    identifier='{task_id}',
+                    message='{fairness_metric}' + content.generate(),
+                    type='HTML', title='{fairness_metric}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
 
-                # caipirinha_service.new_visualization(
-                #     config,
-                #     {user},
-                #     {workflow_id}, {job_id}, '{task_id}',
-                #     visualization, emit_event)
+                # Records metric value
+                props = ['group', 'acceptable', 'value']
+                msg = json.dumps({{
+                        'metric': '{metric_id}',
+                        'workflow_id': '{workflow_id}',
+                        'values': [dict(zip(props, x)) for x in rows]
+                    }})
+                emit_event(
+                    'task result', status='COMPLETED',
+                    identifier='{task_id}',
+                    content=msg,
+                    message=msg,
+                    type='METRIC', title='{fairness_metric}',
+                    task={{'id': '{task_id}'}},
+                    operation={{'id': {operation_id}}},
+                    operation_id={operation_id})
+
+                if display_text:
+                    html = FairnessBiasReport({out},
+                                '{sensitive}', baseline).generate()
+                    visualization = {{
+                        'job_id': '{job_id}', 'task_id': '{task_id}',
+                        'title': '{title}',
+                        'type': {{'id': 1, 'name': 'HTML'}},
+                        'model': HtmlVisualizationModel(title='{title}'),
+                        'data': json.dumps({{
+                            'html': html,
+                            'xhtml': '''
+                                <a href="" target="_blank">
+                                {title} ({open})
+                                </a>'''
+                        }}),
+                    }}
+                    emit_event(
+                                'update task', status='COMPLETED',
+                                identifier='{task_id}',
+                                message=html,
+                                type='HTML', title='{title}',
+                                task={{'id': '{task_id}'}},
+                                operation={{'id': {operation_id}}},
+                                operation_id={operation_id})
+                    {config}
+                    # emit_event(
+                    #             'update task', status='COMPLETED',
+                    #             identifier='{task_id}',
+                    #             message=base64.b64encode(fig_file.getvalue()),
+                    #             type='IMAGE', title='{title}',
+                    #             task={{'id': '{task_id}'}},
+                    #             operation={{'id': {operation_id}}},
+                    #             operation_id={operation_id})
+
+                    # caipirinha_service.new_visualization(
+                    #     config,
+                    #     {user},
+                    #     {workflow_id}, {job_id}, '{task_id}',
+                    #     visualization, emit_event)
         """.format(sensitive=self.sensitive[0], label=self.label,
                    baseline=self.baseline, tau=self.tau,
                    score=self.score,

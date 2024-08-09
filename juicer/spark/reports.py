@@ -206,8 +206,22 @@ class SimpleTableReport(BaseHtmlReport):
 
 
 class FairnessBiasReport(BaseHtmlReport):
+    #explanations = {
+    #    'pred_pos_ratio_k': {
+    #        'title': 'Paridade igualitária',
+    #        'description':
+    #            """Este critério considera que um atributo tem paridade igual 
+    #    	   se todos os grupos forem igualmente representados no conjunto selecionado. 
+    #    	   Por exemplo, se a raça (com possíveis valores de branco, preto, outro) tiver 
+    #    	   paridade igual, isso implica que todas as três raças estão igualmente 
+    #    	   representadas (33% cada) no conjunto selecionado/intervenção.""",
+    #        'usage':
+    #            """Se o resultado desejado é intervir igualmente nas pessoas
+    #		de todas as raças, então você se preocupa com esse critério."""}
+    #	}	
     explanations = {
-        'predicted_positive_rate_k': {
+        #'predicted_positive_rate_k': {
+        'pred_pos_ratio_k': {
             'title': 'Equal Parity',
             'description':
                 """This criteria considers an attribute to have equal parity is
@@ -307,9 +321,10 @@ class FairnessBiasReport(BaseHtmlReport):
           Não está encontrando as métricas selecionada no dataframe.
           Reformular essa parte.
         '''
-        #order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
-        #         'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
-        order = ['predicted_positive_rate_k']
+        order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
+                 'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
+        #order = ['predicted_positive_rate_k']
+        #order = ['pred_pos_ratio_k']
         #import pdb; pdb.set_trace()
         summary = [[v, all([row[v] for row in data]),
                     [[row[self.sensitive], row[v],
@@ -320,14 +335,15 @@ class FairnessBiasReport(BaseHtmlReport):
             searchpath=os.path.dirname(__file__))
 
         template_env = jinja2.Environment(loader=template_loader)
-        #template = template_env.get_template("templates/bias-report.html")
-        template = template_env.get_template("templates/bias-report2.html")
+        template = template_env.get_template("templates/bias-report.html")
+        #template = template_env.get_template("templates/bias-report2.html")
 
         ctx = {'date': datetime.datetime.now().isoformat(),
                '_': gettext,
                'data': data, 'tau': .8, 'reference': self.baseline_value,
                'summary': summary, 'explanations': self.explanations,
                'attributes': ', '.join([self.sensitive])}
+        #breakpoint()
         return template.render(ctx)
 
 

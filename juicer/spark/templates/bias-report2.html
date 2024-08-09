@@ -1,31 +1,26 @@
     <div class="container">
-        <div class="row">
+       <div class="row">
             <div class="col-md-12">
-                <h1>{{ _('Bias Report') }}</h1>
+                <h1>{{ _('Relatório de preconceito') }}</h1>
             </div>
             <div class="col-md-12">
                 <table class="table table-sm">
                     <tr>
-                        <th>{{ _('Audit Date') }}:</th>
+                        <th>{{ _('Data da auditoria') }}:</th>
                         <td>{{ date }}</td>
                     </tr>
                     <tr>
-                        <th>{{ _('Data Audited') }}:</th>
+                        <th>{{ _('Dados auditados') }}:</th>
                         <td>{{ data[0]["total_records"]}} {{ _('rows') }}</td>
                     </tr>
                     <tr>
-                        <th>{{ _('Attribute(s) Audited') }}:</th>
+                        <th>{{ _('Atributo(s) auditados') }}:</th>
                         <td>{{ attributes }}</td>
                     </tr>
                     <tr>
-                        <th>{{ _('Audit Goal(s)') }}:</th>
+                        <th>{{ _('Objetivo(s) auditoria') }}:</th>
                         <td>
-                                {{ _('Equal Parity') }},
-                                {{ _('Proportional Parity') }},
-                                {{ _('False Positive Rate Parity') }},
-                                {{ _('False Discovery Rate Parity') }},
-                                {{ _('False Negative Rate Parity') }},
-                                {{ _('False Omission Rate Parity') }}
+                                {{ _('Paridade igualitária') }}
                         </td>
                      </tr>
                      <tr>
@@ -34,14 +29,158 @@
                         </td>
                     </tr>
                     <tr>
-                        <th>{{ _('Reference Groups') }}:</th>
+                        <th>{{ _('Grupos de referência') }}:</th>
                         <td colspan="3">{{ reference_group }}</td>
                     </tr>
                     <tr>
-                        <th>{{ _('Fairness Threshold') }}:</th>
-                        <td colspan="3">{{ "{tau:,.2f}".format(tau=tau*100) }}%. {{ _('If disparity for a group is within {tau:,.2f}%% and {inverse_tau:,.2f}%% of the value of the reference group on a group metric (e.g. False Positive Rate), this audit will pass.').format(tau=tau, inverse_tau=100/tau) }}</td>
+                        <th>{{ _('Limites justiça') }}:</th>
+                        <td colspan="3">{{ "{tau:,.2f}".format(tau=tau*100) }}%. {{ _('Se a disparidade para um grupo estiver entre {tau:,.2f}%% e {inverse_tau:,.2f}%% do valor do grupo de referência em uma métrica de grupo (por exemplo, taxa de falsos positivos), então, a auditoria está  aprovada.').format(tau=tau, inverse_tau=100/tau) }}</td>
                     </tr>
                 </table>
             </div>
+
+		    <div class="col-md-12">
+		       <h2>{{ _('Resumo auditoria') }}</h2>
+		       <table class="table table-striped table-hover table-sm">
+			   <tbody>
+			     {%- for s in summary %}
+			     <tr>
+				 {%- if s[0] == 'predicted_positive_rate_k' %}
+				 <th>{{ _('Paridade igualitária') }}</th>
+				 <td>{{ _('Garante que todos os grupos protegidos tenham representação igual no conjunto selecionado.') }}</td>
+				 {%- endif %}
+				 <td>
+				     <div class="label badge label {% if s[1] %}badge-success label-success{% else %}badge-danger label-danger{% endif %}">
+					 {% if s[1] %}{{ _('Passou') }}{% else %}{{ _('Falhou') }}{% endif %}
+				    </div>
+				 </td>
+				 <td><a href="#false-omission-rate-parity-span-red-initfailedspan-red-end">{{ _('Details') }}</a></td>
+			     </tr>
+			     {%- endfor %}
+			   </tbody>
+		       </table>
+		    </div>
+
+		    <div class="col-md-12">
+			<h2>{{ _('Resultados auditoria: Detalhes por métricas de justiças') }} </h2>
+		    </div>
+		    {%- for s in summary %}
+		    <div class="col-md-11">
+			<h3>{{explanations[s[0]].title}} {{s[0]}}</h3>
+		    </div>
+		    <div class="col-md-1 text-right">
+			<span class="label badge label {% if s[1] %}badge-success label-success{% else %}badge-danger label-danger{% endif %}">{% if s[1] %}{{ _('Sucesso')}}{% else %}{{ _('Falhou') }}{% endif %}</span>
+		    </div>
+		    <div class="col-md-12 justified">
+			<table class="table table-sm">
+			    <tr>
+				<th style="width: 300px">O que é?</th>
+				<td>
+				    {{explanations[s[0]].description}}
+				</td>
+			    </tr>
+			    <tr>
+				<th>{{ _('Quando isso importa?')}}</th>
+				<td>
+				    {{explanations[s[0]].usage}}
+				</td>
+			    </tr>
+			    <tr>
+				<th>Quais grupos falharam na auditoria:</th>
+				{%- if not s[1] %}
+				<td>
+				    <p><strong>For {{data[0]['attribute']}}</strong></p>
+					<ul class="list-unstyled">
+					{%- for succeed in s[2] %}
+					{%- if not succeed[1] %}
+					    <li>
+						{%- if succeed[2] %}
+						{{succeed[0]}} com {{"%.2f"|format(succeed[2])}}X Disparidade
+						{%- else %}
+						 Dados insuficientes para {{succeed[0]}}
+						{%- endif %}
+					    </li>
+					{%- endif %}
+					{%- endfor %}
+					</ul>
+				</td>
+				{%- else %}
+				<td>
+				    Com base no limite de justiça utilizado, todos os grupos foram aprovados na auditoria desta métrica. 
+				</td>
+				{%- endif %}
+			    </tr>
+			</table>
+		    </div>
+		    {%- endfor %}
+
+		    <div class="col-md-12">
+			<h2>Resultados auditoria: Detalhes por atributos protegidos</h2>
+			<h3>{{ attributes }}</h3>
+			<table class="table table-striped table-sm">
+			    <thead>
+				<tr>
+				    <th align="left">Valor do atributo</th>
+				    <th align="left">
+					<a title="" data-original-title="Teste de falha/aprovação se a disparidade de taxa positiva prevista de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado."></a><a title="" data-original-title="Teste de falha/aprovação se a disparidade de taxa positiva prevista de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade igualitária</a></th>
+				</tr>
+			    </thead>
+			    <tbody>
+				{%- for row in data %}
+				{%- if row[row['attribute']] == reference %}
+				<tr>
+				    <td>{{row[row['attribute']]}}</td>
+				    <td><div class="label badge badge-info label-info">{{ _('Ref') }}</div></td>
+				</tr>
+				{%- else %}
+				<tr>
+				    <td>{{row[row['attribute']]}}</td>
+				    <td><div class="label badge {% if row['predicted_positive_rate_k'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['predicted_positive_rate_k']}}</div></td>
+				</tr>
+				{%- endif %}
+				{%- endfor %}
+			    </tbody>
+			</table>
+		    </div>
+
+		    <div class="col-md-12">
+			<h2>Resultados auditoria: Valores métricas de preconceito </h2>
+			<h3>{{ attributes }}</h3>
+			<table class="table table-striped table-sm">
+			    <thead>
+				<tr>
+				    <th align="left">Valor do atributo</th>
+				    <th align="left"><a title="" data-original-title="A taxa positiva prevista de cada grupo dividida pelo mesmo valor da métrica do grupo de referência.">Disparidade taxa positiva prevista</a></th>
+			   </thead>
+			   <tbody>
+			       {%- for row in data %}
+			       <tr>
+				  <td>{{row[row['attribute']]}}</td>
+			       </tr>
+			       {%- endfor %}
+			   </tbody>
+			</table>
+		    </div>
+
+		    <div class="col-md-12">
+			<h2>Resultados auditoria: Valores métricas de grupo</h2>
+			<h3>{{ attributes }}</h3>
+			<table class="table table-striped table-sm">
+			    <thead>
+				<tr>
+				    <th align="left">Valor do atributo</th>
+				    <th align="left">Taxa tamanho do grupo</th>
+				    <th align="left"><a title="" data-original-title="Número de elementos do grupo selecionado dividido pela dimensão total do conjunto de intervenção.">Taxa postiva prevista</a></th>
+			       </tr>
+			   </thead>
+			   <tbody>
+			     {%- for row in data %}
+			     <tr>
+			       <td>{{row[row['attribute']]}}</td>
+                             </tr>
+                             {%- endfor %}
+                           </tbody>
+		        </table>
+		    </div>
        </div>
     </div>
