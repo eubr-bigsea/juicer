@@ -400,6 +400,9 @@ update_labels = lambda _labels: (
                     t.name, _labels.get(t.name, t.name))
         ))
 fig.for_each_trace(update_labels(labels))
+{%- if op.type.endswith('bar') and op.y_axis.normalization %}
+fig.update_layout(barnorm='{{op.y_axis.normalization}}')
+{%- endif %}
 
 #fig.update_layout(xaxis_categoryorder='total ascending')
 # fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))

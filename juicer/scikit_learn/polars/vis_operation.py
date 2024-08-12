@@ -254,6 +254,8 @@ class VisualizationOperation(Operation):
                             series_color, self.fill_opacity
                         )
                     self.discrete_colors.append(series_color)
+                if len(self.x) > 1:
+                    self.discrete_colors = self.palette
             else:
                 if self.fill_opacity < 1:
                     pass
