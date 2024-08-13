@@ -206,21 +206,68 @@ class SimpleTableReport(BaseHtmlReport):
 
 
 class FairnessBiasReport(BaseHtmlReport):
-    #explanations = {
-    #    'pred_pos_ratio_k': {
-    #        'title': 'Paridade igualitária',
-    #        'description':
-    #            """Este critério considera que um atributo tem paridade igual 
-    #    	   se todos os grupos forem igualmente representados no conjunto selecionado. 
-    #    	   Por exemplo, se a raça (com possíveis valores de branco, preto, outro) tiver 
-    #    	   paridade igual, isso implica que todas as três raças estão igualmente 
-    #    	   representadas (33% cada) no conjunto selecionado/intervenção.""",
-    #        'usage':
-    #            """Se o resultado desejado é intervir igualmente nas pessoas
-    #		de todas as raças, então você se preocupa com esse critério."""}
-    #	}	
-    explanations = {
-        #'predicted_positive_rate_k': {
+    explanations_pt = {
+        'pred_pos_ratio_k': {
+            'title': 'Paridade igualitária',
+            'description':"""Este critério considera que um atributo tem paridade igualitária se cada grupo for igualmente         
+             representado no conjunto selecionado. Por exemplo, se a raça (com valores possíveis de branco, preto, outros) 
+             tem paridade igualitária, isso implica que todas as três raças são igualmente representadas (33% cada) 
+             no conjunto selecionado/de intervenção.""",
+            'usage':"""Se o resultado desejado é intervir igualmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério."""},
+        'pred_pos_ratio_k_parity': {
+            'title': 'Paridade igualitária',
+            'description':"""Este critério considera que um atributo tem paridade igual se cada grupo for igualmente 
+             representado no conjunto selecionado. Por exemplo, se a raça (com valores possíveis de branco, preto, outros) 
+             tem paridade igual, isso implica que todas as três raças são igualmente representadas (33% cada) no conjunto 
+             selecionado/de intervenção.""",
+            'usage':"""Se o resultado desejado é intervir igualmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério."""},
+        'pred_pos_ratio_g_parity': {
+            'title': 'Paridade proporcional',
+            'description':"""Este critério considera que um atributo tem paridade proporcional se cada grupo é representado 
+             proporcionalmente à sua parcela da população. Por exemplo, se a raça (com valores possíveis de branco, preto, outros 
+             sendo 50%, 30%, 20% da população respectivamente) tem paridade proporcional, isso implica que todas as três raças 
+             são representadas nas mesmas proporções (50%, 30%, 20%) no conjunto selecionado.""",
+            'usage': """Se o resultado desejado é intervir proporcionalmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério."""},
+        'fpr_parity': {
+            'title': 'Paridade taxa de falso positivo',
+            'description': """Este critério considera que um atributo tem paridade de falso positivo se cada grupo tiver a mesma taxa 
+             de erro de falso positivo. Por exemplo, se a raça tem paridade de falso positivo, isso implica que todas as três 
+             raças têm a mesma taxa de erro de falso positivo.""",
+            'usage': """Se o resultado desejado é intervir proporcionalmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério."""},
+        'fdr_parity': {
+            'title': 'Paridade taxa de falsa descoberta',
+            'description': """Este critério considera que um atributo tem paridade de falsa descoberta se cada grupo tiver a mesma taxa 
+             de erro de falsa descoberta. Por exemplo, se a raça tem paridade de falsa descoberta, isso implica que todas as três raças 
+             têm a mesma taxa de erro de falsa descoberta.""",
+            'usage': """Se o seu resultado desejado é cometer erros de falso positivo igualmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério. Isso é importante em casos em que sua intervenção é punitiva, pode 
+             prejudicar indivíduos e onde você está selecionando um grupo muito pequeno para intervenções."""},
+        'fnr_parity': {
+            'title': 'Paridade taxa de falso positivo',
+            'description': """Este critério considera que um atributo tem paridade de falso positivo se cada grupo tiver a mesma taxa 
+             de erro de falso positivo. Por exemplo, se a raça tem paridade de falso positivo, isso implica que todas as três raças 
+             têm a mesma Taxa de erro de falso positivo.""",
+            'usage': """Se o seu resultado desejado é cometer erros de falso positivo igualmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério. Isso é importante em casos em que sua intervenção é punitiva e tem risco de 
+             resultados adversos para indivíduos. Usar esse critério permite que você tenha certeza de que não está cometendo erros 
+             de falso positivo sobre nenhum grupo único desproporcionalmente."""},
+        'for_parity': {
+            'title': 'Paridade taxa de falsa omissão',
+            'description': """Este critério considera que um atributo tem paridade de taxa de falsa omissão se cada grupo tem a mesma 
+            taxa de erro de falsa omissão. Por exemplo, se a raça tem paridade de falsa omissão, implica que todas as três raças 
+            têm a mesma taxa de erro de falsa omissão.""",
+            'usage': """Se o seu resultado desejado é cometer erros de falso negativo igualmente em pessoas de todas as raças, então 
+             você deve se importar com esse critério. Isso é importante em casos em que sua intervenção é assistencial (fornecendo 
+             ajuda a serviços sociais, por exemplo), e perdendo um indivíduo pode levar a resultados adversos para ele, e onde você 
+             está selecionando um grupo muito pequeno para intervenções. Usar esse critério permite que você tenha certeza de que 
+             não está perdendo pessoas de certos grupos desproporcionalmente."""}
+    }
+
+    explanations_en = {
         'pred_pos_ratio_k': {
             'title': 'Equal Parity',
             'description':
@@ -317,15 +364,10 @@ class FairnessBiasReport(BaseHtmlReport):
     def generate(self):
         #import pdb; pdb.set_trace()
         data = [row1.asDict() for row1 in self.df.collect()]
-        '''
-          Não está encontrando as métricas selecionada no dataframe.
-          Reformular essa parte.
-        '''
+
         order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
                  'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
-        #order = ['predicted_positive_rate_k']
-        #order = ['pred_pos_ratio_k']
-        #import pdb; pdb.set_trace()
+
         summary = [[v, all([row[v] for row in data]),
                     [[row[self.sensitive], row[v],
                       row[v.replace('parity', 'disparity')]]
@@ -335,13 +377,18 @@ class FairnessBiasReport(BaseHtmlReport):
             searchpath=os.path.dirname(__file__))
 
         template_env = jinja2.Environment(loader=template_loader)
-        template = template_env.get_template("templates/bias-report.html")
-        #template = template_env.get_template("templates/bias-report2.html")
+        #Portuguese report
+        template = template_env.get_template("templates/bias-report-pt.html")
+        explanations = self.explanations_pt 
+
+        #English report
+        #template = template_env.get_template("templates/bias-report-en.html")
+        #explanations = self.explanations_en 
 
         ctx = {'date': datetime.datetime.now().isoformat(),
                '_': gettext,
                'data': data, 'tau': .8, 'reference': self.baseline_value,
-               'summary': summary, 'explanations': self.explanations,
+               'summary': summary, 'explanations': explanations,
                'attributes': ', '.join([self.sensitive])}
         #breakpoint()
         return template.render(ctx)
