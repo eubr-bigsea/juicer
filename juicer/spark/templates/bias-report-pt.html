@@ -1,0 +1,300 @@
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <h1>{{ _('Relatório de preconceito') }}</h1>
+            </div>
+            <div class="col-md-12">
+                <table class="table table-sm">
+                    <tr>
+                        <th>{{ _('Data auditoria') }}:</th>
+                        <td>{{ date }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Dados auditados') }}:</th>
+                        <td>{{ data[0]["total_records"]}} {{ _('linhas') }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Atributo(s) auditado(s)') }}:</th>
+                        <td>{{ attributes }}</td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Meta(s) auditoria') }}:</th>
+                        <td>
+                                {{ _('Paridade igualitária') }},
+                                {{ _('Paridade proporcional') }},
+                                {{ _('Paridade taxa de falso positivo') }},
+                                {{ _('Paridade taxa de falsa descoberta') }},
+                                {{ _('Paridade taxa de falso negativo') }},
+                                {{ _('Paridade taxa de falsa omissão') }}
+                        </td>
+                     </tr>
+                     <tr>
+                        <td colspan="2" class="text-center">
+                            <img src="http://aequitas.dssg.io/static/images/metrictree.png" style="width:800px; height: auto" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Grupo(s) de referência') }}:</th>
+			<td colspan="3">{{ reference }}</td> <!--reference_group-->
+                    </tr>
+                    <tr>
+                        <th>{{ _('Limiar de justiça') }}:</th>
+                        <td colspan="3">{{ "{tau:,.2f}".format(tau=tau*100) }}%. {{ _('Se a disparidade para um grupo estiver dentro do intervalo [{tau:,.2f}, {inverse_tau:,.2f}] do valor do grupo de referência em uma métrica de grupo (por exemplo, taxa de falso positivo), esta auditoria será aprovada.').format(tau=tau, inverse_tau=1/tau) }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="col-md-12">
+                <h2>{{ _('Resumo auditoria') }}</h2>
+                <table class="table table-striped table-hover table-sm">
+                    <tbody>
+                        {%- for s in summary %}
+                        <tr>
+                            {%- if s[0] == 'pred_pos_ratio_k_parity' %}
+                            <th>{{ _('Paridade igualitária') }}</th>
+                            <td>{{ _('Garante que todos os grupos protegidos tenham representação igual no conjunto selecionado.') }}</td>
+
+                            {%- elif s[0] == 'pred_pos_ratio_g_parity' %}
+                            <th>{{ _('Paridade proporcional') }}</th>
+                            <td>{{ _('Garante que todos os grupos protegidos sejam selecionados proporcionalmente à sua porcentagem da população.') }}</td>
+
+                            {%- elif s[0] == 'fpr_parity' %}
+
+                            <th>{{ _('Paridade taxa de falso positivo') }}</th>
+                            <td>{{ _('Garante que todos os grupos protegidos tenham as mesmas taxas de falsos positivos que o grupo de referência.') }}</td>
+
+                            {%- elif s[0] == 'fdr_parity' %}
+                            <th>{{ _('Paridade taxa de falsa descoberta') }}</th>
+                            <td>{{ _('Garante que todos os grupos protegidos tenham falsos positivos igualmente proporcionais dentro do conjunto selecionado (em comparação com o grupo de referência).') }}</td>
+
+                            {%- elif s[0] == 'fnr_parity' %}
+                            <th>{{ _('Paridade taxa de falso negativo') }}</th>
+                            <td>{{ _('Garante que todos os grupos protegidos tenham as mesmas taxas de falsos negativos (que o grupo de referência).') }}</td>
+
+                            {%- elif s[0] == 'for_parity' %}
+                            <th>{{ _('Paridade taxa de falsa omissão') }}</th>
+                            <td>{{ _('Garante que todos os grupos protegidos tenham falsos negativos igualmente proporcionais dentro do conjunto não selecionado (em comparação com o grupo de referência).') }}</td>
+                        {%- endif %}
+                            <td>
+                                <div class="label badge label {% if s[1] %}badge-success label-success{% else %}badge-danger label-danger{% endif %}">
+                                    {% if s[1] %}{{ _('Passou') }}{% else %}{{ _('Falhou') }}{% endif %}
+                               </div>
+                            </td>
+			    <!-- <td><a href="#false-omission-rate-parity-span-red-initfailedspan-red-end">{{ _('Details') }}</a></td> -->
+                        </tr>
+                    {%- endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="col-md-12">
+                <h2>{{ _('Resultados auditoria: Detalhes por medidas de justiça') }} </h2>
+            </div>
+            {%- for s in summary %}
+            <div class="col-md-11">
+                <h3>{{explanations[s[0]].title}} ({{s[0]}})</h3>
+            </div>
+            <div class="col-md-1 text-right">
+                <span class="label badge label {% if s[1] %}badge-success label-success{% else %}badge-danger label-danger{% endif %}">{% if s[1] %}{{ _('Sucesso')}}{% else %}{{ _('Falhou') }}{% endif %}</span>
+            </div>
+            <div class="col-md-12 justified">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 300px">O que é?</th>
+                        <td>
+                            {{explanations[s[0]].description}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>{{ _('Quando isso importa?')}}</th>
+                        <td>
+                            {{explanations[s[0]].usage}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Quais grupos falharam na auditoria:</th>
+                        {%- if not s[1] %}
+                        <td>
+                            <p><strong>For {{data[0]['attribute']}}</strong></p>
+                                <ul class="list-unstyled">
+                                {%- for succeed in s[2] %}
+                                {%- if not succeed[1] %}
+                                    <li>
+                                        {%- if succeed[2] %}
+                                        {{succeed[0]}} com {{"%.2f"|format(succeed[2])}}X disparidade 
+                                        {%- else %}
+                                        Dados insuficientes para {{succeed[0]}}
+                                        {%- endif %}
+                                    </li>
+                                {%- endif %}
+                                {%- endfor %}
+                                </ul>
+                        </td>
+                        {%- else %}
+                        <td>
+                            Com base no limite de justiça usado, todos os grupos passaram na auditoria para essa métrica.                         			  </td>
+                        {%- endif %}
+                    </tr>
+                </table>
+            </div>
+            {%- endfor %}
+
+            <div class="col-md-12"> 
+                <h2>Resultados auditoria: Detalhes por atributos protegidos</h2>
+                <h3>{{ attributes }}</h3>
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th align="left">Valor atributo</th>
+                            <th align="left">
+                                <a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa positivo previsto de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado."></a><a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa positiva prevista de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade igualitária</a></th>
+                            <th align="left">
+                                <a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de grupo positivo previsto de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado."></a><a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de grupo positivo previsto de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade proporcional</a></th>
+                            <th align="left">
+                                <a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falsa descoberta de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado. "> </a><a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falsa descoberta de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade taxa de falsa descoberta</a></th>
+                            <th align="left">
+                                <a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falso positivo de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado."></a><a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falso positivo de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade taxa de falso positivo</a></th>
+                            <th align="left">
+                                <a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falsa omissão de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado."></a><a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falsa omissão de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade de falsa omissão</a></th>
+                            <th align="left">
+                                <a title="" data-original-title="Fail/Pass test if the False Negative Rate Disparity of each group is within the range allowed by the fairness threshold selected."></a><a title="" data-original-title="Teste reprovado/aprovado se a disparidade da taxa de falso negativo de cada grupo estiver dentro da faixa permitida pelo limite de justiça selecionado.">Paridade taxa de falso negativo</a></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {%- for row in data %}
+                        {%- if row[row['attribute']] == reference %}
+                        <tr>
+                            <td>{{row[row['attribute']]}}</td>
+                            <td><div class="label badge badge-info label-info">{{ _('Ref') }}</div></td>
+                            <td><div class="label badge badge-info label-info label-info">{{ _('Ref') }}</div></td>
+                            <td><div class="label badge badge-info label-info label-info">{{ _('Ref') }}</div></td>
+                            <td><div class="label badge badge-info label-info label-info">{{ _('Ref') }}</div></td>
+                            <td><div class="label badge badge-info label-info label-info">{{ _('Ref') }}</div></td>
+                            <td><div class="label badge badge-info label-info label-info">{{ _('Ref') }}</div></td>
+                        </tr>
+                        {%- else %}
+                        <tr>
+                            <td>{{row[row['attribute']]}}</td>
+                            <td><div class="label badge {% if row['pred_pos_ratio_k_parity'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['pred_pos_ratio_k_parity']}}</div></td>
+                            <td><div class="label badge {% if row['pred_pos_ratio_g_parity'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['pred_pos_ratio_g_parity']}}</div></td>
+                            <td><div class="label badge {% if row['fdr_parity'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fdr_parity']}}</div></td>
+                            <td><div class="label badge {% if row['fpr_parity'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fpr_parity']}}</div></td>
+                            <td><div class="label badge {% if row['for_parity'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['for_parity']}}</div></td>
+                            <td><div class="label badge {% if row['fnr_parity'] -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fnr_parity']}}</div></td>
+                        </tr>
+                        {%- endif %}
+                        {%- endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-12">
+                <h2>Resultados auditoria: Valores métricas de preconceito</h2>
+                <h3>{{ attributes }}</h3>
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th align="left">Valor atributo</th>
+                            <th align="left"><a title="" data-original-title="A taxa de positivo previsto de cada grupo dividida pelo mesmo valor da métrica do grupo de referência.">Disparidade taxa positivo previsto</a></th>
+                            <th align="left"><a title="" data-original-title="A proporção de grupo positivo previsto de cada grupo dividida pelo mesmo valor da métrica do grupo de referência.">Disparidade taxa grupo positivo previsto</a></th>
+                            <th align="left"> <a title="" data-original-title="A taxa de falsa descoberta de cada grupo dividida pelo mesmo valor da métrica do grupo de referência.">Disparidade taxa de falsa descoberta</a></th>
+                            <th align="left"><a title="" data-original-title="A taxa de falso positivo de cada grupo dividida pelo mesmo valor da  métrica do grupo de referência.">Disparidade taxa de falso positivo</a></th>
+                            <th align="left"><a title="" data-original-title="A taxa de falsa omissão de cada grupo dividida pelo mesmo valor da métrica do grupo de referência.">Disparidade taxa de falsa omissão</a></th>
+                            <th align="left"><a title="" data-original-title="A taxa de falso negativo de cada grupo dividida pelo mesmo valor da métrica do grupo de referência.">Disparidade taxa de falso negativo</a></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {%- for row in data %}
+                        <tr>
+                            <td>{{row[row['attribute']]}}</td>
+                            <td><div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['pred_pos_ratio_k_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_k_disparity'])}}</div></td>
+                            <td><div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['pred_pos_ratio_g_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_g_disparity'])}}</div></td>
+                            <td>
+                                <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['fdr_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">
+                                    {% if row['fdr_disparity'] %}
+                                    {{"%.2f"|format(row['fdr_disparity'])}}
+                                    {% else %}
+                                    Dados insuficientes para o cálculo
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                 {% if row['fpr_disparity'] %}
+                                <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['fpr_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['fpr_disparity'])}}
+                                </div>
+                                {% else %}
+                                Dados insuficientes para o cálculo
+                                {% endif %}
+                            </td>
+                            <td>
+                                 {% if row['for_disparity'] %}
+                                <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['for_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['for_disparity'])}}
+                                </div>
+                                {% else %}
+                                Dados insuficientes para o cálculo
+                                {% endif %}
+                            </td>
+                            <td>
+                                 {% if row['fnr_disparity'] %}
+                                <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['fnr_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['fnr_disparity'])}}
+                                </div>
+                                {% else %}
+                                Dados insuficientes para o cálculo
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {%- endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-12">
+                <h2>Resultados auditoria: Valores métricas de grup</h2>
+                <h3>{{ attributes }}</h3>
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th align="left">Valor atributo</th>
+                            <th align="left">Proporção do tamanho do grupo</th>
+                            <th align="left"><a title="" data-original-title="Número de elementos do grupo selecionado dividido pelo tamanho total do conjunto de intervenção.">Taxa positiva prevista</a></th>
+                            <th align="left"><a title="" data-original-title="Número de elementos do grupo selecionado dividido pelo tamanho do grupo.">Taxa grupo positivo previsto</a></th>
+                            <th align="left"> <a title="" data-original-title="Número de falso positivo do grupo dividido pelo tamanho do conjunto de intervenção do grupo (positivos previstos dentro do grupo).">Taxa de falsa descoberta</a></th>
+                            <th align="left"><a title="" data-original-title="Número de falso positivo do grupo dividido pelo número de negativos identificados dentro do grupo.">Taxa falso positivo</a></th>
+                            <th align="left"><a title="" data-original-title="Número de falso negativo do grupo dividido pelo tamanho do conjunto não selecionado do grupo (negativos previstos dentro do grupo).">Taxa de falsa omissão</a></th>
+                            <th align="left"><a title="" data-original-title="Número de falso negativo do grupo dividido pelo número de positivos identificados no grupo.">Taxa de falso negativo</a></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {%- for row in data %}
+                    <tr>
+                        <td>{{row[row['attribute']]}}</td>
+                        <td>{{"%.2f"|format(row['group_size']/row['total_records'])}}</td>
+                        <td>
+                            <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['pred_pos_ratio_k'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_k'] or 0.0)}}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['pred_pos_ratio_g'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['pred_pos_ratio_g'] or 0.0)}}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['fdr_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['fdr'] or 0.0)}}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['fpr_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['fpr'] or 0.0)}}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['for_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['for'] or 0.0)}}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="label badge {% if row[row['attribute']] == reference -%} badge-info label-info {% elif tau < row['fnr_disparity'] < 1.0/tau -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{"%.2f"|format(row['fnr'] or 0.0)}}
+                            </div>
+                        </td>
+                    </tr>
+                    {%- endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>

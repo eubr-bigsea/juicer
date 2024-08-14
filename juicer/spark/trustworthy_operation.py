@@ -139,32 +139,6 @@ class FairnessEvaluationOperation(Operation):
                     'table table-striped table-bordered table-sm w-auto',
                     headers, rows)
 
-                emit_event(
-                    'update task', status='COMPLETED',
-                    identifier='{task_id}',
-                    message='{fairness_metric}' + content.generate(),
-                    type='HTML', title='{fairness_metric}',
-                    task={{'id': '{task_id}'}},
-                    operation={{'id': {operation_id}}},
-                    operation_id={operation_id})
-
-                # Records metric value
-                props = ['group', 'acceptable', 'value']
-                msg = json.dumps({{
-                        'metric': '{metric_id}',
-                        'workflow_id': '{workflow_id}',
-                        'values': [dict(zip(props, x)) for x in rows]
-                    }})
-                emit_event(
-                    'task result', status='COMPLETED',
-                    identifier='{task_id}',
-                    content=msg,
-                    message=msg,
-                    type='METRIC', title='{fairness_metric}',
-                    task={{'id': '{task_id}'}},
-                    operation={{'id': {operation_id}}},
-                    operation_id={operation_id})
-
                 if display_text:
                     html = FairnessBiasReport({out},
                                 '{sensitive}', baseline).generate()
