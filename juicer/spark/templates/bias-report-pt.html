@@ -30,7 +30,7 @@
                      </tr>
                      <tr>
                         <td colspan="2" class="text-center">
-                            <img src="http://aequitas.dssg.io/static/images/metrictree.png" style="width:800px; height: auto" />
+                            <img src="https://raw.githubusercontent.com/eubr-bigsea/juicer/1c55f2dfc6f558f48d7497471390b9271f0f59b9/docs/img/fairness_tree.png" style="width:800px; height: auto" />
                         </td>
                     </tr>
                     <tr>
@@ -118,7 +118,7 @@
                             <p><strong>For {{data[0]['attribute']}}</strong></p>
                                 <ul class="list-unstyled">
                                 {%- for succeed in s[2] %}
-                                {%- if not succeed[1] == True %}
+                                {%- if not succeed[1] == 'True' %}
                                     <li>
                                         {%- if succeed[2] %}
                                         {{succeed[0]}} com {{"%.2f"|format(succeed[2])}}X disparidade 
@@ -175,12 +175,12 @@
                         {%- else %}
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
-                            <td><div class="label badge {% if row['pred_pos_ratio_k_parity'] == True  -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['pred_pos_ratio_k_parity']}}</div></td>
-                            <td><div class="label badge {% if row['pred_pos_ratio_g_parity'] == True -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['pred_pos_ratio_g_parity']}}</div></td>
-                            <td><div class="label badge {% if row['fdr_parity'] == True -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fdr_parity']}}</div></td>
-                            <td><div class="label badge {% if row['fpr_parity'] == True -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fpr_parity']}}</div></td>
-                            <td><div class="label badge {% if row['for_parity'] == True -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['for_parity']}}</div></td>
-                            <td><div class="label badge {% if row['fnr_parity'] == True -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fnr_parity']}}</div></td>
+                            <td><div class="label badge {% if row['pred_pos_ratio_k_parity'] == 'True' -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['pred_pos_ratio_k_parity']}}</div></td>
+                            <td><div class="label badge {% if row['pred_pos_ratio_g_parity'] == 'True' -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['pred_pos_ratio_g_parity']}}</div></td>
+                            <td><div class="label badge {% if row['fdr_parity'] == 'True' -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fdr_parity']}}</div></td>
+                            <td><div class="label badge {% if row['fpr_parity'] == 'True' -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fpr_parity']}}</div></td>
+                            <td><div class="label badge {% if row['for_parity'] == 'True' -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['for_parity']}}</div></td>
+                            <td><div class="label badge {% if row['fnr_parity'] == 'True' -%} badge-success label-success {%- else -%} badge-danger label-danger {%- endif %}">{{row['fnr_parity']}}</div></td>
                         </tr>
                         {%- endif %}
                         {%- endfor %}
