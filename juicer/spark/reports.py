@@ -362,17 +362,16 @@ class FairnessBiasReport(BaseHtmlReport):
 
 
     def generate(self):
-        #import pdb; pdb.set_trace()
         data = [row1.asDict() for row1 in self.df.collect()]
 
         order = ['pred_pos_ratio_k_parity', 'pred_pos_ratio_g_parity',
                  'fpr_parity', 'fdr_parity', 'fnr_parity', 'for_parity']
 
-        summary = [[v, all([row[v] for row in data]),
+        summary = [[v, all([row[v] == True for row in data]),
                     [[row[self.sensitive], row[v],
                       row[v.replace('parity', 'disparity')]]
                      for row in data]] for v in order]
-
+        
         template_loader = jinja2.FileSystemLoader(
             searchpath=os.path.dirname(__file__))
 
