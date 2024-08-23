@@ -12,14 +12,13 @@ from juicer.service import tahiti_service, limonero_service
 
 # Lista de padrões de formatação para testar
 date_formats = [
-    "%Y-%m-%d",  # Ex: 2024-08-22
-    "%d/%m/%Y",  # Ex: 22/08/2024
-    "%m-%d-%Y",  # Ex: 08-22-2024
-    "%Y/%m/%d",  # Ex: 2024/08/22
-    "%d %b %Y",  # Ex: 22 Aug 2024
-    "%d %B %Y",  # Ex: 22 August 2024
-    "%b %d, %Y", # Ex: Aug 22, 2024
-    "%B %d, %Y", # Ex: August 22, 2024
+    "%Y-%m-%d",       # Date only
+    "%H:%M:%S",       # Time only
+    "%Y-%m-%d %H:%M:%S", # Date and time
+    "%d/%m/%Y",       # Date with slashes (day first)
+    "%d/%m/%Y %H:%M:%S", # Date and time with slashes (day first)
+    "%Y/%m/%d",       # Date with slashes (year first)
+    "%Y/%m/%d %H:%M:%S"  # Date and time with slashes (year first)
 ]
 
 def parse_date(date_str):
@@ -570,10 +569,10 @@ class Workflow(object):
                     variable = match.group(1)  # Extracts content between ${}
                     param = match.group(2)
                     if param:
-                        #breakpoint()
                         # Variables that support parameters are identified by
                         # $name and associated to a lambda function
-                        return all_vars.get(f'${variable}')(param)
+                        value = all_vars.get(variable)
+                        return all_vars.get(f'${variable}')(value, param)
                     else:
                         return str(all_vars.get(variable))
 
@@ -588,23 +587,23 @@ class Workflow(object):
         Handles variable substitution
         """
         now = datetime.datetime.now()
-        date_at_min = datetime.datetime.combine(datetime.datetime.now(),
-                                                datetime.time.min)
-        date_at_max = datetime.datetime.combine(datetime.datetime.now(),
-                                                datetime.time.max)
+        # date_at_min = datetime.datetime.combine(datetime.datetime.now(),
+        #                                         datetime.time.min)
+        # date_at_max = datetime.datetime.combine(datetime.datetime.now(),
+        #                                         datetime.time.max)
         all_vars = {
-            'second': now.strftime('%S'),
-            'minute': now.strftime('%M'),
-            'hour': now.strftime('%H'),
-            'day': now.strftime('%d'),
-            'week_day': now.isoweekday(),
-            'month': now.strftime('%m'),
-            'year': now.strftime('%Y'),
-            'year2': now.strftime('%y'),
+            #'second': now.strftime('%S'),
+            #'minute': now.strftime('%M'),
+            #'hour': now.strftime('%H'),
+            #'day': now.strftime('%d'),
+            #'week_day': now.isoweekday(),
+            #'month': now.strftime('%m'),
+            #'year': now.strftime('%Y'),
+            #'year2': now.strftime('%y'),
             'date': now.strftime('%Y-%m-%d'),
-            'now': now.strftime('%Y-%m-%d %H:%M:%S'),
-            'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
-            'date_at_max': date_at_max.strftime('%Y-%m-%d %H:%M:%S'),
+            #'now': now.strftime('%Y-%m-%d %H:%M:%S'),
+            #'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
+            #'date_at_max': date_at_max.strftime('%Y-%m-%d %H:%M:%S'),
             'user_login': self.workflow['user']['login'],
             'user_name': self.workflow['user']['name'],
             'user_email': self.workflow['user']['login'], # FIXME
@@ -614,9 +613,9 @@ class Workflow(object):
             # Special variable, used in conjunction with a formatting pattern
             # Variables that support parameters are identified by $name and
             # are associated to a lambda function
-            '$date': lambda fmt: datetime.datetime.now().strftime(fmt),
+            '$date': lambda value, fmt: datetime.datetime.now().strftime(fmt),
             # $ref is a special variable, used by pipelines
-            '$ref': lambda fmt: datetime.datetime.now().strftime(fmt)
+            '$ref': lambda value, fmt: value.strftime(fmt)
         }
 
         if custom_vars:
