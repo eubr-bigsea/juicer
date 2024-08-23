@@ -21,12 +21,12 @@ import functools
 {{imps}}
 {%- endfor %}
 
-{%- set auxiliary_code = transpiler.get_auxiliary_code(instances) %}
-{%- if auxiliary_code %}
+{%- set code_library = transpiler.transpiler.get_source_code_library_code(workflow) %}
+{%- if code_library %}
 
 # Code from Code Libraries. They must be Python functions.
-{%- for aux in auxiliary_code %}
-{{aux}}
+{%- for code in code_library %}
+{{code}}
 {%- endfor %}
 {%- endif %}
 

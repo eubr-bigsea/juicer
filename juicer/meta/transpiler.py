@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import ast
 import os
 from typing import Callable
 from gettext import gettext
 import juicer.meta.operations as ops
 from collections import namedtuple
+from juicer.service import tahiti_service
 from juicer.transpiler import Transpiler
 
 class SqlWorkflowTemplateParams:
@@ -223,3 +225,53 @@ class MetaTranspiler(Transpiler):
             else:
                 param_dict['cells'].append(op)
         return SqlWorkflowTemplateParams(**param_dict)
+
+    def get_source_code_library_code(self, workflow):
+        """Retrieve the source code stored as a code library"""
+        result = []
+        ids = workflow.get('forms').get(
+            'code_libraries', {}).get('value', [])
+
+        if ids:
+            libraries = self._get_code_libraries(ids)
+            for library in libraries.get('data'):
+                code = library.get("code", "")
+                self._validate_code_library(code)
+                result.append(code)
+        return ["\n".join(result)]
+
+    def _validate_code_library(self, code):
+        """Validate code library"""
+        try:
+            tree = ast.parse(code)
+            # Test the code is a function definition
+            for node in tree.body:
+                if not isinstance(node, ast.FunctionDef):
+                    raise ValueError(
+                        gettext(
+                            "Provided Python code is not a function definition. "
+                            "Code libraries must define Python functions."
+                        )
+                    )
+            return True
+        except SyntaxError as se:
+            raise ValueError(
+                gettext(
+                    "Provided Python code has syntax error(s): "
+                    "{text}, line {l}, offset: {o} "
+                ).format(text=se.text, l=se.lineno, o=se.offset)
+            )
+
+    def _get_code_libraries(self, ids):
+        tahiti_config = self.configuration["juicer"]["services"]["tahiti"]
+        url = tahiti_config["url"]
+        token = str(tahiti_config["auth_token"])
+
+        ids = ",".join([str(i) for i in ids])
+        return tahiti_service.query_tahiti(
+            base_url=url,
+            item_path="/source-codes",
+            item_id=None,
+            token=token,
+            qs=f"ids={ids}",
+        )
