@@ -296,5 +296,38 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="col-md-12">
+                <h2>{{ _('Resultados auditoria: Métricas complementares') }} </h2>
+            </div>
+            <div class="col-md-12 justified">
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 300px">Acurácia</th>
+                        <td>
+			    Avalia a proporção de previsões corretas em relação ao total de previsões realizadas pelo modelo. 
+			</td>
+                    </tr>
+                </table>
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th align="left">Valor atributo</th>
+                            <th align="left">Resultado</th>
+                            <th align="left">Descrição</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {%- for row in data %}
+                        <tr>
+                            <td>{{row[row['attribute']]}}</td>
+                            <td>{{"%.2f"|format(row['accuracy'])}}</td>
+			    <td>{{"%.0f"|format(row['accuracy']*100)}}% dos {{row[row['attribute']]}} classificados pelo modelo estão corretos em relação a proporção total de previsões corretas (positivas e negativas) do grupo.
+			    </td>
+                        </tr>
+                        {%- endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
