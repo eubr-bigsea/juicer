@@ -1,0 +1,39 @@
+from airflow import DAG
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from datetime import datetime, timedelta
+
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'start_date': datetime(2024, 7, 30),
+}
+
+dag = DAG(
+    '{{ dag_id }}',
+    default_args=default_args,
+    description='{{ dag_description }}',
+    schedule_interval=timedelta(days=1),
+)
+
+{% for task_id, code in workflow_codes.items() %}
+task_{{ loop.index }} = SparkSubmitOperator(
+    task_id='spark_submit_{{ task_id }}',
+    application='{{ code }}',
+    conn_id='spark_default',
+    executor_cores=4,
+    executor_memory='8g',
+    driver_memory='4g',
+    name='pyspark_{{ task_id }}_example',
+    verbose=True,
+    dag=dag,
+)
+
+{% if not loop.first %}
+task_{{ loop.index0 }}.set_downstream(task_{{ loop.index }})
+{% endif %}
+
+{% endfor %}

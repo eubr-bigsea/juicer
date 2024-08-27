@@ -369,6 +369,7 @@ class Transpiler(object):
 
         compiled_tmpl_dir = os.path.join(tempfile.gettempdir(), 'juicer')
         os.makedirs(compiled_tmpl_dir, exist_ok=True)
+        breakpoint()
         template_loader = jinja2.FileSystemLoader(
             searchpath=self.template_dir)
         precompiled_loader = jinja2.ModuleLoader(compiled_tmpl_dir)
