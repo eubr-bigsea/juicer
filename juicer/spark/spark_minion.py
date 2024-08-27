@@ -246,6 +246,7 @@ class SparkMinion(Minion):
 
     def _process_message_nb(self):
         # Get next message
+
         msg = self.state_control.pop_app_queue(self.app_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
@@ -428,7 +429,8 @@ class SparkMinion(Minion):
                             ])
                 if gp.get('lemonade.spark.dir'):
                     self.spark_dir = gp.get('lemonade.spark.dir')
-                    log.info('Setting SPARK_HOME={}', self.spark_dir)
+                    log.info(gettext.gettext('Setting SPARK_HOME={}').format(
+                        self.spark_dir))
                     os.environ['SPARK_HOME'] = self.spark_dir
                             # Find the Py4J version
                     py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/*.zip'
@@ -504,10 +506,8 @@ class SparkMinion(Minion):
                 log.warn(_('Minion is using the module name {}'.format(freeze)))
                 module_name = freeze
             else:
-                module_name = 'juicer_app_{}_{}_{}'.format(
-                    self.workflow_id,
-                    self.app_id,
-                    job_id)
+                module_name = \
+                    f'juicer_app_{self.workflow_id}_{self.app_id}_{job_id}'
 
             generated_code_path = os.path.join(
                     self.tmp_dir, module_name + '.py')
@@ -962,7 +962,7 @@ class SparkMinion(Minion):
         self.self_terminate = False
         log.info('Minion finished')
 
-        # Kill remaining processes 
+        # Kill remaining processes
         parent_pid = os.getppid()
         process_group_id = os.getpgid(os.getpid())
         os.killpg(process_group_id, signal.SIGKILL)

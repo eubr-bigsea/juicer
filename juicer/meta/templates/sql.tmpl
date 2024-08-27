@@ -77,7 +77,7 @@ def execute_cell_{{cell.order}}(spark_session, context, emit):
     # Allow to send messages to user interface
     notify = functools.partial(
         emit, name='user message',
-        status='RUNNING', type='TEXT',
+        status='RUNNING', type='USER',
         identifier='{{cell.task.id}}',
         task={'id': '{{cell.task.id}}'},
     )
@@ -192,12 +192,12 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             status='COMPLETED', identifier='{{cell.task.id}}')
         {%- endif %}
         {%- endfor %}
-
+        {%- if transpiler.get_app_config('job_type') != 'BATCH' %}
         if results and results[-1][0].columns:
             task_id = results[-1][1]
             dataframe_util.emit_sample_data_explorer(
                 task_id, results[-1][0], emit_event, 'output')
-
+        {%- endif %}
         return cached_state
 
     except Exception as e:

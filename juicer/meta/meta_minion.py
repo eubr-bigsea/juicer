@@ -270,6 +270,7 @@ class MetaMinion(Minion):
         # print(loader.workflow, loader.graph.nodes())
         #loader.workflow['disabled_tasks'] = []
         # print('-' * 20)
+
         self.transpiler.target_platform = target_platform
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
@@ -313,7 +314,6 @@ class MetaMinion(Minion):
             self.target_minion = SparkMinion(
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
-
         self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
     def _execute_model_builder(self, job_id, workflow, app_configs,
@@ -354,7 +354,7 @@ class MetaMinion(Minion):
         loader = Workflow(workflow, self.config, lang=self.current_lang)
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
-
+        self.transpiler.configuration['app_configs'] = app_configs
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
                                   persist=app_configs.get('persist'))
@@ -377,9 +377,9 @@ class MetaMinion(Minion):
             'type': juicer_protocol.EXECUTE,
             'cluster': cluster_info
         })
+
         self.target_minion.state_control.push_app_queue(self.app_id, msg)
         self.target_minion._process_message()
-        ##self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
     def _execute_target_workflow(self, job_id, workflow, app_configs,
                                  cluster_info=None):
