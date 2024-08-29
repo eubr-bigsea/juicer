@@ -9,7 +9,6 @@ from juicer.jobs.code_gen import generate
 
 from gettext import translation
 from io import StringIO
-
 '''
 def convert_lemonade_to_python(workflow_id):
     config_path = 'conf/juicer-config.yaml'
@@ -75,48 +74,33 @@ def convert_lemonade_to_python(workflow_id):
         raise
         #raise Exception(f"Erro ao gerar código: {str(e)}")
 '''
-
 def convert_lemonade_to_python(workflow_id):
     config_path = 'conf/juicer-config.yaml'
+    os.environ['JUICER_CONF'] = config_path
     
-    with open(config_path) as config_file:
-        juicer_config = yaml.load(config_file.read(), Loader=yaml.FullLoader)
+    with open(config_path, 'r') as config_file:
+        config = yaml.load(config_file, Loader=yaml.FullLoader)
     
-    locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
-    lang = 'pt'  
-    t = translation('messages', locales_path, [lang], fallback=True)
-    t.install()
+    template_name = 'python code'
+    lang = 'pt'
+    result = generate(workflow_id, template_name, config, lang)
+    if result['code'] == '':
+        print("An error occurred while generating the code")
+    else:
+        current_directory = os.getcwd()
+        output_directory = os.path.join(current_directory, 'workflows')
+        if not os.path.exists(output_directory):
+            os.makedirs(output_directory)
+    
+        output_file_path = os.path.join(output_directory, f'workflow_{workflow_id}.py')
+        with open(output_file_path, 'w') as code_file:
+            code_file.write(result['code'])
 
-    template_name = 'codigo python'
-    
-    try:
-        result = generate(
-            workflow_id=workflow_id,
-            template_name=template_name,
-            lang=lang
-        )
-        
-        if result['status'] == 'OK':
-            generated_code = result['code']
+            print(f"Code saved in: {output_file_path}")
 
-            current_directory = os.getcwd()
-            output_directory = os.path.join(current_directory, 'workflows')
-            if not os.path.exists(output_directory):
-                os.makedirs(output_directory)
-            
-            output_file_path = os.path.join(output_directory, f'{workflow_id}.py')
-
-            with open(output_file_path, 'w') as code_file:
-                code_file.write(generated_code)
-
-            print(f"Código salvo em: {output_file_path}")
-            return output_file_path
-        else:
-            raise 
+        return output_file_path
     
-    except Exception as e:
-        raise 
-    
+
 def generate_dag(pipeline_id, pipeline_description, workflows):
 
     current_working_dir = os.getcwd()
@@ -158,7 +142,7 @@ pipeline_data = fetch_pipeline_from_api(pipeline_api_url, headers=headers)
 #workflow_id = 813  
 #workflow_id = 742  
 
-#codigo_python = convert_lemonade_to_python(workflow_id)
+#codigo_python = convert_lemonade_to_python02(workflow_id)
 #print(codigo_python)
 
 if pipeline_data['status'] == 'OK' and pipeline_data['data']:

@@ -411,6 +411,9 @@ class Transpiler(object):
             elif workflow_type in ('DATA_EXPLORER', 'VIS_BUILDER'):
                 template = template_env.get_template(self.get_meta_template())
             elif workflow_type in ('SQL', ):
+                #line added for insert forms at env_setup
+                if 'forms' not in env_setup['workflow']:
+                    env_setup['workflow']['forms'] = {}
                 template = template_env.get_template(self.get_sql_template())
             elif workflow_type == 'BATCH':
                 template = template_env.get_template(self.get_batch_template())
