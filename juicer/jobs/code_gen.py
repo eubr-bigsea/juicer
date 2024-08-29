@@ -22,11 +22,11 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 
-def generate(workflow_id, template_name, lang='en'):
+def generate(workflow_id, template_name, config, lang='en'):
     juicer_config = {}
     result = {}
     # import pdb; pdb.set_trace()
-
+    # breakpoint()
     locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
     t = translation('messages', locales_path, [lang],
                     fallback=True)
@@ -42,6 +42,7 @@ def generate(workflow_id, template_name, lang='en'):
                       False,
                       {},
                       juicer_config,
+                      config,
                       out=out,
                       export_notebook=template_name == 'notebook',
                       plain=template_name == 'python', lang=lang)
@@ -50,11 +51,11 @@ def generate(workflow_id, template_name, lang='en'):
         except Exception as e:
             result['status'] = 'ERROR'
             result['message'] = str(e)
+            print("errroooo")
 
     else:
         result['status'] = 'ERROR'
         result['message'] = gettext('Server is not correctly configured.')
-
     return result
 
 
@@ -81,6 +82,7 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         export_notebook,
         plain
     )
+
     tahiti_conf = config['juicer']['services']['tahiti']
     if json_file is None:
         resp = query_tahiti(base_url=tahiti_conf['url'],
@@ -99,12 +101,17 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
 
     ops, slug_to_op_id, port_id_to_port = _get_lookups(
         tahiti_conf, workflow_id, resp, lang)
+    
     try:
         if loader.platform['slug'] == "spark":
-            from juicer.spark.transpiler import SparkTranspiler
+            '''from juicer.spark.transpiler import SparkTranspiler
+            print("spark")
 
             transpiler = SparkTranspiler(configuration.get_config(),
-                                         slug_to_op_id, port_id_to_port)
+                                         slug_to_op_id, port_id_to_port)'''
+            from juicer.meta.transpiler import MetaTranspiler
+            transpiler = MetaTranspiler(configuration.get_config())
+            print("spark02")
         elif loader.platform['slug'] == "compss":
             from juicer.compss.transpiler import COMPSsTranspiler
             transpiler = COMPSsTranspiler(configuration.get_config())
@@ -125,7 +132,6 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         else:
             raise ValueError(
                 gettext('Invalid platform value: {}').format(loader.platform))
-
         params['execute_main'] = execute_main
         transpiler.execute_main = execute_main
         if loader.platform['slug'] == 'meta' and from_meta:
@@ -135,7 +141,6 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             targets = {'spark': {'id': 1, 'slug': 'spark'},
                        'scikit-learn': {'id': 4, 'slug': 'scikit-learn'}}
             loader.workflow['target_meta_platform'] = targets[from_meta]
-
             transpiler.transpile(
                 loader.workflow, loader.graph, params=params, deploy=deploy,
                 export_notebook=export_notebook, plain=plain, job_id=job_id,
@@ -175,7 +180,6 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
                 loader.workflow, loader.graph, params=params, deploy=deploy,
                 export_notebook=export_notebook, plain=plain, job_id=job_id,
                 out=out)
-
     except ValueError as ve:
         log.exception(
             gettext("At least one parameter is missing"), exc_info=ve)
@@ -231,11 +235,11 @@ if __name__ == "__main__":
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read(),
                                       Loader=yaml.FullLoader)
-    custom_vars = None
+    custom_vars = {'job_id': 9999}
     if args.vars:
         with open(args.vars) as vars_file:
-            custom_vars = yaml.load(vars_file.read(),
-                                    Loader=yaml.FullLoader)
+            custom_vars.extend(yaml.load(vars_file.read(),
+                                    Loader=yaml.FullLoader))
 
     _generate(args.workflow, args.job_id, args.execute_main,
               {"plain": args.plain},
