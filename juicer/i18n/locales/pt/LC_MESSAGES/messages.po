@@ -2105,7 +2105,7 @@ msgstr "{} não é um valor inteiro"
 
 #: juicer/scikit_learn/polars/vis_operation.py:72
 msgid "Invalid chart type: {}"
-msgstr "Tipo de máscara inválido: {}"
+msgstr "Tipo de gráfico inválido: {}"
 
 #: juicer/scikit_learn/polars/vis_operation.py:90
 msgid "Y-axis cannot include both values and aggregation functions"

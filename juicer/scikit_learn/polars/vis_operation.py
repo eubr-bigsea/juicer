@@ -38,7 +38,7 @@ class VisualizationOperation(Operation):
     AGGR = {"COUNTD": "n_unique"}
     CHART_MAP_TYPES = ("scattermapbox", "densitymapbox", "choropleth")
     SCATTER_FAMILY = ("scatter", "indicator", "bubble")
-    SUPPORTED_CHARTS = [
+    SUPPORTED_CHARTS = {
         "bar",
         "boxplot",
         "bubble",
@@ -59,12 +59,12 @@ class VisualizationOperation(Operation):
         "stacked-area-100",
         "stacked-bar",
         "stacked-horizontal-bar",
-        "sunburst"
+        "sunburst",
         "treemap",
         "violin",
         'densitymapbox',
         "choropleth"
-    ]
+        }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
