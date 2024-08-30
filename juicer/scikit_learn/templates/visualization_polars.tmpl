@@ -6,6 +6,9 @@
 df = df.sort('{{x_values[0].attribute}}')
 {%- for x in x_values %}
 col = pl.col('{{x.attribute}}')
+{%- if x.as_categorical %}
+df = df.with_columns([col.cast(pl.Utf8).cast(pl.Categorical)])
+{%- endif %}
 {%- if x.binning in ('FIXED_SIZE', 'EQUAL_INTERVAL') %}
 def round_str(col, n:int=2):
     """ Format number. See https://stackoverflow.com/a/75893046/1646932"""
