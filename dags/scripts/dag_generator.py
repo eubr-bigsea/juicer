@@ -84,6 +84,7 @@ def convert_lemonade_to_python(workflow_id):
     template_name = 'python code'
     lang = 'pt'
     result = generate(workflow_id, template_name, config, lang)
+    print(result)
     if result['code'] == '':
         print("An error occurred while generating the code")
     else:

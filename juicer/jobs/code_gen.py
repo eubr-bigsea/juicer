@@ -51,8 +51,6 @@ def generate(workflow_id, template_name, config, lang='en'):
         except Exception as e:
             result['status'] = 'ERROR'
             result['message'] = str(e)
-            print("errroooo")
-
     else:
         result['status'] = 'ERROR'
         result['message'] = gettext('Server is not correctly configured.')
@@ -93,6 +91,10 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         with open(json_file) as f:
             resp = json.loads(f.read().strip())
     loader = Workflow(resp, config, lang=lang)
+    #print(config)
+    print(loader.platform)
+    loader.platform['slug'] = "meta"
+    print(loader.platform)
     loader.handle_variables(custom_vars)
     if variant is not None:
         config['variant'] = variant
@@ -104,14 +106,14 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
     
     try:
         if loader.platform['slug'] == "spark":
-            '''from juicer.spark.transpiler import SparkTranspiler
+            from juicer.spark.transpiler import SparkTranspiler
             print("spark")
 
             transpiler = SparkTranspiler(configuration.get_config(),
-                                         slug_to_op_id, port_id_to_port)'''
+                                         slug_to_op_id, port_id_to_port)
+            '''
             from juicer.meta.transpiler import MetaTranspiler
-            transpiler = MetaTranspiler(configuration.get_config())
-            print("spark02")
+            transpiler = MetaTranspiler(configuration.get_config())'''
         elif loader.platform['slug'] == "compss":
             from juicer.compss.transpiler import COMPSsTranspiler
             transpiler = COMPSsTranspiler(configuration.get_config())
@@ -127,8 +129,10 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             factory = plugin_factories.get(loader.platform['id'])
             transpiler = factory.get_transpiler(configuration.get_config())
         elif loader.platform['slug'] == 'meta':
+            print("aquii")
             from juicer.meta.transpiler import MetaTranspiler
             transpiler = MetaTranspiler(configuration.get_config())
+            print("aqui2")
         else:
             raise ValueError(
                 gettext('Invalid platform value: {}').format(loader.platform))
