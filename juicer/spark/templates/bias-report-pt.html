@@ -304,9 +304,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Acurácia</th>
+                        <th>Acurácia</th>
                         <td>
-			    Avalia o desempenho geral do modelo, medindo a proporção de previsões corretas em relação ao total de previsões realizadas pelo modelo.  
+			    Avalia o desempenho geral do modelo, medindo a proporção de previsões corretas em relação ao total de previsões corretas (positivas e negativas) realizadas pelo modelo.  
 			</td>
                     </tr>
                 </table>
@@ -315,7 +315,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -323,8 +322,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['accuracy'])}}</td>
-			    <td>{{"%.0f"|format(row['accuracy']*100)}}% dos {{row[row['attribute']]}} classificados pelo modelo estão corretos em relação a proporção total de previsões corretas (positivas e negativas) do grupo.  
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -336,7 +333,7 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Precisão</th>
+                        <th>Precisão</th>
                         <td>
 			    Avalia a qualidade das previsões positivas do modelo, medindo a proporção de verdadeiros positivos em relação à soma de verdadeiros positivos e falsos positivos.   
 			</td>
@@ -347,7 +344,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -355,8 +351,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['pred_pos'])}}</td>
-			    <td>{{"%.0f"|format(row['pred_pos']*100)}}% dos {{row[row['attribute']]}} classificados pelo modelo estão corretos em relação as previsões corretas do grupo.
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -368,9 +362,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">F1-score</th>
+                        <th>F1-score</th>
                         <td>
-			    Avalia o desempenho geral do modelo, medindo a média harmônica entre a precisão e taxa de positivos verdadeiros.   
+			    Avalia o desempenho geral do modelo, medindo a média harmônica entre a precisão e taxa de positivos verdadeiros. Indica se o modelo é capaz de fazer boas previsões positivas e negativas do grupo. Além disso, se existe equilíbrio entre precisão e a taxa de positivos verdadeiros.  
 			</td>
                     </tr>
                 </table>
@@ -379,7 +373,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -387,8 +380,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['f1_score'])}}</td>
-			    <td>{{"%.0f"|format(row['f1_score']*100)}}% dos {{row[row['attribute']]}} indica se o modelo é capaz de fazer boas previsões positivas e negativas do grupo. Além disso, se existe equilíbrio entre precisão e a taxa de positivos verdadeiros. 
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -400,9 +391,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Prevalência</th>
+                        <th>Prevalência</th>
                         <td>
-			    Avalia a fração de entidades dentro de um grupo cujo resultado verdadeiro foi positivo.   
+			    Avalia a fração dentro do grupo cujo resultado verdadeiro estão corretos e pertencem ao grupo.   
 			</td>
                     </tr>
                 </table>
@@ -411,7 +402,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -419,8 +409,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['prev'])}}</td>
-			    <td>{{"%.0f"|format(row['prev']*100)}}% dos {{row[row['attribute']]}} classificados pelo modelo como verdadeiros estão corretos e pertencem ao grupo.   
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -432,9 +420,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Limiar de prevalência</th>
+                        <th>Limiar de prevalência</th>
                         <td>
-			    Avalia o ponto de corte ideal na curva de decisão do modelo que equilibra a taxa de falsos positivos e falsos negativos, levando em consideração a prevalência. Recomendado quando as classes estão desbalanceadas.  
+			    Avalia o ponto de corte ideal da curva de decisão do modelo que equilibra a taxa de falsos positivos e falsos negativos, levando em consideração a prevalência. Recomendado quando as classes estão desbalanceadas.  
 			</td>
                     </tr>
                 </table>
@@ -443,7 +431,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -451,8 +438,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['prev'])}}</td>
-			    <td>Todos os indivíduos do grupo de {{row[row['attribute']]}} com porcentagem estimada pelo modelo, superior a {{"%.0f"|format(row['prev']*100)}}% serão classificados como verdadeiros.   
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -464,9 +449,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Informação</th>
+			<th>Informação</th>
                         <td>
-			    Mede o quanto informado está o modelo em relação aos aspectos positivos e negativos. Varia de -1 a 1; -1: Indica um desempenho perfeito; 0: Indica um desempenho aleatório; 1: Indica desempenho inverso.
+			    Mede o quanto informado está o modelo em relação aos aspectos positivos e negativos. Indica se pode ser realizado melhorias no modelo em relação a taxa de positivos verdadeiros e na taxa de negativos verdadeiros do grupo. Varia de -1 a 1; -1: Desempenho perfeito; 0: Desempenho aleatório; 1: Desempenho inverso.
 			</td>
                     </tr>
                 </table>
@@ -475,7 +460,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -483,8 +467,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['informedness'])}}</td>
-			    <td>{{"%.2f"|format(row['informedness'])}} dos {{row[row['attribute']]}} indica que pode ser realizado melhorias no modelo em relação a taxa de positivos verdadeiros e na taxa de negativos verdadeiros do grupo.    
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -496,9 +478,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Marcação</th>
+                        <th>Marcação</th>
                         <td>
-			    Mede a confiabilidade das previsões positivas e negativas. Varia de -1 a 1; -1: Indica um desempenho perfeito; 0: Indica um desempenho aleatório; 1: Indica desempenho inverso.
+			    Mede a confiabilidade das previsões positivas e negativas. Indica se pode ser realizado melhorias no modelo em relação a precisão e negativos previstos do grupo. Varia de -1 a 1; -1: Desempenho perfeito; 0: Desempenho aleatório; 1: Desempenho inverso.
 			</td>
                     </tr>
                 </table>
@@ -507,7 +489,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -515,8 +496,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['markedness'])}}</td>
-			    <td>{{"%.2f"|format(row['markedness'])}} dos {{row[row['attribute']]}} indica que pode ser realizado melhorias no modelo em relação a precisão e negativos previstos do grupo.    
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -528,7 +507,7 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Razão de verossimilhança positiva (LR+)</th>
+                        <th>Razão de verossimilhança positiva (LR+)</th>
                         <td>
 			    Mede o quanto mais provável é que um resultado seja positivo em um teste de diagnóstico  em comparação a um resultado negativo. 
 			</td>
@@ -539,7 +518,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -547,8 +525,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['pos_likelihood_ratio'])}}</td>
-			    <td>{{"%.2f"|format(row['pos_likelihood_ratio'])}} significa que a probabilidade de um {{row[row['attribute']]}} ser reincidente é {{"%.2f"|format(row['pos_likelihood_ratio'])}} vezes maior em relação aos não reincidentes do grupo.    
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -560,7 +536,7 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Razão de verossimilhança negativa (LR-)</th>
+                        <th>Razão de verossimilhança negativa (LR-)</th>
                         <td>
 			    Mede o quanto mais provável é que um resultado seja negativo em um teste de diagnóstico em comparação a um resultado positivo. 
 			</td>
@@ -571,7 +547,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -579,8 +554,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['neg_likelihood_ratio'])}}</td>
-			    <td>{{"%.2f"|format(row['neg_likelihood_ratio'])}} significa que a probabilidade de um {{row[row['attribute']]}} não ser reincidente é {{"%.2f"|format(row['neg_likelihood_ratio'])}} vezes menor em relação aos reincidentes do grupo.    
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -592,9 +565,9 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Razão de chances de diagnóstico (DOR)</th>
+                        <th>Razão de chances de diagnóstico (DOR)</th>
                         <td>
-			    Avalia a visão global da capacidade de discriminação entre (LR+) e (LR-).	
+			    Avalia a visão global da capacidade de discriminação entre (LR+) e (LR-). Quanto maior o valor desta métrica, melhor é a capacidade de discriminativa do modelo referente ao grupo.	
 			</td>
                     </tr>
                 </table>
@@ -603,7 +576,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -611,8 +583,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['dor'])}}</td>
-			    <td>{{"%.2f"|format(row['dor'])}} indica a capacidade moderada de discriminação entre as classes LR+ e LR-. Quanto maior o valor do DOR, melhor é a capacidade discriminativa do modelo referente ao grupo.
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -624,7 +594,7 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Índice de Jaccard</th>
+                        <th>Índice de Jaccard</th>
                         <td>
 			    Mede a similaridade entre dois conjuntos, dividindo o tamanho da interseção pelo tamanho da união dos conjuntos.
 			    Varia de 0 a 1; 1 indica uma concordância completa entre as previsões do modelo e os verdadeiros positivos; 0 indica nenhuma concordância.
@@ -636,7 +606,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -644,8 +613,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['jaccard_index'])}}</td>
-			    <td>{{"%.2f"|format(row['jaccard_index'])}} indica que metade das previsões positivas do modelo coincidem com os verdadeiros positivos do grupo.
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -657,7 +624,7 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Índice de Fowlkes-Mallows</th>
+                        <th>Índice de Fowlkes-Mallows</th>
                         <td>
 			    Mede a similaridade entre dois conjuntos, como o Índice de Jaccard, mas com uma formulação diferente.
 			    Varia de 0 a 1; 1 indica uma concordância completa entre as previsões do modelo e os verdadeiros positivos; 0 indica nenhuma concordância.
@@ -669,7 +636,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -677,8 +643,6 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['fowlkes_mallows_index'])}}</td>
-			    <td>{{"%.2f"|format(row['fowlkes_mallows_index'])}} indica uma boa concordância entre as  previsões positivas do modelo e os verdadeiros positivos do grupo.
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
@@ -690,7 +654,7 @@
             <div class="col-md-12 justified">
                 <table class="table table-sm">
                     <tr>
-                        <th style="width: 300px">Coeficiente de correlação Matthews</th>
+                        <th>Coeficiente de correlação Matthews</th>
                         <td>
 			    Ajuda a identificar a ineficácia do classificador na classificação, especialmente de amostras de classe negativa.
 			    Varia de -1 a +1; +1 indica previsão perfeita; -1 indica uma discordância completa entre as previsões do modelo e os resultados reais.
@@ -702,7 +666,6 @@
                         <tr>
                             <th align="left">Valor atributo</th>
                             <th align="left">Resultado</th>
-                            <th align="left">Descrição</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -710,15 +673,10 @@
                         <tr>
                             <td>{{row[row['attribute']]}}</td>
                             <td>{{"%.2f"|format(row['matthews_correlation_coefficient'])}}</td>
-			    <td>{{"%.2f"|format(row['matthews_correlation_coefficient'])}} indica uma boa correlação entre as previsões do modelo e os resultados de reincidência do grupo.
-			    </td>
                         </tr>
                         {%- endfor %}
                     </tbody>
                 </table>
             </div>
-
-
-
         </div>
     </div>
