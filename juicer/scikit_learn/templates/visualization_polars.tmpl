@@ -103,7 +103,7 @@ dimensions = [
     {#%- if x.decimal_places %}.round({{x.decimal_places}}){% endif %#},
     {%- endfor %}
 
-    {%- if op.subgraph and op.subgraph != '' %}
+    {%- if op.subgraph and op.subgraph.attribute != '' %}
     pl.col('{{op.subgraph.attribute}}'), # subgraph
     {%- endif %}
 
@@ -127,11 +127,19 @@ df = df.groupby(dimensions).agg(aggregations)
 df = df.select(aggregations)
 {%- endif %}
 {%- else %}
-# Test, not working!
+# Test, not working for all kind of charts!
 dimensions = [
     {%- for x in x_values %}
     pl.col('dim_{{loop.index0}}'),
     {%- endfor %}
+
+    {%- if op.subgraph and op.subgraph.attribute != '' %}
+    pl.col('{{op.subgraph.attribute}}'), # subgraph
+    {%- endif %}
+
+    {%- if op.animation and op.animation != '' %}
+    pl.col('{{op.animation.attribute}}'), # animation
+    {%- endif %}
 
     {%- if op.color_attribute and op.color_attribute.attribute %}
     pl.col('{{op.color_attribute.attribute}}'), # color
@@ -313,7 +321,10 @@ axis2 = [
       {%- endfor -%}
       ]
 {%- endif %}
-
+{%- if op.subgraph and op.subgraph.attribute != '' %}
+# Sort data by the subgraph "{{op.subgraph.attribute}}" column
+pandas_df = pandas_df.sort_values('{{op.subgraph.attribute}}', ascending=True)
+{%- endif %}
 fig = px.
     {%- if type in ('stacked-area-100', 'stacked-area') -%}
     area
@@ -380,7 +391,7 @@ fig = px.
         render_mode='svg',
         {%- endif %}
 
-        {%- if op.subgraph and op.subgraph != '' %}
+        {%- if op.subgraph and op.subgraph.attribute != '' %}
         facet_{{'row' if op.subgraph_orientation == 'v' else 'col'}}='{{op.subgraph.attribute}}',
         facet_col_wrap=4,
         {%- endif %}
@@ -504,7 +515,7 @@ fig = px.pie(pandas_df, values='aggr_0',
     {%- endif %}
     {%- if type == 'donut' %}hole={{op.hole * 0.01}},{% endif %}
     labels=labels,
-    {%- if op.subgraph and op.subgraph != '' %}
+    {%- if op.subgraph and op.subgraph.attribute != '' %}
     facet_{{'row' if op.subgraph_orientation == 'v' else 'col'}}='{{op.subgraph.attribute}}',
     facet_col_wrap=4,
     {%- endif %}
@@ -526,7 +537,7 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) and not op.aggregations %}
 fig = make_subplots(cols=1, rows={{op.y|length}},
-   subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
+   subplot_titles=[{%for y in op.y %}'{{y.attribute}}',{% endfor %}])
 
 {%- for y in op.literal %}
 fig.add_trace(
