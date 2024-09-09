@@ -94,9 +94,9 @@ class FairnessEvaluationOperation(Operation):
                     raise ValueError(gettext('Invalid column type: {{}}').format(
                     sensitive_column_dt))
 
-                evaluator = FairnessEvaluatorSql(sensitive_column='race', score_column='score', 
-                                                 label_column='label_value', baseline_column='Caucasian', 
-                                                 range_column=[0.8,1.25]  
+                evaluator = FairnessEvaluatorSql(sensitive_column='{sensitive}', score_column='score', 
+                                                 label_column='label_value', baseline_column='{baseline}', 
+                                                 range_column=[{tau},1/float({tau})]  
                                                 )
                 {input}.createOrReplaceTempView(evaluator.TABLE)
                 sql_result = spark_session.sql(evaluator.get_fairness_sql())
@@ -106,7 +106,7 @@ class FairnessEvaluationOperation(Operation):
 
                 headers = {headers}
 
-                rows = out_task_1.select('total_records', 'race', 'attribute', 'for', 'fdr', 'fpr', 'fnr', 
+                rows = out_task_1.select('total_records', '{sensitive}', 'attribute', 'for', 'fdr', 'fpr', 'fnr', 
                                          'pred_pos_ratio_g', 'pred_pos_ratio_k', 'group_size', 
                                          'fdr_disparity', 'fnr_disparity', 'for_disparity', 'fpr_disparity', 
                                          'pred_pos_ratio_k_disparity', 'pred_pos_ratio_g_disparity', 

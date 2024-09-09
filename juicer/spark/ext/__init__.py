@@ -361,7 +361,7 @@ class FairnessEvaluatorSql:
 	     SEVENTH_LEVEL AS (
   		SELECT *, 
          	      (pos_likelihood_ratio / neg_likelihood_ratio) AS dor -- diagnostic_odds_ratio
-  		FROM SIXTH_LEVEL ORDER BY race
+  		FROM SIXTH_LEVEL ORDER BY {self.sensitive_column}
 	     ),
              FAIRNESS_EVALUATION AS (
   	       SELECT *, CASE 
