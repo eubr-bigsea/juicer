@@ -51,7 +51,6 @@ def generate(workflow_id, template_name, config, lang='en'):
         except Exception as e:
             result['status'] = 'ERROR'
             result['message'] = str(e)
-            print("errroooo")
 
     else:
         result['status'] = 'ERROR'
@@ -94,6 +93,9 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             resp = json.loads(f.read().strip())
     loader = Workflow(resp, config, lang=lang)
     loader.handle_variables(custom_vars)
+    #line for test
+    #print(config)
+    loader.platform['slug'] = 'meta'
     if variant is not None:
         config['variant'] = variant
 
@@ -104,14 +106,15 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
     
     try:
         if loader.platform['slug'] == "spark":
-            '''from juicer.spark.transpiler import SparkTranspiler
-            print("spark")
+            from juicer.spark.transpiler import SparkTranspiler
 
             transpiler = SparkTranspiler(configuration.get_config(),
-                                         slug_to_op_id, port_id_to_port)'''
+                                         slug_to_op_id, port_id_to_port)
+            '''
             from juicer.meta.transpiler import MetaTranspiler
             transpiler = MetaTranspiler(configuration.get_config())
-            print("spark02")
+            '''
+            
         elif loader.platform['slug'] == "compss":
             from juicer.compss.transpiler import COMPSsTranspiler
             transpiler = COMPSsTranspiler(configuration.get_config())

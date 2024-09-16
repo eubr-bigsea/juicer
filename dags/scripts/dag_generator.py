@@ -9,6 +9,11 @@ from juicer.jobs.code_gen import generate
 
 from gettext import translation
 from io import StringIO
+
+import argparse
+from datetime import datetime
+
+
 '''
 def convert_lemonade_to_python(workflow_id):
     config_path = 'conf/juicer-config.yaml'
@@ -74,6 +79,7 @@ def convert_lemonade_to_python(workflow_id):
         raise
         #raise Exception(f"Erro ao gerar código: {str(e)}")
 '''
+'''
 def convert_lemonade_to_python(workflow_id):
     config_path = 'conf/juicer-config.yaml'
     os.environ['JUICER_CONF'] = config_path
@@ -99,8 +105,33 @@ def convert_lemonade_to_python(workflow_id):
             print(f"Code saved in: {output_file_path}")
 
         return output_file_path
-    
+'''
+def convert_lemonade_to_python(workflow_id,config_path,lang,output_workflow_dir):
 
+    config_path = 'conf/juicer-config.yaml'
+    os.environ['JUICER_CONF'] = config_path
+
+    with open(config_path, 'r') as config_file:
+        config = yaml.load(config_file, Loader=yaml.FullLoader)
+
+    template_name = 'python code'
+    lang = lang
+    result = generate(workflow_id, template_name, config, lang)
+
+    if result['code'] == '':
+        print("An error occurred while generating the code")
+        return None
+    else:
+        output_file_path = os.path.join(output_workflow_dir, f'workflow_{workflow_id}.py')
+        if not os.path.exists(output_workflow_dir):
+            os.makedirs(output_workflow_dir)
+
+        with open(output_file_path, 'w') as code_file:
+            code_file.write(result['code'])
+        print(f"Code saved in: {output_file_path}")
+        return output_file_path    
+
+'''
 def generate_dag(pipeline_id, pipeline_description, workflows):
 
     current_working_dir = os.getcwd()
@@ -115,14 +146,35 @@ def generate_dag(pipeline_id, pipeline_description, workflows):
         workflows=workflows
     )
 
-    dag_file_path = f"airflow/dags/dag_{pipeline_id}.py"
+    dag_file_path = f"dags/dag_{pipeline_id}.py"
     
     with open(dag_file_path, "w") as f:
         f.write(rendered_code)
 
     print(f"DAG gerada e salva em : {dag_file_path}")
+'''
+def generate_dag(pipeline_id, pipeline_description, workflows, pipeline_user_name, pipeline_user_login, output_dags_dir, start_date):
+    current_working_dir = os.getcwd()
+    templates_dir = os.path.join(current_working_dir, 'templates')
 
+    env = Environment(loader=FileSystemLoader(templates_dir))
+    template = env.get_template('dag_template.tmpl')
 
+    rendered_code = template.render(
+        pipeline_id=pipeline_id,
+        pipeline_description=pipeline_description,
+        pipeline_user_name=pipeline_user_name,
+        pipeline_user_login=pipeline_user_login,
+        workflows=workflows,
+        start_date = start_date
+    )
+
+    dag_file_path = os.path.join(output_dags_dir, f'dag_{pipeline_id}.py')
+    with open(dag_file_path, "w") as f:
+        f.write(rendered_code)
+
+    print(f"DAG generated and saved in: {dag_file_path}")
+'''
 def fetch_pipeline_from_api(pipeline_api_url, headers=None):
     response = requests.get(pipeline_api_url, headers=headers)
     if response.status_code == 200:
@@ -135,33 +187,86 @@ pipeline_api_url = 'https://dev.lemonade.org.br/api/v1/tahiti/pipelines/36'
 headers = {
     'x-auth-token': '123456',
 }
-
-pipeline_data = fetch_pipeline_from_api(pipeline_api_url, headers=headers)
-#print(pipeline_data)
-#python_code_path = convert_lemonade_to_python(742)
-#workflow_id = 813  
-#workflow_id = 742  
-
-#codigo_python = convert_lemonade_to_python02(workflow_id)
-#print(codigo_python)
-
-if pipeline_data['status'] == 'OK' and pipeline_data['data']:
-    pipeline = pipeline_data['data'][0]
-    pipeline_id = pipeline['id']
-    pipeline_description = pipeline['description']
-    #verificar mais informações que podem ser incorporadas da API
-    workflows = []
-    #converter cada workflow em código Python
-    #python_code_path = convert_lemonade_to_python(workflow_id) #teste
+'''
+def fetch_pipeline_from_api(pipeline_api_url, headers=None):
+    response = requests.get(pipeline_api_url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('status') == 'OK' and data.get('data'):
+            return data['data'][0]
+        else:
+            raise Exception("No valid pipeline found in API response.")
+    else:
+        raise Exception(f"Error accessing API: {response.status_code}")
     
-    #workflows.append({'id': workflow_id, 'python_file_path': python_code_path})
+def main(): 
+    parser = argparse.ArgumentParser()
     
-    for step in pipeline['steps']:
-        workflow_id = step['workflow']['id']
-        #print(workflow_id)
-        python_code_path = convert_lemonade_to_python(workflow_id)
-        workflows.append({'id': workflow_id, 'python_file_path': python_code_path})
+    parser.add_argument('--pipeline_id', type=int, required=True, help='API ID.')
+    parser.add_argument('--output_dags_dir', type=str, default='dags', help='DAGs output directory.')
+    parser.add_argument('--output_workflow_dir', type=str, default='workflows', help='Workflow code output directory.')
+    #parser.add_argument('--templates_dir', type=str, default='templates', help='Template airflow directory.')
+    parser.add_argument('--config_path', type=str, default='conf/juicer-config.yaml', help='Configuration file.')
+    parser.add_argument('--pipeline_api_url', type=str, default='https://dev.lemonade.org.br/api/v1/tahiti/pipelines/', help='Pipeline URL')
+    parser.add_argument('--pipeline_api_token', type=str, required=True, help='')
+    parser.add_argument('--lang', type=str, default='en', help='Minion messages language (i18n).')
+
+    args = parser.parse_args()
+
+    locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
+    t = translation('messages', locales_path, [args.lang], fallback=True)
+    t.install()
+
+    pipeline_api_full_url = f"{args.pipeline_api_url}{args.pipeline_id}"
     
-    generate_dag(pipeline_id, pipeline_description, workflows)#gera a DAG  com o jinja2
-else:
-    print("Nenhuma pipeline válida encontrada na resposta da API.")
+    headers = {
+        'x-auth-token': args.pipeline_api_token,
+    }
+    
+    try:
+        pipeline = fetch_pipeline_from_api(pipeline_api_full_url, headers=headers)
+        print(pipeline)
+        pipeline_id = pipeline['id']
+        pipeline_description = pipeline['description']
+        pipeline_user_name = pipeline['user_name']
+        pipeline_user_login = pipeline['user_login']
+        pipeline_time = pipeline['created']
+        start_date = datetime.fromisoformat(pipeline_time)
+
+        print(pipeline_user_name)
+        print(pipeline_user_login)
+        print(start_date)
+
+        workflows = []
+        for step in pipeline.get('steps', []):
+            workflow = step.get('workflow', {})
+            workflow_id = workflow.get('id')
+            if workflow_id:
+                python_code_path = convert_lemonade_to_python(
+                    workflow_id=workflow_id,
+                    config_path=args.config_path,
+                    lang=args.lang,
+                    output_workflow_dir=args.output_workflow_dir
+                )
+                if python_code_path:
+                    workflows.append({'id': workflow_id, 'python_file_path': python_code_path})
+        
+        if workflows:
+            generate_dag(
+                pipeline_id=pipeline_id,
+                pipeline_description=pipeline_description,
+                workflows=workflows,
+                pipeline_user_name = pipeline_user_name,
+                pipeline_user_login = pipeline_user_login,
+                output_dags_dir=args.output_dags_dir,
+                start_date = start_date
+            )
+        else:
+            print("No valid workflow was found for this pipeline.")
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+if __name__ == "__main__":
+    main()
+   

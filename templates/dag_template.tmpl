@@ -2,14 +2,15 @@ from airflow import DAG
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime, timedelta
 
+
 default_args = {
-    'owner': 'airflow',
+    'owner': '{{ pipeline_user_name }}',
     'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
+    'email_on_failure': '{{ pipeline_user_login }}',
+    'email_on_retry': '{{ pipeline_user_login }}',
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
-    'start_date': datetime(2024, 7, 30),
+    'start_date': datetime(2024, 9, 4),
 }
 
 dag = DAG(
