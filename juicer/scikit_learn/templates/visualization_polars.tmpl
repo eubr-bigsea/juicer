@@ -502,6 +502,10 @@ fig = px.imshow(
     text_auto=True, aspect='auto'
 )
 {%- elif op.pie_family %}
+{%- if op.subgraph and op.subgraph.attribute != '' %}
+# Sort data by the subgraph "{{op.subgraph.attribute}}" column
+pandas_df = pandas_df.sort_values('{{op.subgraph.attribute}}', ascending=True)
+{%- endif %}
 fig = px.pie(pandas_df, values='aggr_0',
     names='dim_0',
     {%- if op.blackWhite %}

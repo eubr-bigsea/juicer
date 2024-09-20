@@ -126,8 +126,12 @@ class CustomEncoder(json.JSONEncoder):
             return obj.isoformat()
         elif isinstance(obj, set):
             return default_encoder(list(obj))
-        elif np.isnan(obj):
-            return None
+        else:
+            try:
+                if np.isnan(obj):
+                    return None
+            except Exception:
+                pass
         return default_encoder(obj)
 
 
