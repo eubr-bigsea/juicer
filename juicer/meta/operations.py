@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import re
+import ast
 from collections import namedtuple
 from functools import reduce
 from gettext import gettext
@@ -410,12 +411,34 @@ class ExecutePythonOperation(MetaPlatformOperation):
         #code.append(indent(dedent(self.code), ' '*15, _not_first()))
         return '\n'.join(code)
 
+    def _validate_code_library(self, code):
+        try:
+            tree = ast.parse(code)
+            # Test the code is a function definition
+            for node in tree.body:
+                if not isinstance(node, ast.FunctionDef):
+                    raise ValueError(
+                        gettext(
+                            'Provided Python code is not a function definition. '
+                            'Code libraries must define Python functions.'
+                        ))
+            return True
+        except SyntaxError as se:
+            raise ValueError(
+                gettext(
+                    'Provided Python code has syntax error(s): '
+                    '{text}, line {l}, offset: {o} ').format(
+                    text=se.text, l=se.lineno, o=se.offset
+                ))
+
     def get_auxiliary_code(self):
         result = []
         if self.code_libraries:
             code_libraries = self._get_code_libraries().get('data')
             for library in code_libraries:
-                result.append(library.get('code', ''))
+                code = library.get('code', '')
+                self._validate_code_library(code)
+                result.append(code)
         return ['\n'.join(result)]
 
     def _get_code_libraries(self):
@@ -433,15 +456,7 @@ class ExecutePythonOperation(MetaPlatformOperation):
     def _validate_ast_code(self):
         try:
             import ast
-            tree = ast.parse(self.code)
-            # Test the code is a function definition
-            for node in tree.body:
-                if not isinstance(node, ast.FunctionDef):
-                    raise ValueError(
-                        gettext(
-                            'Provided Python code is not a function definition. '
-                            'Code libraries must define Python functions.'
-                        ))
+            ast.parse(self.code)
             return True
         except SyntaxError as se:
             raise ValueError(
