@@ -186,7 +186,11 @@ df = df.with_columns([
 labels = {
     'variable': 'Série',
     {%- for y in op.y[:op.y_limit] %}
+    {%- if op.aggregations %}
     'aggr_{{loop.index0}}':
+    {%- else %}
+    '{{y.attribute}}':
+    {%- endif %}
     {%- if y.label -%}
     '{{y.label}}',
     {%- elif op.aggregations -%}
@@ -206,7 +210,11 @@ df = df.sort(
     by=[
     {%- for x in x_values -%}
     {%- if x.sorting in ('Y_ASC', 'Y_DESC') -%}
+    {%- if op.aggregations %}
     'aggr_0',
+    {%- else %}
+    '{{op.literal[0].attribute}}',
+    {%- endif %}
     {%- elif x.binning in ('FIXED_SIZE', 'QUANTILES', 'EQUAL_INTERVAL') %}
     '_min_{{loop.index0}}',
     {%- else %}
@@ -314,6 +322,12 @@ axis1 = [{% for x in x_values %}'dim_{{loop.index0}}',{% endfor%}]
 axis2 = 'aggr_0'
 {%- elif op.y_limit == 1 and op.literal%}
 axis2 = '{{op.literal[0].attribute}}'
+{%- elif op.literal %}
+axis2 = [
+      {%- for y in op.y[:op.y_limit] -%}
+        '{{y.attribute}}',
+      {%- endfor -%}
+      ]
 {%- else %}
 axis2 = [
       {%- for y in op.y[:op.y_limit] -%}

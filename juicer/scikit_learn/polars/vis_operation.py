@@ -93,6 +93,11 @@ class VisualizationOperation(Operation):
             self.literal = [y for y in self.y if not y.get("aggregation")]
 
             if self.aggregations and self.literal:
+                raise ValueError(gettext(
+                    'It is not possible to combine aggregated columns '
+                    'and values without aggregation at the same time'))
+
+            if self.aggregations and self.literal:
                 raise(ValueError(gettext(
                     'Y-axis cannot include both values'
                      ' and aggregation functions')))
