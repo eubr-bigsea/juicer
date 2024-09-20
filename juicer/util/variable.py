@@ -74,7 +74,6 @@ def handle_variables(
             }
         )
 
-    breakpoint()
     if custom_vars:
         for name, value in custom_vars.items():
             if parse_date:

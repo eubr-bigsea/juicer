@@ -506,7 +506,10 @@ fig = px.imshow(
 # Sort data by the subgraph "{{op.subgraph.attribute}}" column
 pandas_df = pandas_df.sort_values('{{op.subgraph.attribute}}', ascending=True)
 {%- endif %}
-fig = px.pie(pandas_df, values='aggr_0',
+# {{op.aggregations}}
+fig = px.pie(
+    pandas_df,
+    values='{% if op.aggregations %}aggr_0{% else %}{{ op.y[0].attribute }}{% endif %}',
     names='dim_0',
     {%- if op.blackWhite %}
     color_discrete_sequence=n_colors(

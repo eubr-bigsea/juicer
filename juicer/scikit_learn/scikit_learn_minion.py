@@ -386,7 +386,8 @@ class ScikitLearnMinion(Minion):
             self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
-        self.message_processed('execute', workflow['id'], job_id, workflow)
+        # Deprecated: not used
+        # self.message_processed('execute', workflow['id'], job_id, workflow)
 
         return result
 
