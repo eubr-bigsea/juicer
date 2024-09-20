@@ -475,7 +475,6 @@ class SparkMinion(Minion):
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
         workflow_name = workflow.get('name', '')
-
         if code is None:
             loader = Workflow(workflow, self.config)
             loader.handle_variables({'job_id': job_id})

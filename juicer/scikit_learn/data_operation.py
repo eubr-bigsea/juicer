@@ -8,15 +8,15 @@ import datetime
 
 from juicer.operation import Operation
 from juicer.service import limonero_service
+from juicer.util.variable import handle_variables
 
-from urllib.request import urlopen
 from urllib.parse import urlparse, parse_qs
 from gettext import gettext
 
 class DataReaderOperation(Operation):
     __slots__ = [
         'data_source_id', 'has_code', 'header', 'infer_schema',
-        'metadata', 'mode', 'null_values', 'output', 'quote', 
+        'metadata', 'mode', 'null_values', 'output', 'quote',
         'sep', 'supports_cache',]
     HEADER_PARAM = 'header'
     SEPARATOR_PARAM = 'separator'
@@ -109,6 +109,13 @@ class DataReaderOperation(Operation):
         if self.metadata is None:
             self.metadata = limonero_service.get_data_source_info(
                 url, token, self.data_source_id)
+            # Expand variables
+            (self.metadata['url'],) = handle_variables(
+                None,
+                [self.metadata['url'],],
+                parameters['workflow']['expanded_variables'],
+                parse_date=False
+            )
             self.parameters['workflow']['data_source_cache'][
                 self.data_source_id] = self.metadata
         if not self.metadata.get('url'):
@@ -152,7 +159,7 @@ class DataReaderOperation(Operation):
                     parse_dates.append(attr['name'])
                 # elif attr['type'] == 'DECIMAL':
                     #    converters[attr['name']] = 'decimal.Decimal'
-        
+
                 data_type = mapping[attr['type']]
                 attributes.append([attr['name'], data_type])
 
@@ -217,7 +224,7 @@ class DataReaderOperation(Operation):
         self.header = self.metadata.get('is_first_line_header')
 
         attributes, converters, parse_dates, names = self.analyse_attributes(
-             self.LIMONERO_TO_PANDAS_DATA_TYPES, 
+             self.LIMONERO_TO_PANDAS_DATA_TYPES,
              self.metadata.get('attributes'))
 
         self.template = """
@@ -242,7 +249,7 @@ class DataReaderOperation(Operation):
         {%- if protect %}
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
         {%- elif parsed.scheme == 'hdfs'  %}
-        fs = pa.hdfs.connect(host='{{parsed.hostname}}', 
+        fs = pa.hdfs.connect(host='{{parsed.hostname}}',
             port={{parsed.port}},
             user='{{extra_params.get('user', parsed.username) or 'hadoop'}}')
         f = fs.open('{{parsed.path}}', 'rb')
@@ -274,12 +281,12 @@ class DataReaderOperation(Operation):
                                  error_bad_lines={{mode_failfast}})
         f.close()
         {%-   if header == 'infer' %}
-        {{output}}.columns = ['attr{{i}}'.format(i=i) 
+        {{output}}.columns = ['attr{{i}}'.format(i=i)
                         for i, _ in enumerate({output}.columns)]
         {%-   endif %}
         {%- elif format == 'TEXT' %}
         {{output}} = pd.read_table(
-            f, 
+            f,
             encoding='{{encoding}}',
             compression='infer',
             names = ['value'],
@@ -404,19 +411,19 @@ class SaveOperation(Operation):
             self.parameters['configuration']['juicer']['services']['limonero']
         url = '{}'.format(limonero_config['url'], self.mode)
         token = str(limonero_config['auth_token'])
-        
+
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
         if storage['type'] != 'HDFS':
             raise ValueError(_('Storage type not supported: {}').format(
                 storage['type']))
 
-        protect = (self.parameters.get('export_notebook', False) or 
+        protect = (self.parameters.get('export_notebook', False) or
              self.parameters.get('plain', False)) or self.plain
 
         if storage['url'].endswith('/'):
             storage['url'] = storage['url'][:-1]
-        
+
         final_url = (
             f'{storage["url"]}/limonero/user_data/' +
             f'{self.user["id"]}/{self.path.strip("/")}/'.replace('//', '/') +
@@ -442,7 +449,7 @@ class SaveOperation(Operation):
         self.template = """
             path = '{{path}}'
             {%- if scheme == 'hdfs' and not protect %}
-            fs = pa.hdfs.connect(host='{{hdfs_server}}', 
+            fs = pa.hdfs.connect(host='{{hdfs_server}}',
                                  port={{hdfs_port}},
                                  user='{{hdfs_user}}')
             exists = fs.exists(path)
@@ -471,7 +478,7 @@ class SaveOperation(Operation):
                             os.makedirs(parent_dir)
                     {%- endif %}
             else:
-                {%-if scheme == 'hdfs' and not protect %}    
+                {%-if scheme == 'hdfs' and not protect %}
                 fs.mkdir(os.path.dirname(path))
                 {%- elif scheme == 'file' %}
                 parent_dir = os.path.dirname(path)
@@ -479,7 +486,7 @@ class SaveOperation(Operation):
                 {%- else %}
                 pass
                 {%- endif%}
-            
+
             {%- if format == FORMAT_CSV %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
@@ -487,35 +494,35 @@ class SaveOperation(Operation):
                 s = StringIO()
                 {{input}}.to_csv(s, sep=str(','), mode='w',
                 header={{header}}, index=False, encoding='utf-8')
-                f.write(s.getvalue().encode())               
+                f.write(s.getvalue().encode())
             {%- elif scheme == 'file' or protect %}
             {{input}}.to_csv(path, sep=str(','), mode='w',
             header={{header}}, index=False, encoding='utf-8')
             {%- endif %}
-            
+
             {%- elif format == FORMAT_PARQUET %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import BytesIO
             with fs.open(path, 'wb') as f:
                 s = BytesIO()
                 {{input}}.to_parquet(s, engine='pyarrow')
-                f.write(s.getvalue())               
+                f.write(s.getvalue())
             {%- elif scheme == 'file' or protect %}
             {{input}}.to_parquet(path, engine='pyarrow')
             {%- endif %}
-            
+
             {%- elif format == FORMAT_JSON %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
             with fs.open(path, 'wb') as f:
                 s = StringIO()
                 {{input}}.to_json(s, orient='records')
-                f.write(s.getvalue().encode())             
+                f.write(s.getvalue().encode())
             {%- elif scheme == 'file' or protect %}
             {{input}}.to_json(path, orient='records')
             {%- endif %}
             {%- endif %}
-            
+
             {%-if not protect %}
             # Code to update Limonero metadata information
             from juicer.service.limonero_service import register_datasource

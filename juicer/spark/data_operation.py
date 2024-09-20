@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-
-
 import datetime
 import itertools
 import json
@@ -15,7 +12,7 @@ from juicer.operation import Operation
 from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
 from juicer.util.template_util import strip_accents
-
+from juicer.util.variable import handle_variables
 
 class DataReaderOperation(Operation):
     """
@@ -105,6 +102,13 @@ class DataReaderOperation(Operation):
         if self.metadata is None:
             self.metadata = limonero_service.get_data_source_info(
                 url, token, self.data_source_id)
+            # Expand variables
+            (self.metadata['url'],) = handle_variables(
+                None,
+                [self.metadata['url'],],
+                parameters['workflow']['expanded_variables'],
+                parse_date=False
+            )
             self.parameters['workflow']['data_source_cache'][
                 self.data_source_id] = self.metadata
 

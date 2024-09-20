@@ -16,6 +16,7 @@ from juicer.spark.data_operation import SaveOperation as SparkSaveOperation
 from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOperation
 from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
 from juicer.util.template_util import strip_accents
+from juicer.util.variable import handle_variables
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -2965,6 +2966,14 @@ class ConvertDataSourceFormat(BatchMetaOperation):
         token = str(limonero_config['auth_token'])
         metadata = limonero_service.get_data_source_info(
             url, token, self.data_source_id)
+        # Expand variables
+        (metadata['url'],) = handle_variables(
+            None,
+            [metadata['url'],],
+            parameters['workflow']['expanded_variables'],
+            parse_date=False
+        )
+
 
         if metadata.get('format') not in ('CSV', ):
             raise ValueError(

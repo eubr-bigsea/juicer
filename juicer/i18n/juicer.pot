@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2024-06-27 11:12-0300\n"
+"POT-Creation-Date: 2024-09-19 22:22-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -34,8 +34,8 @@ msgstr ""
 msgid "Method generate_code should be implemented in {} subclass"
 msgstr ""
 
-#: juicer/meta/operations.py:529 juicer/meta/operations.py:1801
-#: juicer/meta/operations.py:1804 juicer/operation.py:256
+#: juicer/meta/operations.py:547 juicer/meta/operations.py:1819
+#: juicer/meta/operations.py:1822 juicer/operation.py:256
 msgid "Missing required parameter: {}"
 msgstr ""
 
@@ -63,7 +63,7 @@ msgstr ""
 #: juicer/scikit_learn/clustering_operation.py:25
 #: juicer/scikit_learn/clustering_operation.py:207
 #: juicer/scikit_learn/data_operation.py:80
-#: juicer/scikit_learn/data_operation.py:377
+#: juicer/scikit_learn/data_operation.py:384
 #: juicer/scikit_learn/etl_operation.py:81
 #: juicer/scikit_learn/etl_operation.py:218
 #: juicer/scikit_learn/etl_operation.py:417
@@ -108,8 +108,8 @@ msgstr ""
 #: juicer/scikit_learn/text_operation.py:252
 #: juicer/scikit_learn/text_operation.py:259
 #: juicer/scikit_learn/text_operation.py:323
-#: juicer/spark/advanced_operation.py:33 juicer/spark/data_operation.py:74
-#: juicer/spark/data_operation.py:886 juicer/spark/data_operation.py:994
+#: juicer/spark/advanced_operation.py:33 juicer/spark/data_operation.py:71
+#: juicer/spark/data_operation.py:890 juicer/spark/data_operation.py:998
 #: juicer/spark/data_quality_operation.py:21 juicer/spark/etl_operation.py:95
 #: juicer/spark/etl_operation.py:201 juicer/spark/etl_operation.py:206
 #: juicer/spark/etl_operation.py:329 juicer/spark/etl_operation.py:643
@@ -134,12 +134,12 @@ msgstr ""
 #: juicer/spark/text_operation.py:363 juicer/spark/text_operation.py:370
 #: juicer/spark/trustworthy_operation.py:43
 #: juicer/spark/trustworthy_operation.py:49
-#: juicer/spark/validation_operation.py:49 juicer/spark/vis_operation.py:1504
-#: juicer/spark/vis_operation.py:1515 juicer/spark/vis_operation.py:1538
-#: juicer/spark/vis_operation.py:1546 juicer/spark/vis_operation.py:1554
-#: juicer/spark/vis_operation.py:1632 juicer/spark/vis_operation.py:1640
-#: juicer/spark/vis_operation.py:1648 juicer/spark/vis_operation.py:1697
-#: juicer/spark/vis_operation.py:1705 juicer/spark/vis_operation.py:1713
+#: juicer/spark/validation_operation.py:49 juicer/spark/vis_operation.py:1511
+#: juicer/spark/vis_operation.py:1522 juicer/spark/vis_operation.py:1545
+#: juicer/spark/vis_operation.py:1553 juicer/spark/vis_operation.py:1561
+#: juicer/spark/vis_operation.py:1639 juicer/spark/vis_operation.py:1647
+#: juicer/spark/vis_operation.py:1655 juicer/spark/vis_operation.py:1704
+#: juicer/spark/vis_operation.py:1712 juicer/spark/vis_operation.py:1720
 msgid "Parameter '{}' must be informed for task {}"
 msgstr ""
 
@@ -204,43 +204,43 @@ msgid ""
 msgstr ""
 
 #: juicer/compss/compss_minion.py:136 juicer/jobs/script_minion.py:202
-#: juicer/keras/keras_minion.py:178 juicer/meta/meta_minion.py:131
+#: juicer/keras/keras_minion.py:178 juicer/meta/meta_minion.py:130
 #: juicer/plugin/plugin_minion.py:145
 #: juicer/scikit_learn/scikit_learn_minion.py:140
-#: juicer/spark/spark_minion.py:276
+#: juicer/spark/spark_minion.py:277
 #, python-format
 msgid "Processing message %s for app %s"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:150 juicer/jobs/script_minion.py:279
-#: juicer/keras/keras_minion.py:242 juicer/meta/meta_minion.py:150
+#: juicer/keras/keras_minion.py:242 juicer/meta/meta_minion.py:149
 #: juicer/scikit_learn/scikit_learn_minion.py:160
-#: juicer/spark/spark_minion.py:364
+#: juicer/spark/spark_minion.py:365
 msgid "Running job with lang {}/{}"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:173 juicer/jobs/script_minion.py:302
-#: juicer/keras/keras_minion.py:257 juicer/meta/meta_minion.py:166
+#: juicer/keras/keras_minion.py:257 juicer/meta/meta_minion.py:167
 #: juicer/plugin/plugin_minion.py:180
 #: juicer/scikit_learn/scikit_learn_minion.py:179
-#: juicer/spark/spark_minion.py:391
+#: juicer/spark/spark_minion.py:392
 msgid "Execute message finished"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:179 juicer/jobs/script_minion.py:323
-#: juicer/keras/keras_minion.py:264 juicer/meta/meta_minion.py:186
+#: juicer/keras/keras_minion.py:264 juicer/meta/meta_minion.py:187
 #: juicer/plugin/plugin_minion.py:184
 #: juicer/scikit_learn/scikit_learn_minion.py:187
-#: juicer/spark/spark_minion.py:396
+#: juicer/spark/spark_minion.py:397
 #, python-format
 msgid "Terminate message received (job_id=%s)"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:183 juicer/jobs/script_minion.py:327
-#: juicer/keras/keras_minion.py:268 juicer/meta/meta_minion.py:190
+#: juicer/keras/keras_minion.py:268 juicer/meta/meta_minion.py:191
 #: juicer/plugin/plugin_minion.py:188
 #: juicer/scikit_learn/scikit_learn_minion.py:191
-#: juicer/spark/spark_minion.py:400
+#: juicer/spark/spark_minion.py:401
 #, python-format
 msgid "Terminate message received (app=%s)"
 msgstr ""
@@ -248,11 +248,11 @@ msgstr ""
 #: juicer/compss/compss_minion.py:191 juicer/compss/compss_minion.py:192
 #: juicer/jobs/script_minion.py:335 juicer/jobs/script_minion.py:336
 #: juicer/keras/keras_minion.py:273 juicer/keras/keras_minion.py:274
-#: juicer/meta/meta_minion.py:254 juicer/meta/meta_minion.py:256
+#: juicer/meta/meta_minion.py:255 juicer/meta/meta_minion.py:257
 #: juicer/plugin/plugin_minion.py:196 juicer/plugin/plugin_minion.py:197
 #: juicer/scikit_learn/scikit_learn_minion.py:199
 #: juicer/scikit_learn/scikit_learn_minion.py:200
-#: juicer/spark/spark_minion.py:408 juicer/spark/spark_minion.py:409
+#: juicer/spark/spark_minion.py:409 juicer/spark/spark_minion.py:410
 #, python-format
 msgid "Unknown message type %s"
 msgstr ""
@@ -260,35 +260,35 @@ msgstr ""
 #: juicer/compss/compss_minion.py:213 juicer/jobs/script_minion.py:364
 #: juicer/keras/keras_minion.py:302 juicer/plugin/plugin_minion.py:218
 #: juicer/scikit_learn/scikit_learn_minion.py:273
-#: juicer/spark/spark_minion.py:495
+#: juicer/spark/spark_minion.py:496
 msgid "Running job"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:303 juicer/jobs/script_minion.py:410
 #: juicer/keras/keras_minion.py:341 juicer/plugin/plugin_minion.py:260
 #: juicer/scikit_learn/scikit_learn_minion.py:316
-#: juicer/spark/spark_minion.py:561
+#: juicer/spark/spark_minion.py:560
 msgid "Job finished in {0:.2f}s"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:322 juicer/jobs/script_minion.py:429
 #: juicer/keras/keras_minion.py:362 juicer/plugin/plugin_minion.py:285
 #: juicer/scikit_learn/scikit_learn_minion.py:342
-#: juicer/spark/spark_minion.py:581
+#: juicer/spark/spark_minion.py:580
 msgid "Invalid or missing parameters: {}"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:350 juicer/jobs/script_minion.py:453
 #: juicer/jobs/script_minion.py:456 juicer/keras/keras_minion.py:386
-#: juicer/meta/meta_minion.py:175 juicer/meta/meta_minion.py:178
+#: juicer/meta/meta_minion.py:176 juicer/meta/meta_minion.py:179
 #: juicer/plugin/plugin_minion.py:313
 #: juicer/scikit_learn/scikit_learn_minion.py:381
-#: juicer/spark/spark_minion.py:605 juicer/spark/spark_minion.py:608
+#: juicer/spark/spark_minion.py:604 juicer/spark/spark_minion.py:607
 msgid "Unhandled error"
 msgstr ""
 
 #: juicer/compss/compss_minion.py:486 juicer/jobs/script_minion.py:610
-#: juicer/plugin/plugin_minion.py:434 juicer/spark/spark_minion.py:972
+#: juicer/plugin/plugin_minion.py:434 juicer/spark/spark_minion.py:970
 #, python-format
 msgid "Spark minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr ""
@@ -402,7 +402,7 @@ msgid "Only CSV files stored in HDFS can be converted"
 msgstr ""
 
 #: juicer/jobs/__init__.py:141 juicer/jobs/analyse_data_source.py:294
-#: juicer/util/dataframe_util.py:354
+#: juicer/util/dataframe_util.py:353
 msgid "Internal error"
 msgstr ""
 
@@ -429,7 +429,7 @@ msgstr ""
 #: juicer/jobs/analyse_data_source.py:269 juicer/keras/input_output_data.py:245
 #: juicer/keras/input_output_data.py:255 juicer/keras/input_output_data.py:267
 #: juicer/keras/input_output_data.py:383 juicer/keras/input_output_data.py:393
-#: juicer/keras/input_output_data.py:405 juicer/meta/operations.py:2945
+#: juicer/keras/input_output_data.py:405 juicer/meta/operations.py:2980
 msgid "Unsupported format: {}"
 msgstr ""
 
@@ -528,32 +528,32 @@ msgid "Pressed CTRL+C / SIGINT. Minion canceled the job."
 msgstr ""
 
 #: juicer/jobs/script_minion.py:187 juicer/keras/keras_minion.py:163
-#: juicer/spark/spark_minion.py:261
+#: juicer/spark/spark_minion.py:262
 msgid "Invalid message JSON: {}"
 msgstr ""
 
-#: juicer/jobs/script_minion.py:216 juicer/spark/spark_minion.py:291
+#: juicer/jobs/script_minion.py:216 juicer/spark/spark_minion.py:292
 msgid "Unsupported cluster type, it cannot run Spark applications."
 msgstr ""
 
 #: juicer/jobs/script_minion.py:226 juicer/keras/keras_minion.py:200
-#: juicer/spark/spark_minion.py:301
+#: juicer/spark/spark_minion.py:302
 msgid "Cluster configuration changed. Stopping previous cluster."
 msgstr ""
 
 #: juicer/jobs/script_minion.py:244 juicer/keras/keras_minion.py:216
-#: juicer/spark/spark_minion.py:320
+#: juicer/spark/spark_minion.py:321
 msgid "Error in general cluster parameters: {}"
 msgstr ""
 
 #: juicer/jobs/script_minion.py:358 juicer/keras/keras_minion.py:296
-#: juicer/spark/spark_minion.py:489
+#: juicer/spark/spark_minion.py:490
 msgid ""
 "Running job, but it requires allocation of cluster computers first and it"
 " takes time."
 msgstr ""
 
-#: juicer/jobs/script_minion.py:469 juicer/spark/spark_minion.py:621
+#: juicer/jobs/script_minion.py:469 juicer/spark/spark_minion.py:620
 msgid "Minion is configured to stop Spark after each execution"
 msgstr ""
 
@@ -722,7 +722,7 @@ msgstr ""
 
 #: juicer/keras/input_output_data.py:60 juicer/keras/input_output_data.py:167
 #: juicer/keras/input_output_data.py:300 juicer/keras/input_output_data.py:444
-#: juicer/keras/model.py:1101 juicer/scikit_learn/data_operation.py:116
+#: juicer/keras/model.py:1101 juicer/scikit_learn/data_operation.py:123
 msgid "Incorrect data source configuration (empty url)"
 msgstr ""
 
@@ -903,72 +903,73 @@ msgstr ""
 msgid "Parameter {} needs to be positive float."
 msgstr ""
 
-#: juicer/meta/meta_minion.py:211
+#: juicer/meta/meta_minion.py:212
 msgid "Analyse attribute message finished"
 msgstr ""
 
-#: juicer/meta/meta_minion.py:248
+#: juicer/meta/meta_minion.py:249
 msgid "Workflow exported (id = {}"
 msgstr ""
 
-#: juicer/meta/meta_minion.py:485
+#: juicer/meta/meta_minion.py:489
 #, python-format
 msgid "Meta minion (workflow_id=%s,app_id=%s) started (pid=%s)"
 msgstr ""
 
-#: juicer/meta/operations.py:188
+#: juicer/meta/operations.py:190
 msgid "Invalid value(s) for parameter: {}"
 msgstr ""
 
-#: juicer/meta/operations.py:380
+#: juicer/meta/operations.py:384
 msgid ""
 "Provided SQL code has syntax error(s): {text}, line {l}, offset: {o} "
 "({ctx}) "
 msgstr ""
 
-#: juicer/meta/operations.py:441
+#: juicer/meta/operations.py:424 juicer/meta/transpiler.py:251
 msgid ""
 "Provided Python code is not a function definition. Code libraries must "
 "define Python functions."
 msgstr ""
 
-#: juicer/meta/operations.py:448
+#: juicer/meta/operations.py:431 juicer/meta/operations.py:466
+#: juicer/meta/transpiler.py:259
 msgid "Provided Python code has syntax error(s): {text}, line {l}, offset: {o} "
 msgstr ""
 
-#: juicer/meta/operations.py:525
+#: juicer/meta/operations.py:543
 msgid "Invalid function {} in transformation"
 msgstr ""
 
-#: juicer/meta/operations.py:1328 juicer/meta/operations.py:1385
+#: juicer/meta/operations.py:1346 juicer/meta/operations.py:1403
 msgid "Read data"
 msgstr ""
 
-#: juicer/meta/operations.py:1542
+#: juicer/meta/operations.py:1560
 msgid "Invalid grid search strategy: {}"
 msgstr ""
 
-#: juicer/meta/operations.py:1836
+#: juicer/meta/operations.py:1854
 msgid "Invalid feature type '{}' for attribute '{}'."
 msgstr ""
 
-#: juicer/meta/operations.py:1841
+#: juicer/meta/operations.py:1859
 msgid "Invalid feature usage '{}' for attribute '{}'."
 msgstr ""
 
-#: juicer/meta/operations.py:1852
+#: juicer/meta/operations.py:1870
 msgid "Missing constant value for attribute '{}'."
 msgstr ""
 
-#: juicer/meta/operations.py:1965
+#: juicer/meta/operations.py:1983
 msgid "Invalid transformation '{}' for attribute '{}'."
 msgstr ""
 
-#: juicer/meta/operations.py:2822
+#: juicer/meta/operations.py:2845
 msgid "There is no series or none is enabled"
 msgstr ""
 
-#: juicer/meta/transpiler.py:203
+#: juicer/meta/transpiler.py:205
 msgid "No algorithm or algorithm parameter informed."
 msgstr ""
 
@@ -981,7 +982,7 @@ msgstr ""
 
 #: juicer/plugin/plugin_minion.py:277
 #: juicer/scikit_learn/scikit_learn_minion.py:334
-#: juicer/util/dataframe_util.py:1125
+#: juicer/util/dataframe_util.py:1126
 msgid "At least one input data source is not in the correct format."
 msgstr ""
 
@@ -1010,19 +1011,19 @@ msgstr ""
 msgid "Data type is not supported for masking: {}"
 msgstr ""
 
-#: juicer/runner/minion.py:47
+#: juicer/runner/minion.py:50
 msgid "Starting minion"
 msgstr ""
 
-#: juicer/runner/minion.py:48
+#: juicer/runner/minion.py:51
 msgid "(c) Lemonade - DCC UFMG"
 msgstr ""
 
-#: juicer/runner/minion.py:120
+#: juicer/runner/minion.py:123
 msgid "{type} is not supported (yet!)"
 msgstr ""
 
-#: juicer/runner/minion.py:124
+#: juicer/runner/minion.py:127
 msgid "Error running minion"
 msgstr ""
 
@@ -1101,42 +1102,42 @@ msgstr ""
 msgid "Forking minion %s."
 msgstr ""
 
-#: juicer/runner/server.py:349
+#: juicer/runner/server.py:350
 #, python-format
 msgid "Terminating (workflow_id=%s,app_id=%s)"
 msgstr ""
 
-#: juicer/runner/server.py:397
+#: juicer/runner/server.py:398
 msgid "Unable to launch minion: there is not available port for libprocess."
 msgstr ""
 
-#: juicer/runner/server.py:402
+#: juicer/runner/server.py:403
 msgid "Watching minions events."
 msgstr ""
 
-#: juicer/runner/server.py:422
+#: juicer/runner/server.py:423
 msgid "Minion {} finished."
 msgstr ""
 
-#: juicer/runner/server.py:434
+#: juicer/runner/server.py:435
 msgid "There are messages to process in app {} queue, starting minion."
 msgstr ""
 
-#: juicer/runner/server.py:459
+#: juicer/runner/server.py:460
 msgid "Minion {} joined (pid: {}, port: {})."
 msgstr ""
 
-#: juicer/runner/server.py:468
+#: juicer/runner/server.py:469
 #, python-format
 msgid "Juicer server started (pid=%s)"
 msgstr ""
 
-#: juicer/runner/server.py:498
+#: juicer/runner/server.py:499
 #, python-format
 msgid "Terminating %s active minions"
 msgstr ""
 
-#: juicer/runner/server.py:511
+#: juicer/runner/server.py:512
 msgid "Killing juicer server subprocesses and terminating"
 msgstr ""
 
@@ -1548,57 +1549,57 @@ msgstr ""
 msgid "You must inform all input ports for this operation"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:192
-#: juicer/scikit_learn/data_operation.py:195
+#: juicer/scikit_learn/data_operation.py:199
+#: juicer/scikit_learn/data_operation.py:202
 msgid "Not supported"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:201
+#: juicer/scikit_learn/data_operation.py:208
 #: juicer/scikit_learn/duckdb/data_operation.py:70
 #: juicer/scikit_learn/polars/data_operation.py:72
-#: juicer/spark/data_operation.py:332
+#: juicer/spark/data_operation.py:336
 msgid "Database {} not supported"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:204
+#: juicer/scikit_learn/data_operation.py:211
 #: juicer/scikit_learn/duckdb/data_operation.py:73
 #: juicer/scikit_learn/polars/data_operation.py:75
-#: juicer/spark/data_operation.py:335
+#: juicer/spark/data_operation.py:339
 msgid "No command nor table specified for data source."
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:411
+#: juicer/scikit_learn/data_operation.py:418
 #: juicer/scikit_learn/duckdb/data_operation.py:242
 #: juicer/scikit_learn/model_operation.py:246
 #: juicer/scikit_learn/polars/data_operation.py:275
 msgid "Storage type not supported: {}"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:572
+#: juicer/scikit_learn/data_operation.py:579
 #: juicer/scikit_learn/duckdb/data_operation.py:408
 #: juicer/scikit_learn/polars/data_operation.py:255
-#: juicer/spark/data_operation.py:809
+#: juicer/spark/data_operation.py:813
 msgid "Data source generated by workflow {}"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:591
+#: juicer/scikit_learn/data_operation.py:598
 #: juicer/scikit_learn/duckdb/data_operation.py:426
-#: juicer/scikit_learn/polars/data_operation.py:467
-#: juicer/spark/data_operation.py:733
+#: juicer/scikit_learn/polars/data_operation.py:468
+#: juicer/spark/data_operation.py:737
 msgid "File already exists"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:592
+#: juicer/scikit_learn/data_operation.py:599
 #: juicer/scikit_learn/duckdb/data_operation.py:427
-#: juicer/scikit_learn/polars/data_operation.py:468
-#: juicer/spark/data_operation.py:734
+#: juicer/scikit_learn/polars/data_operation.py:469
+#: juicer/spark/data_operation.py:738
 msgid "File not written (already exists)"
 msgstr ""
 
-#: juicer/scikit_learn/data_operation.py:593
+#: juicer/scikit_learn/data_operation.py:600
 #: juicer/scikit_learn/duckdb/data_operation.py:428
-#: juicer/scikit_learn/polars/data_operation.py:469
-#: juicer/spark/data_operation.py:735
+#: juicer/scikit_learn/polars/data_operation.py:470
+#: juicer/spark/data_operation.py:739
 msgid "Invalid mode {}"
 msgstr ""
 
@@ -1917,50 +1918,50 @@ msgstr ""
 msgid "Method get_model_name should be implemented in {} subclass"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:377 juicer/spark/vis_operation.py:413
+#: juicer/scikit_learn/vis_operation.py:377 juicer/spark/vis_operation.py:420
 msgid "Incorrect data source configuration (empty url or not GEOJSON)"
 msgstr ""
 
 #: juicer/scikit_learn/vis_operation.py:439
-#: juicer/scikit_learn/vis_operation.py:453 juicer/spark/vis_operation.py:471
-#: juicer/spark/vis_operation.py:485
+#: juicer/scikit_learn/vis_operation.py:453 juicer/spark/vis_operation.py:478
+#: juicer/spark/vis_operation.py:492
 msgid "Should be implemented in derived classes"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:489 juicer/spark/vis_operation.py:530
+#: juicer/scikit_learn/vis_operation.py:489 juicer/spark/vis_operation.py:537
 msgid "X-axis attribute not specified"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:497 juicer/spark/vis_operation.py:543
+#: juicer/scikit_learn/vis_operation.py:497 juicer/spark/vis_operation.py:550
 msgid "Attribute {} for X-axis does not exist in ({})"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:500 juicer/spark/vis_operation.py:546
+#: juicer/scikit_learn/vis_operation.py:500 juicer/spark/vis_operation.py:553
 msgid "At least one attribute for Y-axis does not exist: {}"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:603 juicer/spark/vis_operation.py:673
+#: juicer/scikit_learn/vis_operation.py:603 juicer/spark/vis_operation.py:680
 msgid "The maximum number of values for x-axis is 100."
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:638 juicer/spark/vis_operation.py:707
+#: juicer/scikit_learn/vis_operation.py:638 juicer/spark/vis_operation.py:714
 msgid "Attribute {} does not exist in ({})"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:646 juicer/spark/vis_operation.py:715
+#: juicer/scikit_learn/vis_operation.py:646 juicer/spark/vis_operation.py:722
 msgid "Attribute {} for label does not exist in ({})"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:687 juicer/spark/vis_operation.py:759
+#: juicer/scikit_learn/vis_operation.py:687 juicer/spark/vis_operation.py:766
 msgid "The maximum number of values for this chart is 100."
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1039 juicer/spark/vis_operation.py:1092
+#: juicer/scikit_learn/vis_operation.py:1039 juicer/spark/vis_operation.py:1099
 #: juicer/util/dataframe_util.py:740
 msgid "attribute"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1039 juicer/spark/vis_operation.py:1093
+#: juicer/scikit_learn/vis_operation.py:1039 juicer/spark/vis_operation.py:1100
 msgid "count"
 msgstr ""
 
@@ -1972,17 +1973,17 @@ msgstr ""
 msgid "mean"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1041 juicer/spark/vis_operation.py:1092
+#: juicer/scikit_learn/vis_operation.py:1041 juicer/spark/vis_operation.py:1099
 #: juicer/util/dataframe_util.py:723
 msgid "min"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1041 juicer/spark/vis_operation.py:1092
+#: juicer/scikit_learn/vis_operation.py:1041 juicer/spark/vis_operation.py:1099
 #: juicer/util/dataframe_util.py:723
 msgid "max"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1042 juicer/spark/vis_operation.py:1092
+#: juicer/scikit_learn/vis_operation.py:1042 juicer/spark/vis_operation.py:1099
 msgid "std. dev."
 msgstr ""
 
@@ -2010,11 +2011,11 @@ msgstr ""
 msgid "iqr"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1045 juicer/spark/vis_operation.py:1094
+#: juicer/scikit_learn/vis_operation.py:1045 juicer/spark/vis_operation.py:1101
 msgid "skewness"
 msgstr ""
 
-#: juicer/scikit_learn/vis_operation.py:1045 juicer/spark/vis_operation.py:1095
+#: juicer/scikit_learn/vis_operation.py:1045 juicer/spark/vis_operation.py:1102
 msgid "kurtosis"
 msgstr ""
 
@@ -2061,11 +2062,11 @@ msgstr ""
 msgid "{} is not integer"
 msgstr ""
 
-#: juicer/scikit_learn/polars/vis_operation.py:72
+#: juicer/scikit_learn/polars/vis_operation.py:74
 msgid "Invalid chart type: {}"
 msgstr ""
 
-#: juicer/scikit_learn/polars/vis_operation.py:90
+#: juicer/scikit_learn/polars/vis_operation.py:96
 msgid "Y-axis cannot include both values and aggregation functions"
 msgstr ""
 
@@ -2121,13 +2122,13 @@ msgid "Error saving model: {})"
 msgstr ""
 
 #: juicer/service/limonero_service.py:104
-#: juicer/service/limonero_service.py:121
+#: juicer/service/limonero_service.py:122
 #, python-format
 msgid "Error saving data source in Limonero URL: %s (%s: %s)"
 msgstr ""
 
 #: juicer/service/limonero_service.py:106
-#: juicer/service/limonero_service.py:123
+#: juicer/service/limonero_service.py:124
 msgid "Error saving datasource: {})"
 msgstr ""
 
@@ -2293,37 +2294,37 @@ msgstr ""
 msgid "Unknown data type %s for field %s"
 msgstr ""
 
-#: juicer/spark/data_operation.py:176 juicer/spark/data_operation.py:1018
+#: juicer/spark/data_operation.py:180 juicer/spark/data_operation.py:1022
 msgid "Metadata do not include attributes information"
 msgstr ""
 
-#: juicer/spark/data_operation.py:302 juicer/spark/data_operation.py:653
+#: juicer/spark/data_operation.py:306 juicer/spark/data_operation.py:657
 msgid "Cluster is not configured for Hive Warehouse"
 msgstr ""
 
-#: juicer/spark/data_operation.py:406
+#: juicer/spark/data_operation.py:410
 msgid "Invalid anonymization type ({})"
 msgstr ""
 
-#: juicer/spark/data_operation.py:552
+#: juicer/spark/data_operation.py:556
 msgid "You must specify a name for new data source."
 msgstr ""
 
-#: juicer/spark/data_operation.py:557
+#: juicer/spark/data_operation.py:561
 msgid "You must specify a valid format."
 msgstr ""
 
-#: juicer/spark/data_operation.py:562
+#: juicer/spark/data_operation.py:566
 msgid "You must specify a storage for saving data."
 msgstr ""
 
-#: juicer/spark/data_operation.py:826
+#: juicer/spark/data_operation.py:830
 msgid ""
 "Data was written, but was not registered as a data source in Lemonade "
 "(unsupported)."
 msgstr ""
 
-#: juicer/spark/data_operation.py:983 juicer/spark/data_operation.py:988
+#: juicer/spark/data_operation.py:987 juicer/spark/data_operation.py:992
 msgid "Invalid value '{}' for parameter '{}'"
 msgstr ""
 
@@ -2635,7 +2636,7 @@ msgstr ""
 msgid "Coefficients"
 msgstr ""
 
-#: juicer/spark/ml_operation.py:3547 juicer/util/dataframe_util.py:1161
+#: juicer/spark/ml_operation.py:3547 juicer/util/dataframe_util.py:1162
 msgid "File already exists. Try to use options to overwrite it."
 msgstr ""
 
@@ -2679,28 +2680,32 @@ msgstr ""
 msgid "Tree"
 msgstr ""
 
-#: juicer/spark/spark_minion.py:504
+#: juicer/spark/spark_minion.py:432
+msgid "Setting SPARK_HOME={}"
+msgstr ""
+
+#: juicer/spark/spark_minion.py:505
 msgid "Minion is using the module name {}"
 msgstr ""
 
-#: juicer/spark/spark_minion.py:651
+#: juicer/spark/spark_minion.py:650
 msgid "Creating a new Spark session"
 msgstr ""
 
-#: juicer/spark/spark_minion.py:659
+#: juicer/spark/spark_minion.py:658
 msgid "Enabling HIVE Support"
 msgstr ""
 
-#: juicer/spark/spark_minion.py:671
+#: juicer/spark/spark_minion.py:670
 msgid "Enabling HIVE Warehouse Support"
 msgstr ""
 
-#: juicer/spark/spark_minion.py:680
+#: juicer/spark/spark_minion.py:679
 #, python-format
 msgid "Setting spark configuration %s"
 msgstr ""
 
-#: juicer/spark/spark_minion.py:770
+#: juicer/spark/spark_minion.py:769
 #, python-format
 msgid "Minion is using '%s' as Spark master"
 msgstr ""
@@ -2773,47 +2778,47 @@ msgstr ""
 msgid "Validation report"
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1093
+#: juicer/spark/vis_operation.py:1100
 msgid "avg"
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1094
+#: juicer/spark/vis_operation.py:1101
 msgid "approx. distinct"
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1094
+#: juicer/spark/vis_operation.py:1101
 msgid "missing"
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1099
+#: juicer/spark/vis_operation.py:1106
 msgid "correlation to {} (Pearson)"
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1213
+#: juicer/spark/vis_operation.py:1220
 msgid "Input attribute(s) must be informed for box plot."
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1389
+#: juicer/spark/vis_operation.py:1396
 msgid "Input attribute(s) must be informed for histogram."
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1402
+#: juicer/spark/vis_operation.py:1409
 msgid "Attribute {} must be numeric (actual: {})."
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1406
+#: juicer/spark/vis_operation.py:1413
 msgid "Attribute {} not found in input data."
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1441
+#: juicer/spark/vis_operation.py:1448
 msgid "Histogram"
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1481
+#: juicer/spark/vis_operation.py:1488
 msgid "Parameter delta must be informed if display delta option is enabled."
 msgstr ""
 
-#: juicer/spark/vis_operation.py:1491
+#: juicer/spark/vis_operation.py:1498
 msgid "Parameter value must be informed if display value option is enabled."
 msgstr ""
 
@@ -2825,38 +2830,38 @@ msgid ""
 "categorical attributes in the workflow."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:57
+#: juicer/util/dataframe_util.py:56
 msgid "Unsupported value \"{}\" for attribute \"{}\""
 msgstr ""
 
-#: juicer/util/dataframe_util.py:208 juicer/util/dataframe_util.py:229
+#: juicer/util/dataframe_util.py:207 juicer/util/dataframe_util.py:228
 msgid ""
 "Invalid input data for visualization. It should contains 2 (name, value) "
 "or 3 columns (id, name, value)."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:237 juicer/util/dataframe_util.py:267
+#: juicer/util/dataframe_util.py:236 juicer/util/dataframe_util.py:266
 msgid "Attribute"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:237 juicer/util/dataframe_util.py:267
+#: juicer/util/dataframe_util.py:236 juicer/util/dataframe_util.py:266
 msgid "Type"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:238
+#: juicer/util/dataframe_util.py:237
 msgid "Metadata (Spark)"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:244 juicer/util/dataframe_util.py:250
-#: juicer/util/dataframe_util.py:260 juicer/util/dataframe_util.py:272
-#: juicer/util/dataframe_util.py:278
+#: juicer/util/dataframe_util.py:243 juicer/util/dataframe_util.py:249
+#: juicer/util/dataframe_util.py:259 juicer/util/dataframe_util.py:271
+#: juicer/util/dataframe_util.py:277
 msgid "Schema for {}"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:310 juicer/util/dataframe_util.py:377
-#: juicer/util/dataframe_util.py:413 juicer/util/dataframe_util.py:419
-#: juicer/util/dataframe_util.py:565 juicer/util/dataframe_util.py:601
-#: juicer/util/dataframe_util.py:607
+#: juicer/util/dataframe_util.py:309 juicer/util/dataframe_util.py:376
+#: juicer/util/dataframe_util.py:412 juicer/util/dataframe_util.py:418
+#: juicer/util/dataframe_util.py:564 juicer/util/dataframe_util.py:600
+#: juicer/util/dataframe_util.py:606
 msgid "Sample data for {}"
 msgstr ""
 
@@ -2872,57 +2877,57 @@ msgstr ""
 msgid "median"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:902
+#: juicer/util/dataframe_util.py:903
 msgid "Analysis for attribute {}"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1013 juicer/util/dataframe_util.py:1084
+#: juicer/util/dataframe_util.py:1014 juicer/util/dataframe_util.py:1085
 msgid "Attribute {} not found. Valid attributes: {}"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1022
+#: juicer/util/dataframe_util.py:1023
 msgid ""
 "When using Window Operation with range type, the order by attribute must "
 "be numeric."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1028
+#: juicer/util/dataframe_util.py:1029
 msgid ""
 "When using Window Operation with range type, the order option must "
 "include only one attribute."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1033
+#: juicer/util/dataframe_util.py:1034
 msgid "Data source does not exist. It may have been deleted."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1039 juicer/util/dataframe_util.py:1045
+#: juicer/util/dataframe_util.py:1040 juicer/util/dataframe_util.py:1046
 msgid "Table or view not found: {}"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1061
+#: juicer/util/dataframe_util.py:1062
 msgid "Attribute {} not found."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1072
+#: juicer/util/dataframe_util.py:1073
 msgid "Attribute {attr} must be one of these types [{correct}], but it is {used}"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1095
+#: juicer/util/dataframe_util.py:1096
 msgid "Binomial family only supports 1 or 2 outcome classes but found {}"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1121
+#: juicer/util/dataframe_util.py:1122
 msgid "Invalid numeric data in at least one data source (value: {})"
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1130
+#: juicer/util/dataframe_util.py:1131
 msgid ""
 "There is null values in your data set and Spark cannot handle them. "
 "Please, remove them before applying a data transformation."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1137
+#: juicer/util/dataframe_util.py:1138
 msgid ""
 "Cannot read data from the data source. In this case, it may be a "
 "configuration problem with HDFS. Please, check if HDFS namenode is up and"
@@ -2930,17 +2935,17 @@ msgid ""
 "Juicer' config."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1145
+#: juicer/util/dataframe_util.py:1146
 msgid ""
 "You do not have permissions to read or write in the storage. Probably, it"
 " is a configuration problem. Please, contact the support."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1153
+#: juicer/util/dataframe_util.py:1154
 msgid "GBT classifier requires labels to be in [0, 1] range."
 msgstr ""
 
-#: juicer/util/dataframe_util.py:1171
+#: juicer/util/dataframe_util.py:1172
 msgid ""
 "CSV format does not support the data type {}. Try to convert the "
 "attribute to string (see to_json()) before saving."
@@ -2968,28 +2973,36 @@ msgstr ""
 msgid "Parameter task name is invalid."
 msgstr ""
 
-#: juicer/workflow/workflow.py:79
+#: juicer/util/variable.py:94
+msgid "Not all variables were expanded. Please, check informed values: {}"
+msgstr ""
+
+#: juicer/workflow/workflow.py:97
 msgid "Port '{}/{}' must be informed for operation{}"
 msgstr ""
 
-#: juicer/workflow/workflow.py:184
+#: juicer/workflow/workflow.py:203
 msgid "Invalid operation: {}"
 msgstr ""
 
-#: juicer/workflow/workflow.py:271
+#: juicer/workflow/workflow.py:290
 msgid "Task {task} uses an invalid or disabled operation ({op})"
 msgstr ""
 
-#: juicer/workflow/workflow.py:323
+#: juicer/workflow/workflow.py:342
 #, python-format
 msgid "Incorrect configuration for ports: %s, %s"
 msgstr ""
 
-#: juicer/workflow/workflow.py:325
+#: juicer/workflow/workflow.py:344
 msgid "Invalid or non-existing port: Operation: {op} ({s} {t})"
 msgstr ""
 
-#: juicer/workflow/workflow.py:547 juicer/workflow/workflow.py:623
+#: juicer/workflow/workflow.py:590
+msgid "Variable \"ref\" was not set"
+msgstr ""
+
+#: juicer/workflow/workflow.py:668
 msgid "Undefined variable \"{}\" used in task \"{}\""
 msgstr ""
 

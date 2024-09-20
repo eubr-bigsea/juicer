@@ -14,7 +14,7 @@ from juicer import auditing
 from juicer.operation import Operation
 from juicer.service import limonero_service
 from juicer.util import chunks
-from juicer.util import dataframe_util
+from juicer.util.variable import handle_variables
 from juicer.util.dataframe_util import get_csv_schema
 
 TRUE_VALS = [True, 1, '1']
@@ -408,6 +408,13 @@ class MapOperation(VisualizationMethodOperation):
 
             metadata = limonero_service.get_data_source_info(
                 url, token, parameters.get('polygon'))
+            (metadata['url'],) = handle_variables(
+                None,
+                [metadata['url'],],
+                parameters['workflow']['expanded_variables'],
+                parse_date=False
+            )
+
             if not metadata.get('url'):
                 raise ValueError(
                     _('Incorrect data source configuration (empty url or '
@@ -582,7 +589,7 @@ class BarChartModel(ChartVisualization):
         color_counter = 0
         limit = len(colors_palette)
         # for i, attr in enumerate(y_attrs):
-        #     #color = colors_palette[(i % limit) * (limit - 1) 
+        #     #color = colors_palette[(i % limit) * (limit - 1)
         #     #    + ((i // limit) % (limit -1))]
         #     color = colors_palette[i % limit]
         #     colors[attr.name] = {
@@ -644,7 +651,7 @@ class BarChartModel(ChartVisualization):
                 'name': row[x_attr.name],
                 'key': row[x_attr.name],
                 'values': [],
-                'orientation': orientation, 
+                'orientation': orientation,
             }
 
             data['log_x'] =  self.params.get('x_log_scale', False)
@@ -656,7 +663,7 @@ class BarChartModel(ChartVisualization):
                 data['color'] = COLORS_PALETTE[
                     (inx_row % 6) * 5 + ((inx_row // 6) % 5)]
 
-            result['barmode'] = ('stack' if 'stacked' 
+            result['barmode'] = ('stack' if 'stacked'
                 in self.params.get('display_mode', '') else 'group')
 
             result['data'].append(data)
@@ -678,7 +685,7 @@ class BarChartModel(ChartVisualization):
 
 class PieChartModel(ChartVisualization):
     """
-    In PieChartModel, x_attr contains the label and y_attrs[0] contains values 
+    In PieChartModel, x_attr contains the label and y_attrs[0] contains values
     """
 
     def __init__(self, data, task_id, type_id, type_name, title, column_names,
@@ -1718,7 +1725,7 @@ class TreemapModel(ChartVisualization):
 
         data = self.data.toPandas()
         labels, parents, values, colors = [], [], [], []
-        
+
         palette = self.params.get(self.COLOR_PALETTE_PARAM)
 
         for index, row in data.iterrows():
@@ -1738,7 +1745,7 @@ class TreemapModel(ChartVisualization):
             textinfo.append('percent parent')
 
         result = {
-            'branchvalues': 'total',     
+            'branchvalues': 'total',
             'type': 'treemap',
             'labels': labels,
             'parents': parents,

@@ -297,6 +297,7 @@ class SaveOperation(sk.SaveOperation):
             storage = limonero_service.get_storage_info(
                 url, token, original_ds.get('storage').get('id'))
             final_url = original_ds.get('url')
+            # TODO: Expand URL variables
             self.name = original_ds.get('name')
             self.description = original_ds.get('description')
             self.tags = (original_ds.get('tags') or '').split(',')

@@ -112,6 +112,7 @@ class Workflow(object):
                 if self.query_data_sources:
                     ds = next(self.query_data_sources())
                 else:
+                    # FIXME: Handle variables!
                     ds = limonero_service.get_data_source_info(
                         limonero_config['url'],
                         str(limonero_config['auth_token']),
@@ -582,6 +583,12 @@ class Workflow(object):
                 ...
             return data
 
+    def _handle_ref(self, value, fmt):
+        if value:
+            return value.strftime(fmt)
+        else:
+            raise ValueError(gettext('Variable "ref" was not set'))
+
     def handle_variables(self, custom_vars=None):
         """
         Handles variable substitution
@@ -615,7 +622,7 @@ class Workflow(object):
             # are associated to a lambda function
             '$date': lambda value, fmt: datetime.datetime.now().strftime(fmt),
             # $ref is a special variable, used by pipelines
-            '$ref': lambda value, fmt: value.strftime(fmt)
+            '$ref': self._handle_ref
         }
 
         if custom_vars:
@@ -661,3 +668,4 @@ class Workflow(object):
                                  gettext(
                                      'Undefined variable "{}" used in task "{}"'
                                      ).format(var_name, task['name']))
+        self.workflow['expanded_variables'] = all_vars
