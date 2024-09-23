@@ -789,7 +789,7 @@ fig = px.{{op.get_plotly_map_type()}}(
     {%- if op.hover_name %}
         hover_name='{{op.hover_name}}',{% endif %}
     {%- if op.hover_data %}
-        hover_data={{op.hover_data}},{% endif %}
+        hover_data={%if op.hover_data is string %}['{{op.hover_data}}']{%- else %}{{op.hover_data}}{% endif %},{% endif %}
     {%- if op.use_color_scale and op.color_scale %}
         color_continuous_scale={{op.color_scale}},{% endif %}
     {%- if op.use_discrete_colors and op.discrete_colors %}
