@@ -3,6 +3,7 @@
 {% macro prepare_x_axis(x_values) -%}
 # Prepare X-Axis values.
 #df = df.select(float(valor) for valor in '{{x_values[0].attribute}}')
+current_sort = ['{{x_values[0].attribute}}']
 df = df.sort('{{x_values[0].attribute}}')
 {%- for x in x_values %}
 col = pl.col('{{x.attribute}}')
@@ -170,6 +171,7 @@ tmp_df = (df.select('dim_0')
         )
 df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
     ['dim_0', 'dim_1']).fill_null(0)
+current_sort = ['dim_0', 'dim_1']
 {%- endmacro %}
 
 {%- macro fix_zeroes_in_chart(op) %}
@@ -206,8 +208,7 @@ labels = {
 {%- endmacro %}
 
 {%- macro handle_sort(op, x_values) %}
-df = df.sort(
-    by=[
+current_sort = [
     {%- for x in x_values -%}
     {%- if x.sorting in ('Y_ASC', 'Y_DESC') -%}
     {%- if op.aggregations %}
@@ -220,11 +221,16 @@ df = df.sort(
     {%- else %}
     'dim_{{loop.index0}}',
     {%- endif %}
-    {%- endfor %}],
+    {%- endfor %}
+]
+df = df.sort(
+    by=current_sort,
     descending=[
-    {%- for x in x_values -%}
-    {{ x.sorting == 'Y_DESC'}},
-    {%- endfor %}])
+        {%- for x in x_values -%}
+        {{ x.sorting == 'Y_DESC'}},
+        {%- endfor %}
+    ]
+)
 
 {%- endmacro %}
 
@@ -235,11 +241,12 @@ df = df.sort(
 # Limit the number of items to be displayed
 # Compute the top {{x.max_displayed}} item(s)
 
+current_sort = [{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
+        {%- else %}'{{y.attribute}}'
+        {%- endif %}]
 top_x_{{loop.index0}} = (df.groupby('{{x.attribute}}')
     .agg(pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}('{{y.attribute}}'))
-    .sort(by=[{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
-        {%- else %}'{{y.attribute}}'
-        {%- endif %}],  descending=[True])
+    .sort(by=current_sort,  descending=[True])
     .unique(subset='{{x.attribute}}', maintain_order=True)
     .limit({{x.max_displayed}})
     .collect().get_column('{{x.attribute}}').to_list())
@@ -271,6 +278,7 @@ df = df
 {%- endif -%}
 
 df = {{input}}.clone()
+current_sort = []
 {{ prepare_group_others(op, x_values, op.y) }}
 
 colors = {{op.discrete_colors}}
@@ -337,7 +345,9 @@ axis2 = [
 {%- endif %}
 {%- if op.subgraph and op.subgraph.attribute != '' %}
 # Sort data by the subgraph "{{op.subgraph.attribute}}" column
-pandas_df = pandas_df.sort_values('{{op.subgraph.attribute}}', ascending=True)
+pandas_df = pandas_df.sort_values(
+    ['{{op.subgraph.attribute}}'] + current_sort, 
+    ascending=[True, True])
 {%- endif %}
 fig = px.
     {%- if type in ('stacked-area-100', 'stacked-area') -%}
