@@ -11,7 +11,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from timeit import default_timer as timer
-
+from datetime import datetime
 import socketio
 from juicer.meta.transpiler import MetaTranspiler
 from juicer.runner import configuration
@@ -28,6 +28,12 @@ log = logging.getLogger('juicer.meta.meta_minion')
 
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            # Convert datetime to ISO 8601 format string
+            return obj.isoformat()
+        return super().default(obj)
 
 class MetaMinion(Minion):
     """
@@ -334,6 +340,10 @@ class MetaMinion(Minion):
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
 
+        # remove variables that contain function calls
+        workflow['expanded_variables'] = {k: v for k, v in
+            workflow.get('expanded_variables', {}).items() if not callable(v)}
+ 
         msg = json.dumps({
             'workflow_id': self.workflow_id,
             'app_id': self.app_id,
@@ -343,7 +353,7 @@ class MetaMinion(Minion):
             'code': code,
             'type': juicer_protocol.EXECUTE,
             'cluster': cluster_info
-        })
+        }, cls=DateTimeEncoder)
         self.target_minion.state_control.push_app_queue(self.app_id, msg)
         self.target_minion._process_message()
         #self.target_minion.perform_execute(job_id, workflow, app_configs, code)
@@ -367,7 +377,10 @@ class MetaMinion(Minion):
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
 
-        msg = json.dumps({
+        # remove variables that contain function calls
+        workflow['expanded_variables'] = {k: v for k, v in
+            workflow.get('expanded_variables', {}).items() if not callable(v)}
+        payload = {
             'workflow_id': self.workflow_id,
             'app_id': self.app_id,
             'job_id': job_id,
@@ -376,7 +389,8 @@ class MetaMinion(Minion):
             'code': code,
             'type': juicer_protocol.EXECUTE,
             'cluster': cluster_info
-        })
+        }
+        msg = json.dumps(payload, cls=DateTimeEncoder)
 
         self.target_minion.state_control.push_app_queue(self.app_id, msg)
         self.target_minion._process_message()

@@ -103,9 +103,9 @@ class DataReaderOperation(Operation):
             self.metadata = limonero_service.get_data_source_info(
                 url, token, self.data_source_id)
             # Expand variables
-            (self.metadata['url'],) = handle_variables(
+            (self.metadata['url'], self.metadata['sql']) = handle_variables(
                 None,
-                [self.metadata['url'],],
+                [self.metadata['url'], self.metadata['sql']],
                 parameters['workflow']['expanded_variables'],
                 parse_date=False
             )

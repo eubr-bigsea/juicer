@@ -47,7 +47,7 @@ def handle_variables(
     values: typing.List[str],
     custom_vars: typing.Dict = None,
     parse_date=True
-) -> None:
+) -> typing.List[str]:
     """
     Handles variable substitution
     FIXME: Refactoring code in workflow.py module to use this function
@@ -82,16 +82,19 @@ def handle_variables(
                     value = date_value
             all_vars[name] = value
     for value in values:
-        new_value = _replace(value, all_vars, VARIABLE_RE)
-        result.append(new_value)
-        missing = VARIABLE_NOT_REPLACED_RE.findall(new_value)
-        if missing:
-            raise ValueError(
-                gettext(
-                    "Not all variables were expanded. "
-                    "Please, check informed values: {}".format(
-                        ", ".join(missing)
+        if value is None:
+            result.append(None)
+        else:
+            new_value = _replace(value, all_vars, VARIABLE_RE)
+            result.append(new_value)
+            missing = VARIABLE_NOT_REPLACED_RE.findall(new_value)
+            if missing:
+                raise ValueError(
+                    gettext(
+                        "Not all variables were expanded. "
+                        "Please, check informed values: {}".format(
+                            ", ".join(missing)
+                        )
                     )
                 )
-            )
     return result
