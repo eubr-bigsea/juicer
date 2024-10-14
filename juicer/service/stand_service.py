@@ -10,14 +10,20 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+# FIXME: Does not work when the line has type hinting
+handle_protected = re.compile(
+    r'(.+?\s*[=:]\s*)([\'"])?(.+?)([\'"])?\s*([,])?\s*#\s*@HIDE_INFO@\s*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+
 
 def save_job_source_code(base_url, token, job_id, source):
     headers = {
         'X-Auth-Token': str(token),
         'Content-Type': 'application/json'
     }
-    handle_protected = re.compile(r'(.+?)\s*=\s*(.+?)\s*#protect (.+)')
-    final_source = handle_protected.sub(r'\1 = \3', source)
+    final_source = handle_protected.sub(
+        r'\1\2*******\4\5 # Protected.', source)
     url = '{}/jobs/{}/source-code'.format(base_url, job_id)
 
     r = requests.patch(url,
@@ -27,7 +33,7 @@ def save_job_source_code(base_url, token, job_id, source):
     if r.status_code == 200:
         return json.loads(r.text)
     else:
-        log.warn("Error saving source code in stand: HTTP %s %s  (%s)",
+        log.warning("Error saving source code in stand: HTTP %s %s  (%s)",
                 r.status_code, r.text, url)
         return {}
 

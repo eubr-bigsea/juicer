@@ -230,15 +230,13 @@ def get_cached_state(task_id, cached_state, emit_event, spark_session,
     return results
 
 def main(spark_session, cached_state, emit_event):
-    """ Run generated code """
+    """ Run the generated code """
 
     emit_cache = {}
     def cached_emit_event(*args, **kwargs):
-        if 'type' in kwargs:
-            msg_type = kwargs['type']
-            if msg_type in ['HTML', 'IMAGE', 'JSON']: # can be cached
-                task_id = kwargs.get('task').get('id')
-                emit_cache[task_id] = (args, kwargs)
+        if kwargs.get('type') in ['HTML', 'IMAGE', 'JSON']: # can be cached
+            task_id = kwargs.get('task').get('id')
+            emit_cache[task_id] = (args, kwargs)
 
         emit_event(*args, **kwargs)
 
