@@ -13,33 +13,39 @@ from juicer.util.variable import handle_variables
 from urllib.parse import urlparse, parse_qs
 from gettext import gettext
 
+
 class DataReaderOperation(Operation):
     __slots__ = [
-        'data_source_id', 'has_code', 'header', 'infer_schema',
-        'metadata', 'mode', 'null_values', 'output', 'quote',
-        'sep', 'supports_cache',]
-    HEADER_PARAM = 'header'
-    SEPARATOR_PARAM = 'separator'
-    QUOTE_PARAM = 'quote'
-    INFER_SCHEMA_PARAM = 'infer_schema'
-    NULL_VALUES_PARAM = 'null_values'  # Must be compatible with other platforms
-    MODE_PARAM = 'mode'
-    DATA_SOURCE_ID_PARAM = 'data_source'
+        "data_source_id",
+        "has_code",
+        "header",
+        "infer_schema",
+        "metadata",
+        "mode",
+        "null_values",
+        "output",
+        "quote",
+        "sep",
+        "supports_cache",
+    ]
+    HEADER_PARAM = "header"
+    SEPARATOR_PARAM = "separator"
+    QUOTE_PARAM = "quote"
+    INFER_SCHEMA_PARAM = "infer_schema"
+    NULL_VALUES_PARAM = "null_values"  # Must be compatible with other platforms
+    MODE_PARAM = "mode"
+    DATA_SOURCE_ID_PARAM = "data_source"
 
-    INFER_FROM_LIMONERO = 'FROM_LIMONERO'
-    INFER_FROM_DATA = 'FROM_VALUES'
-    DO_NOT_INFER = 'NO'
+    INFER_FROM_LIMONERO = "FROM_LIMONERO"
+    INFER_FROM_DATA = "FROM_VALUES"
+    DO_NOT_INFER = "NO"
 
-    OPT_MODE_FAILFAST = 'FAILFAST'
+    OPT_MODE_FAILFAST = "FAILFAST"
 
-    SEPARATORS = {
-        '{tab}': '\\t',
-        '{new_line}': '\\n',
-        '{empty}': ''
-    }
+    SEPARATORS = {"{tab}": "\\t", "{new_line}": "\\n", "{empty}": ""}
 
     SUPPORTED_DRIVERS = {
-        'mysql': dedent("""
+        "mysql": dedent("""
             import pymysql
             query = '{query}'
             connection = pymysql.connect(
@@ -54,22 +60,23 @@ class DataReaderOperation(Operation):
         """)
     }
     LIMONERO_TO_PANDAS_DATA_TYPES = {
-        "CHARACTER": 'object',
-        "DATETIME": 'object',
-        "DATE": 'datetime.date',
-        "DOUBLE": 'np.float64',
-        "DECIMAL": 'np.float64',
-        "FLOAT": 'np.float64',
-        "LONG": 'np.int64',
-        "INTEGER": 'pd.Int64Dtype()',
-        "TEXT": 'object',
+        "CHARACTER": "object",
+        "DATETIME": "object",
+        "DATE": "datetime.date",
+        "DOUBLE": "np.float64",
+        "DECIMAL": "np.float64",
+        "FLOAT": "np.float64",
+        "LONG": "np.int64",
+        "INTEGER": "pd.Int64Dtype()",
+        "TEXT": "object",
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
         self.has_code = any(
-            [len(self.named_outputs) > 0, self.contains_results()])
+            [len(self.named_outputs) > 0, self.contains_results()]
+        )
 
         self.header = False
         if self.has_code:
@@ -77,70 +84,95 @@ class DataReaderOperation(Operation):
                 self._set_data_source_parameters(parameters)
             else:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
-                        self.DATA_SOURCE_ID_PARAM, self.__class__.__name__))
+                    gettext(
+                        "Parameter '{}' must be informed for task {}"
+                    ).format(self.DATA_SOURCE_ID_PARAM, self.__class__.__name__)
+                )
 
             # Test if data source was changed since last execution and
             # invalidate cache if so.
             self._set_data_source_parameters(parameters)
-            data_source_updated = self.metadata.get('updated')
+            data_source_updated = self.metadata.get("updated")
 
             if data_source_updated:
                 data_source_updated = datetime.datetime.strptime(
-                    data_source_updated[0:19], '%Y-%m-%dT%H:%M:%S')
+                    data_source_updated[0:19], "%Y-%m-%dT%H:%M:%S"
+                )
             self.supports_cache = (
-                parameters.get('execution_date') is not None and
-                data_source_updated < parameters['execution_date'])
-            self.output = named_outputs.get('output data',
-                                            'out_task_{}'.format(self.order))
+                parameters.get("execution_date") is not None
+                and data_source_updated < parameters["execution_date"]
+            )
+            self.output = named_outputs.get(
+                "output data", "out_task_{}".format(self.order)
+            )
+            self.transpiler_utils.add_import("from pyarrow import fs")
 
     def _set_data_source_parameters(self, parameters):
-
         self.data_source_id = int(parameters[self.DATA_SOURCE_ID_PARAM])
         # Retrieve metadata from Limonero.
-        limonero_config = self.parameters['configuration']['juicer'][
-            'services']['limonero']
-        url = limonero_config['url']
-        token = str(limonero_config['auth_token'])
+        limonero_config = self.parameters["configuration"]["juicer"]["services"][
+            "limonero"
+        ]
+        url = limonero_config["url"]
+        token = str(limonero_config["auth_token"])
 
         # Is data source information cached?
-        self.metadata = self.parameters.get('workflow', {}).get(
-            'data_source_cache', {}).get(self.data_source_id)
+        self.metadata = (
+            self.parameters.get("workflow", {})
+            .get("data_source_cache", {})
+            .get(self.data_source_id)
+        )
         if self.metadata is None:
             self.metadata = limonero_service.get_data_source_info(
-                url, token, self.data_source_id)
-            # Expand variables
-            (self.metadata['url'], self.metadata['sql']) = handle_variables(
-                None,
-                [self.metadata['url'], self.metadata['sql']],
-                parameters['workflow']['expanded_variables'],
-                parse_date=False
+                url, token, self.data_source_id
             )
-            self.parameters['workflow']['data_source_cache'][
-                self.data_source_id] = self.metadata
-        if not self.metadata.get('url'):
+            # Expand variables
+            (self.metadata["url"], self.metadata["command"]) = handle_variables(
+                None,
+                [self.metadata["url"], self.metadata.get("command")],
+                parameters["workflow"]["expanded_variables"],
+                parse_date=False,
+            )
+            self.parameters["workflow"]["data_source_cache"][
+                self.data_source_id
+            ] = self.metadata
+        if not self.metadata.get("url"):
             raise ValueError(
-                _('Incorrect data source configuration (empty url)'))
+                gettext("Incorrect data source configuration (empty url)")
+            )
 
-        self.header = parameters.get(
-            self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
-        self.null_values = [v.strip() for v in parameters.get(
-            self.NULL_VALUES_PARAM, '').split(",") if v.strip()]
+        self.header = parameters.get(self.HEADER_PARAM, False) not in (
+            "0",
+            0,
+            "false",
+            False,
+        )
+        self.null_values = [
+            v.strip()
+            for v in parameters.get(self.NULL_VALUES_PARAM, "").split(",")
+            if v.strip()
+        ]
 
-        self.sep = parameters.get(
-            self.SEPARATOR_PARAM,
-            self.metadata.get('attribute_delimiter', ',')) or ','
-        if self.metadata['format'] == 'TEXT':
-            self.sep = '{empty}'
-        self.quote = parameters.get(self.QUOTE_PARAM,
-                                    self.metadata.get('text_delimiter'))
-        if self.quote == '\'':
-            self.quote = '\\\''
+        self.sep = (
+            parameters.get(
+                self.SEPARATOR_PARAM,
+                self.metadata.get("attribute_delimiter", ","),
+            )
+            or ","
+        )
+        if self.metadata["format"] == "TEXT":
+            self.sep = "{empty}"
+        self.quote = parameters.get(
+            self.QUOTE_PARAM, self.metadata.get("text_delimiter")
+        )
+        if self.quote == "'":
+            self.quote = "\\'"
         if self.sep in self.SEPARATORS:
             self.sep = self.SEPARATORS[self.sep]
-        self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
-                                           self.INFER_FROM_LIMONERO)
-        self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
+        self.infer_schema = parameters.get(
+            self.INFER_SCHEMA_PARAM, self.INFER_FROM_LIMONERO
+        )
+        self.mode = parameters.get(self.MODE_PARAM, "FAILFAST")
 
     def analyse_attributes(self, mapping, attrs):
         attributes = None
@@ -154,14 +186,14 @@ class DataReaderOperation(Operation):
             parse_dates = []
             names = []
             for attr in attrs:
-                names.append(attr['name'])
-                if attr['type'] == 'DATETIME':
-                    parse_dates.append(attr['name'])
+                names.append(attr["name"])
+                if attr["type"] == "DATETIME":
+                    parse_dates.append(attr["name"])
                 # elif attr['type'] == 'DECIMAL':
-                    #    converters[attr['name']] = 'decimal.Decimal'
+                #    converters[attr['name']] = 'decimal.Decimal'
 
-                data_type = mapping[attr['type']]
-                attributes.append([attr['name'], data_type])
+                data_type = mapping[attr["type"]]
+                attributes.append([attr["name"], data_type])
 
                 # Metadata is not supported in scikit-learn
                 # metadata = {'sources': [
@@ -171,61 +203,84 @@ class DataReaderOperation(Operation):
         return attributes, converters, parse_dates, names
 
     def generate_code(self):
-        """
-        """
+        """ """
         if not self.has_code:
-            return ''
+            return ""
 
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
         mode_failfast = self.mode == self.OPT_MODE_FAILFAST
-        protect = (self.parameters.get('export_notebook', False) or
-                   self.parameters.get('plain', False)) or self.plain
-        data_format = self.metadata.get('format')
+        protect = (
+            self.parameters.get("export_notebook", False)
+            or self.parameters.get("plain", False)
+        ) or self.plain
+        data_format = self.metadata.get("format")
 
-        parsed = urlparse(self.metadata['url'])
+        if self.metadata["storage"]["type"] == "S3":
+            parsed = urlparse(self.metadata["storage"]["url"].strip("/"))
+        else:
+            parsed = urlparse(self.metadata["url"])
 
         extra_params = {}
-        if 'extra_params' in self.metadata['storage']:
-            if self.metadata['storage']['extra_params']:
-                extra_params = json.loads(self.metadata['storage'][
-                    'extra_params'])
+        if "extra_params" in self.metadata["storage"]:
+            if self.metadata["storage"]["extra_params"]:
+                extra_params = json.loads(
+                    self.metadata["storage"]["extra_params"]
+                )
 
         # if self.metadata.get('privacy_aware', False):
         #    raise ValueError(_('Not supported'))
 
-        if parsed.scheme not in ('hdfs', 'file', 'mysql'):
-            raise ValueError(_('Not supported'))
+        if parsed.scheme not in ("hdfs", "file", "mysql", "http", "https"):
+            raise ValueError(
+                gettext("Scheme {} not supported").format(parsed.scheme)
+            )
 
-        if data_format not in ('CSV', 'TEXT', 'PARQUET', 'JDBC', 'JSON'):
-            raise ValueError(_('Not supported'))
+        if data_format not in (
+            "CSV",
+            "TEXT",
+            "PARQUET",
+            "JDBC",
+            "JSON",
+            "ICEBERG",
+        ):
+            raise ValueError(gettext("Not supported"))
 
-        if data_format == 'JDBC':
+        if data_format == "JDBC":
             qs_parsed = parse_qs(parsed.query)
             if parsed.scheme not in self.SUPPORTED_DRIVERS:
                 raise ValueError(
-                    _('Database {} not supported').format(parsed.scheme))
-            if not self.metadata.get('command'):
+                    gettext("Database {} not supported").format(parsed.scheme)
+                )
+            if not self.metadata.get("command"):
                 raise ValueError(
-                    _('No command nor table specified for data source.'))
+                    gettext("No command nor table specified for data source.")
+                )
 
-            jdbc_code = indent(dedent(self.SUPPORTED_DRIVERS[parsed.scheme].format(
-                scheme=parsed.scheme, host=parsed.hostname,
-                db=parsed.path[1:],
-                port=parsed.port,
-                query=self.metadata.get('command'),
-                user=qs_parsed.get('user', [''])[0],
-                password=qs_parsed.get('password', [''])[0],
-                out=self.output)), '    ')
+            jdbc_code = indent(
+                dedent(
+                    self.SUPPORTED_DRIVERS[parsed.scheme].format(
+                        scheme=parsed.scheme,
+                        host=parsed.hostname,
+                        db=parsed.path[1:],
+                        port=parsed.port,
+                        query=self.metadata.get("command"),
+                        user=qs_parsed.get("user", [""])[0],
+                        password=qs_parsed.get("password", [""])[0],
+                        out=self.output,
+                    )
+                ),
+                "    ",
+            )
         else:
             jdbc_code = None
 
-        self.header = self.metadata.get('is_first_line_header')
+        self.header = self.metadata.get("is_first_line_header")
 
         attributes, converters, parse_dates, names = self.analyse_attributes(
-             self.LIMONERO_TO_PANDAS_DATA_TYPES,
-             self.metadata.get('attributes'))
+            self.LIMONERO_TO_PANDAS_DATA_TYPES, self.metadata.get("attributes")
+        )
 
         self.template = """
         {%- if infer_from_limonero %}
@@ -249,10 +304,20 @@ class DataReaderOperation(Operation):
         {%- if protect %}
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
         {%- elif parsed.scheme == 'hdfs'  %}
-        fs = pa.hdfs.connect(host='{{parsed.hostname}}',
-            port={{parsed.port}},
-            user='{{extra_params.get('user', parsed.username) or 'hadoop'}}')
-        f = fs.open('{{parsed.path}}', 'rb')
+        file_system = fs.HadoopFileSystem(
+            host='{{parsed.hostname}}', #@HIDE_INFO@
+            port={{parsed.port}}, #@HIDE_INFO@
+            user='{{extra_params.get('user', parsed.username) or 'hadoop'}}'  #@HIDE_INFO@
+        )
+        f = file_system.open_input_file('{{parsed.path}}')
+        {%- elif meta['storage']['type'] == 'S3' %}
+        file_system = fs.S3FileSystem(
+            endpoint_override='{{meta['storage']['url']}}',  #@HIDE_INFO@
+            access_key='{{extra_params.access_key}}',  #@HIDE_INFO@
+            secret_key='{{extra_params.secret_key}}',  #@HIDE_INFO@
+            scheme='{{parsed.scheme}}'
+        )
+        f = file_system.open_input_file('{{meta['url'].strip('/')}}')
         {%- elif parsed.scheme == 'file' %}
         f = open('{{parsed.path}}', 'rb')
         {%- endif %}
@@ -308,28 +373,26 @@ class DataReaderOperation(Operation):
 
         """
         ctx = {
-            'attributes': attributes,
-            'parse_dates': parse_dates,
-            'names': names,
-            'converters': converters,
-
-            'infer_from_limonero': infer_from_limonero,
-            'infer_from_data': infer_from_data,
-            'do_not_infer': do_not_infer,
-            'is_first_line_header': self.header,
-
-            'protect': protect,  # Hide information about path
-            'parsed': parsed,
-            'extra_params': extra_params,
-            'format': data_format,
-            'encoding': self.metadata.get('encoding', 'utf-8') or 'utf-8',
-            'header': 0 if self.header else 'None',
-            'sep': self.sep,
-            'na_values': self.null_values if len(self.null_values) else 'None',
-            'output': self.output,
-            'mode_failfast': mode_failfast,
-
-            'jdbc_code': jdbc_code,
+            "attributes": attributes,
+            "parse_dates": parse_dates,
+            "names": names,
+            "converters": converters,
+            "infer_from_limonero": infer_from_limonero,
+            "infer_from_data": infer_from_data,
+            "do_not_infer": do_not_infer,
+            "is_first_line_header": self.header,
+            "protect": protect,  # Hide information about path
+            "parsed": parsed,
+            "extra_params": extra_params,
+            "format": data_format,
+            "encoding": self.metadata.get("encoding", "utf-8") or "utf-8",
+            "header": 0 if self.header else "None",
+            "sep": self.sep,
+            "na_values": self.null_values if len(self.null_values) else "None",
+            "output": self.output,
+            "mode_failfast": mode_failfast,
+            "jdbc_code": jdbc_code,
+            "meta": self.metadata,
         }
         return dedent(self.render_template(ctx))
 
@@ -338,56 +401,63 @@ class SaveOperation(Operation):
     """
     Saves the content of the DataFrame at the specified path.
     """
-    NAME_PARAM = 'name'
-    PATH_PARAM = 'path'
-    STORAGE_ID_PARAM = 'storage'
-    FORMAT_PARAM = 'format'
-    TAGS_PARAM = 'tags'
-    OVERWRITE_MODE_PARAM = 'mode'
-    HEADER_PARAM = 'header'
 
-    MODE_ERROR = 'error'
-    MODE_APPEND = 'append'
-    MODE_OVERWRITE = 'overwrite'
-    MODE_IGNORE = 'ignore'
+    NAME_PARAM = "name"
+    PATH_PARAM = "path"
+    STORAGE_ID_PARAM = "storage"
+    FORMAT_PARAM = "format"
+    TAGS_PARAM = "tags"
+    OVERWRITE_MODE_PARAM = "mode"
+    HEADER_PARAM = "header"
 
-    FORMAT_PICKLE = 'PICKLE'
-    FORMAT_CSV = 'CSV'
-    FORMAT_JSON = 'JSON'
-    FORMAT_PARQUET = 'PARQUET'
+    MODE_ERROR = "error"
+    MODE_APPEND = "append"
+    MODE_OVERWRITE = "overwrite"
+    MODE_IGNORE = "ignore"
 
-    USER_PARAM = 'user'
-    WORKFLOW_ID_PARAM = 'workflow_id'
-    WORKFLOW_VERSION_PARAM = 'workflow_version'
+    FORMAT_PICKLE = "PICKLE"
+    FORMAT_CSV = "CSV"
+    FORMAT_JSON = "JSON"
+    FORMAT_PARQUET = "PARQUET"
+
+    USER_PARAM = "user"
+    WORKFLOW_ID_PARAM = "workflow_id"
+    WORKFLOW_VERSION_PARAM = "workflow_version"
 
     PANDAS_TO_LIMONERO_DATA_TYPES = {
-        'object': "CHARACTER",
-        'datetime64[ns]': "DATETIME",
-        'float64': "DOUBLE",
-        'float32': "FLOAT",
-        'int64': "LONG",
-        'Int64': "INTEGER",
-        'int32': "INTEGER",
-        'int16': "INTEGER",
-        'int8': "INTEGER",
+        "object": "CHARACTER",
+        "datetime64[ns]": "DATETIME",
+        "float64": "DOUBLE",
+        "float32": "FLOAT",
+        "int64": "LONG",
+        "Int64": "INTEGER",
+        "int32": "INTEGER",
+        "int16": "INTEGER",
+        "int8": "INTEGER",
     }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.data_source_id = parameters.get('data_source_id')
+        self.data_source_id = parameters.get("data_source_id")
         if self.data_source_id is None:
-            for att in (self.NAME_PARAM, self.FORMAT_PARAM, self.PATH_PARAM,
-                    self.STORAGE_ID_PARAM):
+            for att in (
+                self.NAME_PARAM,
+                self.FORMAT_PARAM,
+                self.PATH_PARAM,
+                self.STORAGE_ID_PARAM,
+            ):
                 if att not in parameters:
                     raise ValueError(
-                        gettext("Parameter '{}' must be informed for task {}").format(
-                            att, self.__class__))
+                        gettext(
+                            "Parameter '{}' must be informed for task {}"
+                        ).format(att, self.__class__)
+                    )
 
         self.name = parameters.get(self.NAME_PARAM)
         self.tags = parameters.get(self.TAGS_PARAM)
         self.format = parameters.get(self.FORMAT_PARAM, self.FORMAT_CSV)
-        self.path = parameters.get(self.PATH_PARAM, '.')
+        self.path = parameters.get(self.PATH_PARAM, ".")
         self.mode = parameters.get(self.OVERWRITE_MODE_PARAM, self.MODE_ERROR)
         self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
 
@@ -395,57 +465,64 @@ class SaveOperation(Operation):
         self.workflow_id = parameters.get(self.WORKFLOW_ID_PARAM)
         self.workflow_version = parameters.get(self.WORKFLOW_VERSION_PARAM)
 
-        self.header = parameters.get(self.HEADER_PARAM, False) in (1, '1', True)
+        self.header = parameters.get(self.HEADER_PARAM, False) in (1, "1", True)
 
-        self.output = self.named_outputs.get('output data',
-                                             'output_data_{}'.format(
-                                                 self.order))
+        self.output = self.named_outputs.get(
+            "output data", "output_data_{}".format(self.order)
+        )
 
         self.filename = self.name
         self.has_code = len(self.named_inputs) == 1
-        self.transpiler_utils.add_import('import os')
+        self.transpiler_utils.add_import("import os")
 
     def generate_code(self):
-
-        limonero_config = \
-            self.parameters['configuration']['juicer']['services']['limonero']
-        url = '{}'.format(limonero_config['url'], self.mode)
-        token = str(limonero_config['auth_token'])
+        limonero_config = self.parameters["configuration"]["juicer"]["services"][
+            "limonero"
+        ]
+        url = limonero_config["url"]
+        token = str(limonero_config["auth_token"])
 
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
-        if storage['type'] != 'HDFS':
-            raise ValueError(_('Storage type not supported: {}').format(
-                storage['type']))
+        if storage["type"] != "HDFS":
+            raise ValueError(
+                gettext("Storage type not supported: {}").format(storage["type"])
+            )
 
-        protect = (self.parameters.get('export_notebook', False) or
-             self.parameters.get('plain', False)) or self.plain
+        protect = (
+            self.parameters.get("export_notebook", False)
+            or self.parameters.get("plain", False)
+        ) or self.plain
 
-        if storage['url'].endswith('/'):
-            storage['url'] = storage['url'][:-1]
+        if storage["url"].endswith("/"):
+            storage["url"] = storage["url"][:-1]
 
         final_url = (
-            f'{storage["url"]}/limonero/user_data/' +
-            f'{self.user["id"]}/{self.path.strip("/")}/'.replace('//', '/') +
-            f'{self.name.replace(" ", "_")}')
+            f'{storage["url"]}/limonero/user_data/'
+            + f'{self.user["id"]}/{self.path.strip("/")}/'.replace("//", "/")
+            + f'{self.name.replace(" ", "_")}'
+        )
 
-        if self.format == self.FORMAT_CSV and not final_url.endswith('.csv'):
-            final_url += '.csv'
-        elif self.format == self.FORMAT_JSON and not final_url.endswith(
-                '.json'):
-            final_url += '.json'
+        if self.format == self.FORMAT_CSV and not final_url.endswith(".csv"):
+            final_url += ".csv"
+        elif self.format == self.FORMAT_JSON and not final_url.endswith(".json"):
+            final_url += ".json"
         elif self.format == self.FORMAT_PARQUET and not final_url.endswith(
-                '.parquet'):
-            final_url += '.parquet'
+            ".parquet"
+        ):
+            final_url += ".parquet"
 
         parsed = urlparse(final_url)
 
-        df_input = self.named_inputs['input data']
-        extra_params = storage.get('extra_params') \
-            if storage.get('extra_params') is not None else "{}"
+        df_input = self.named_inputs["input data"]
+        extra_params = (
+            storage.get("extra_params")
+            if storage.get("extra_params") is not None
+            else "{}"
+        )
         extra_params = json.loads(extra_params)
 
-        hdfs_user = extra_params.get('user', parsed.username) or 'hadoop'
+        hdfs_user: str = extra_params.get("user", parsed.username) or "hadoop"
         self.template = """
             path = '{{path}}'
             {%- if scheme == 'hdfs' and not protect %}
@@ -567,40 +644,42 @@ class SaveOperation(Operation):
         """
         path = parsed.path
 
-        ctx = dict(protect=protect,
-                   path=path if not protect else os.path.basename(path),
-                   hdfs_server=parsed.hostname,
-                   hdfs_port=parsed.port,
-                   hdfs_user=hdfs_user,
-                   scheme=parsed.scheme,
-                   name=self.name,
-                   mode=self.mode,
-                   storage=self.storage_id,
-                   description=_('Data source generated by workflow {}').format(
-                       self.workflow_id),
-                   workflow_id=self.workflow_id,
-                   workflow_version=self.workflow_version,
-                   format=self.format,
-                   header=self.header,
-                   user_name=self.user['name'],
-                   user_id=self.user['id'],
-                   user_login=self.user['login'],
-                   tags=repr(self.tags),
-                   FORMAT_CSV=self.FORMAT_CSV,
-                   FORMAT_PICKLE=self.FORMAT_PICKLE,
-                   FORMAT_JSON=self.FORMAT_JSON,
-                   FORMAT_PARQUET=self.FORMAT_PARQUET,
-                   data_types=json.dumps(self.PANDAS_TO_LIMONERO_DATA_TYPES),
-                   final_url=final_url,
-                   input=df_input,
-                   token=token,
-                   url=url,
-                   error_file_exists=_('File already exists'),
-                   warn_ignored=_('File not written (already exists)'),
-                   error_invalid_mode=_('Invalid mode {}').format(self.mode),
-                   uuid=uuid.uuid4().hex,
-                   storage_url=storage['url'],
-                   task_id=self.parameters['task_id'],
-                   )
+        ctx = dict(
+            protect=protect,
+            path=path if not protect else os.path.basename(path),
+            hdfs_server=parsed.hostname,
+            hdfs_port=parsed.port,
+            hdfs_user=hdfs_user,
+            scheme=parsed.scheme,
+            name=self.name,
+            mode=self.mode,
+            storage=self.storage_id,
+            description=gettext("Data source generated by workflow {}").format(
+                self.workflow_id
+            ),
+            workflow_id=self.workflow_id,
+            workflow_version=self.workflow_version,
+            format=self.format,
+            header=self.header,
+            user_name=self.user["name"],
+            user_id=self.user["id"],
+            user_login=self.user["login"],
+            tags=repr(self.tags),
+            FORMAT_CSV=self.FORMAT_CSV,
+            FORMAT_PICKLE=self.FORMAT_PICKLE,
+            FORMAT_JSON=self.FORMAT_JSON,
+            FORMAT_PARQUET=self.FORMAT_PARQUET,
+            data_types=json.dumps(self.PANDAS_TO_LIMONERO_DATA_TYPES),
+            final_url=final_url,
+            input=df_input,
+            token=token,
+            url=url,
+            error_file_exists=gettext("File already exists"),
+            warn_ignored=gettext("File not written (already exists)"),
+            error_invalid_mode=gettext("Invalid mode {}").format(self.mode),
+            uuid=uuid.uuid4().hex,
+            storage_url=storage["url"],
+            task_id=self.parameters["task_id"],
+        )
 
         return dedent(self.render_template(ctx))

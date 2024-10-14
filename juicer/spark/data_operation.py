@@ -1,15 +1,13 @@
 import datetime
-import itertools
 import json
-import pprint
 import uuid
-from textwrap import dedent
+from gettext import gettext
+from textwrap import dedent, indent
 from urllib.parse import parse_qs, urlparse
-
+from typing import List
 from juicer import auditing
 from juicer.deploy import Deployment, DeploymentFlow, DeploymentTask
 from juicer.operation import Operation
-from juicer.privaaas import PrivacyPreservingDecorator
 from juicer.service import limonero_service
 from juicer.util.template_util import strip_accents
 from juicer.util.variable import handle_variables
@@ -60,7 +58,7 @@ class DataReaderOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = any(
+        self.has_code: bool = any(
             [len(self.named_outputs) > 0, self.contains_results()],)
 
         if self.has_code:
@@ -68,7 +66,7 @@ class DataReaderOperation(Operation):
                 self._set_data_source_parameters(parameters)
             else:
                 raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format(
+                    gettext("Parameter '{}' must be informed for task {}").format(
                         self.DATA_SOURCE_ID_PARAM, self.__class__))
 
             # Test if data source was changed since last execution and
@@ -86,6 +84,7 @@ class DataReaderOperation(Operation):
                                         'out_task_{}'.format(self.order))
         self.connection_factory_function_name = parameters.get(
                 'connection_factory_function_name')
+        self.schema_var: str = 'schema'
 
     def _set_data_source_parameters(self, parameters):
 
@@ -105,7 +104,7 @@ class DataReaderOperation(Operation):
             # Expand variables
             (self.metadata['url'], self.metadata['command']) = handle_variables(
                 None,
-                [self.metadata['url'], self.metadata.get('command')],
+                [self.metadata.get('url'), self.metadata.get('command')],
                 parameters['workflow']['expanded_variables'],
                 parse_date=False
             )
@@ -115,18 +114,18 @@ class DataReaderOperation(Operation):
         # URL can be empty for HIVE
         # if not self.metadata.get('url'):
         #    raise ValueError(
-        #        _('Incorrect data source configuration (empty url)'))
+        #        gettext('Incorrect data source configuration (empty url)'))
 
-        self.header = parameters.get(
+        self.header: bool = parameters.get(
             self.HEADER_PARAM, False) not in ('0', 0, 'false', False)
         self.null_values = [v.strip() for v in parameters.get(
             self.NULL_VALUES_PARAM, '').split(",")]
 
-        self.record_delimiter = self.metadata.get('record_delimiter')
-        self.sep = parameters.get(
+        self.record_delimiter: str = self.metadata.get('record_delimiter')
+        self.sep: str = parameters.get(
             self.SEPARATOR_PARAM,
             self.metadata.get('attribute_delimiter', ',')) or ','
-        self.quote = parameters.get(self.QUOTE_PARAM,
+        self.quote: str = parameters.get(self.QUOTE_PARAM,
                                     self.metadata.get('text_delimiter'))
         if self.quote == '\'':
             self.quote = '\\\''
@@ -134,34 +133,58 @@ class DataReaderOperation(Operation):
             self.sep = self.SEPARATORS[self.sep]
         self.infer_schema = parameters.get(self.INFER_SCHEMA_PARAM,
                                            self.INFER_FROM_LIMONERO)
-        self.mode = parameters.get(self.MODE_PARAM, 'FAILFAST')
-        self.use_hive_warehouse_connector = (
+        self.mode: str = parameters.get(self.MODE_PARAM, 'FAILFAST')
+        self.use_hive_warehouse_connector: bool = (
             self.metadata['storage']['type'] == 'HIVE_WAREHOUSE')
-        self.use_hdfs = (
+        self.use_hdfs: bool = (
             self.metadata['storage']['type'] == 'HDFS')
+        self.use_s3: bool = (
+            self.metadata['storage']['type'] == 'S3')
+
+        self.extra_options = {}
         if self.use_hive_warehouse_connector:
             self.transpiler_utils.add_import(
                 'from pyspark_llap import HiveWarehouseSession')
-        if self.use_hdfs:
+        elif self.use_hdfs:
             self.transpiler_utils.add_import('import os')
+        elif self.use_s3:
+            s3_url = self.metadata["storage"]["url"]
+            extra_params = json.loads(self.metadata["storage"]["extra_params"])
+            self.extra_options["fs.s3a.endpoint"] = (s3_url, True)
+            self.extra_options["fs.s3a.access.key"] = (
+                extra_params.get("access_key"),
+                True,
+            )
+            self.extra_options["fs.s3a.secret.key"] = (
+                extra_params.get("secret_key"),
+                True,
+            )
+            self.extra_options["fs.s3a.path.style.access"] = ("true", False)
+            self.extra_options["fs.s3a.impl"] = (
+                "org.apache.hadoop.fs.s3a.S3AFileSystem",
+                False,
+            )
 
     def generate_code(self):
 
-        # For now, just accept CSV files.
-        # Should we create a dict with the CSV info at Limonero?
-        # such as header and sep.
-        # print "\n\n",self.metadata,"\n\n"
         code = []
-        infer_from_data = self.infer_schema == self.INFER_FROM_DATA
-        infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
+        infer_from_data: bool = self.infer_schema == self.INFER_FROM_DATA
+        infer_from_limonero: bool = (
+            self.infer_schema == self.INFER_FROM_LIMONERO
+        )
+        read_options: List[str] = [
+            f'"{k}": "{v}", { "#@HIDE_INFO@" if p else ""}'
+            for k, (v, p) in self.extra_options.items()
+        ]
 
         if self.has_code:
+            is_hive: bool = (
+                self.metadata['format'] not in ['HIVE', 'HIVE_WAREHOUSE']
+            )
             date_format = "yyyy/MM/dd HH:mm:ss"
-            if infer_from_limonero and self.metadata['format'] not in [
-                    'HIVE', 'HIVE_WAREHOUSE']:
+            if infer_from_limonero and is_hive:
                 if 'attributes' in self.metadata:
-                    code.append(
-                        'schema_{0} = types.StructType()'.format(self.output))
+                    code.append(f'{self.schema_var} = types.StructType()')
                     attrs = self.metadata.get('attributes', [])
                     if attrs:
                         for attr in attrs:
@@ -171,25 +194,33 @@ class DataReaderOperation(Operation):
                                     "yyyy/MM/dd HH:mm:ss"
                     else:
                         code.append(
-                            "schema_{0}.add('value', "
-                            "types.StringType(), True, None)".format(self.output))
+                            f"{self.schema_var}.add('value', "
+                            "types.StringType(), True, None)")
 
                     code.append("")
                 else:
-                    raise ValueError(
-                        _("Metadata do not include attributes information"))
+                    raise ValueError(gettext(
+                        "Metadata do not include attributes information"))
             else:
-                code.append('schema_{0} = None'.format(self.output))
+                code.append(f'{self.schema_var} = None')
 
-            url = self.metadata['url']
+            url: str = self.metadata['url']
             if self.parameters.get('export_notebook', False) and False:
                 # Protect URL
                 url = 'hdfs://xxxxx:0000/path/name'
                 code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
-                # Multiple values not supported yet! See SPARK-17878
-                code.append(f"url = '/'.join({repr(url.split('/'))}) #protect 'Protected, please update'")
 
+                if self.metadata['storage']['type'] != 'S3':
+                    code.append(
+                        f"url = '/'.join({repr(url.split('/'))}) #@HIDE_INFO@")
+                else:
+                    code.append(f"url = 's3a://{url}' #@HIDE_INFO@")
+
+                code.append("read_options = { # These options are from storage")
+                for opt in read_options:
+                    code.append(f"{(4*' ')}{opt}")
+                code.append("}")
                 if self.metadata['storage'].get('extra_params'):
                     extra_params = json.loads(
                             self.metadata['storage']['extra_params'])
@@ -203,77 +234,77 @@ class DataReaderOperation(Operation):
                             code.append(
                                 f"os.environ['HADOOP_USER_NAME'] = '{user}'")
 
+                # Multiple values not supported yet! See SPARK-17878, SPARK-31747
                 null_values = self.null_values
                 if self.metadata.get('treat_as_missing'):
                     null_values.extend([x.strip() for x in self.metadata.get(
                         'treat_as_missing').split(',')])
                 null_option = ''.join(
-                    [".option('nullValue', '{}')".format(n) for n in
+                    [f".option('nullValue', '{n}')" for n in
                      set(null_values)]) if null_values else ""
 
                 if self.metadata['format'] == 'CSV':
-                    encoding = self.metadata.get('encoding', 'UTF-8') or 'UTF-8'
                     # Spark does not works with encoding + multiline options
                     # See https://github.com/databricks/spark-csv/issues/448
                     # And there is no way to specify record delimiter!!!!!
-
-                    code_csv = dedent("""
-                        {output} = spark_session.read{null_option}.option(
-                            'treatEmptyValuesAsNulls', 'true').option(
-                            'wholeFile', True).option(
-                                'multiLine', {multiline}).option('escape',
-                                    '"').option('timestampFormat', {date_fmt}
-                                    ).csv(
-                                url, schema=schema_{output},
+                    encoding: str = (
+                        self.metadata.get('encoding', 'UTF-8') or 'UTF-8'
+                    )
+                    header: bool = self.header or self.metadata.get(
+                            'is_first_line_header', False)
+                    quote: str = (
+                        "None" if self.quote is None else f"'{self.quote}'"
+                    )
+                    multiline:bool = encoding in ('UTF-8', 'UTF8', '')
+                    code_csv = dedent(f"""
+                        {self.output} = (spark_session.read{null_option}
+                            .option('treatEmptyValuesAsNulls', 'true')
+                            .option('wholeFile', True)
+                            .option('multiLine', {multiline})
+                            .option('escape','"')
+                            .option('timestampFormat', {repr(date_format)})
+                            .options(**read_options)
+                            .csv(
+                                url,
+                                schema={self.schema_var},
                                 quote={quote},
                                 ignoreTrailingWhiteSpace=True, # Handles \r
                                 encoding='{encoding}',
-                                header={header}, sep='{sep}',
-                                inferSchema={infer_schema},
-                                mode='{mode}')""".format(
-                        output=self.output,
-                        header=self.header or self.metadata.get(
-                            'is_first_line_header', False),
-                        sep=self.sep,
-                        date_fmt=repr(date_format),
-                        quote='None' if self.quote is None else "'{}'".format(
-                            self.quote),
-                        infer_schema=infer_from_data,
-                        null_option=null_option,
-                        mode=self.mode,
-                        encoding=encoding,
-                        multiline=encoding in ('UTF-8', 'UTF8', '')
-                    ))
+                                header={header},
+                                sep='{self.sep}',
+                                inferSchema={infer_from_data},
+                                mode='{self.mode}')
+                        )""")
                     code.append(code_csv)
                 else:
-                    code_csv = dedent("""
-                    schema_{output} = types.StructType()
-                    schema_{output}.add('value', types.StringType(), True)
-                    {output} = spark_session.read{null_option}.schema(
-                        schema_{output}).option(
-                        'treatEmptyValuesAsNulls', 'true').text(
-                            url)""".format(output=self.output,
-                                           null_option=null_option))
+                    code_csv = dedent(f"""
+                    {self.schema_var} = types.StructType()
+                    {self.schema_var}.add('value', types.StringType(), True)
+                    {self.output} = (spark_session.read{null_option}
+                        .schema({self.schema_var})
+                        .option('treatEmptyValuesAsNulls', 'true')
+                        .text(url)
+                    )""")
                     code.append(code_csv)
             elif self.metadata['format'] == 'PARQUET':
                 if self.infer_schema == 'NO_IF_PARQUET':
                     infer_from_data = True
                     infer_from_limonero = False
                 self._generate_code_for_parquet(code, infer_from_data,
-                                                infer_from_limonero)
+                                                infer_from_limonero,
+                                                read_options)
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
                 # parsed = urlparse(self.metadata['url'])
                 code_hive = self._get_hwc_code()
                 code.append(code_hive)
             elif self.metadata['format'] == 'JSON':
-                code_json = dedent("""
-                    schema_{output} = types.StructType()
-                    schema_{output}.add('value', types.StringType(), True)
-                    {output} = spark_session.read.option(
+                code_json = dedent(f"""
+                    {self.schema_var} = types.StructType()
+                    {self.schema_var}.add('value', types.StringType(), True)
+                    {self.output} = spark_session.read.option(
                         'treatEmptyValuesAsNulls', 'true').json(
-                        '{url}')""".format(output=self.output,
-                                           url=url))
+                        '{url}')""")
                 code.append(code_json)
                 # FIXME: Evaluate if it is good idea to always use cache
                 code.append('{}.cache()'.format(self.output))
@@ -283,11 +314,6 @@ class DataReaderOperation(Operation):
             elif self.metadata['format'] == 'JDBC':
                 self._generate_code_for_jdbc(code)
 
-        if self.metadata.get('privacy_aware', False):
-            restrictions = self.parameters['workflow'].get(
-                'privacy_restrictions', {}).get(self.data_source_id)
-            code.extend(self._apply_privacy_constraints(restrictions))
-
         code.append('{}.cache()'.format(self.output))
         return '\n'.join(code)
 
@@ -296,14 +322,15 @@ class DataReaderOperation(Operation):
         Generates code to connect to Hive Warehouse Connector
         """
         if self.use_hive_warehouse_connector:
-            sql = self.metadata.get('command').replace('\n', ' ')
+            sql: str = self.metadata.get('command').replace('\n', ' ')
+            # A factory function name is set when using Meta Plataform
             if self.connection_factory_function_name:
                 code_hive = dedent(f"""
                     hive = {self.connection_factory_function_name}(spark_session)
                     {self.output} = hive.executeQuery('''{sql}''')
                 """)
             else:
-                missing_config_msg = _(
+                missing_config_msg = gettext(
                             'Cluster is not configured for Hive Warehouse')
                 code_hive = dedent(f"""
                     if spark_session.conf.get(
@@ -316,64 +343,68 @@ class DataReaderOperation(Operation):
             # Notifies the transpiler that Hive is required.
             # In order to support Hive, SparkSession must be
             # correctly configured.
-            self.parameters['transpiler'].on(
-                        'requires-hive', self.metadata)
-            code_hive = dedent("""
-                        {out} = spark_session.sql(
-                            '''{sql}''')
-                    """.format(sql=self.metadata.get('command'),
-                           out=self.output))
+            self.parameters['transpiler'].on('requires-hive', self.metadata)
+            code_hive = f"{self.output} = spark_session.sql('''{sql}''')"
 
         return code_hive
 
     def _generate_code_for_jdbc(self, code):
 
         parsed = urlparse(self.metadata['url'])
-        qs_parsed = parse_qs(parsed.query)
+        # qs_parsed = parse_qs(parsed.query)
         driver = self.SUPPORTED_DRIVERS.get(parsed.scheme)
         if driver is None:
             raise ValueError(
-                _('Database {} not supported').format(parsed.scheme))
+                gettext('Database {} not supported').format(parsed.scheme))
         if not self.metadata.get('command'):
             raise ValueError(
-                _('No command nor table specified for data source.'))
-        code_jdbc = dedent("""
-            query = '{table}'
-            if query.strip()[:6].upper() == 'SELECT':
+                gettext('No command nor table specified for data source.'))
+        final_url: str = (
+            f'{parsed.scheme}://{parsed.server}:{parsed.port}{parsed.db}'
+        )
+        code_jdbc: str = dedent(f"""
+            query = '''{self.metadata.get('command').strip()}'''
+            if query[:6].upper() == 'SELECT':
                 # Add parentheses required by Spark
                 query = '(' + query + ') AS tb'
-            {out} = spark_session.read.format('jdbc').load(
-                driver='{driver}',
-                url='jdbc:{scheme}://{server}:{port}{db}',
-                user='{user}', password='{password}',
-                dbtable=query)
-                """.format(scheme=parsed.scheme, server=parsed.hostname,
-                           db=parsed.path,
-                           port=parsed.port,
-                           driver=driver, user=qs_parsed.get('user', [''])[0],
-                           password=qs_parsed.get('password', [''])[0],
-                           table=self.metadata.get('command'),
-                           out=self.output))
+            {self.output} = (spark_session.read
+                .format('jdbc')
+                .load(driver='{driver}',
+                      url='jdbc:{final_url}',
+                      user='{parsed.username}',
+                      password='{parsed.password}',
+                      dbtable=query)
+            )""")
         code.append(code_jdbc)
 
     def _generate_code_for_parquet(self, code, infer_from_data,
-                                   infer_from_limonero):
-        code.append(
-            "url_{0} = '{1}'".format(self.output, self.metadata['url']))
+                                   infer_from_limonero,
+                                   read_options):
+        code.append(f"url = 's3a://{self.metadata['url']}' #@HIDE_INFO@")
+        code.append("read_options = { # These options are from storage")
+        for opt in read_options:
+            code.append(f"{(4*' ')}{opt}")
+        code.append("}")
+
         if infer_from_limonero:
-            code_csv = """
-                {0} = spark_session.read.format('parquet').schema(
-                schema_{0}).load(url_{0})
+            code_parquet = f"""
+                {self.output} = (spark_session.read
+                    .options(**read_options)
+                    .format('parquet')
+                    .schema({self.schema_var})
+                    .load(url))
                 # Drop index columns
-                #{0} = {0}.drop('__index_level_0__')
-            """.format(self.output)
+                #{self.output} = {self.output}.drop('__index_level_0__')
+            """
         else:
-            code_csv = """
-                {0} = spark_session.read.format('parquet').load(url_{0})
+            code_parquet = f"""
+                {self.output} = (spark_session.read
+                    .options(**read_options)
+                    .format('parquet').load(url))
                 # Drop index columns
-                {0} = {0}.drop('__index_level_0__')
-            """.format(self.output)
-        code.append(dedent(code_csv))
+                {self.output} = {self.output}.drop('__index_level_0__')
+            """
+        code.append(dedent(code_parquet))
 
     def _generate_code_for_lib_svm(self, code, infer_from_data):
         """"""
@@ -385,43 +416,6 @@ class DataReaderOperation(Operation):
                 url_{0}, mode='DROPMALFORMED')""".format(
             self.output)
         code.append(dedent(code_csv))
-
-    def _apply_privacy_constraints(self, restrictions):
-        result = [
-            'import juicer.privaaas',
-            'original_schema = {out}.schema'.format(out=self.output)
-        ]
-        try:
-            if restrictions.get('attributes'):
-                attrs = sorted(restrictions['attributes'],
-                               key=lambda x: x['anonymization_technique'])
-                grouped_by_type = itertools.groupby(
-                    attrs, key=lambda x: x['anonymization_technique'])
-                privacy_decorator = PrivacyPreservingDecorator(self.output)
-                for k, group in grouped_by_type:
-                    if k is not None and k != 'NO_TECHNIQUE':
-                        if hasattr(privacy_decorator, k.lower()):
-                            action = getattr(privacy_decorator, k.lower())
-                            action_result = action(group)
-                            if action_result:
-                                result.append(action_result)
-                        else:
-                            raise ValueError(
-                                _('Invalid anonymization type ({})').format(k))
-                result.append(dedent("""
-                    for attr in {out}.schema:
-                        found = next(o for o in original_schema
-                            if attr.name == o.name)
-                        version = dataframe_util.spark_version(spark_session)
-                        if found is not None and version >= (2, 2, 0):
-                            {out} = {out}.withColumn(attr.name,
-                                functions.col(attr.name).alias(attr.name,
-                                    metadata=found.metadata))
-                """.format(out=self.output)))
-        except Exception as e:
-            raise
-
-        return result
 
     def _add_attribute_to_schema(self, attr, code):
         data_type = self.LIMONERO_TO_SPARK_DATA_TYPES[attr['type']]
@@ -441,19 +435,8 @@ class DataReaderOperation(Operation):
         # metadata = {k: attr[k] for k in
         #             ['nullable', 'type', 'size', 'precision', 'enumeration',
         #              'missing_representation'] if attr[k]}
-        if self.metadata.get('privacy_aware', False):
-            metadata = {'sources': [
-                '{}/{}'.format(self.data_source_id, attr['name'])
-            ]}
-
-            code.append("schema_{0}.add('{1}', {2}, {3},\n{5}{4})".format(
-                self.output, attr['name'], data_type, attr.get('nullable', True),
-                pprint.pformat(metadata, indent=0), ' ' * 20
-            ))
-        else:
-            code.append("schema_{0}.add('{1}', {2}, {3})".format(
-                self.output, attr['name'], data_type,
-                attr.get('nullable', True)))
+        code.append(
+            f"{self.schema_var}.add('{attr['name']}', {data_type}, {attr.get('nullable', True)})")
 
     def get_output_names(self, sep=", "):
         return self.output
@@ -553,22 +536,23 @@ class SaveOperation(Operation):
 
         self.name = parameters.get(self.NAME_PARAM)
         if self.name is None or not self.name.strip():
-            raise ValueError(_('You must specify a name for new data source.'))
+            raise ValueError(gettext(
+                'You must specify a name for new data source.'))
 
         self.format = parameters.get(self.FORMAT_PARAM, '') or ''
         valid_formats = (self.FORMAT_PARQUET, self.FORMAT_CSV, self.FORMAT_JSON)
         if not self.format.strip() or self.format not in valid_formats:
-            raise ValueError(_('You must specify a valid format.'))
+            raise ValueError(gettext('You must specify a valid format.'))
 
         self.url = parameters.get(self.PATH_PARAM)
         self.storage_id = parameters.get(self.STORAGE_ID_PARAM)
         if not self.storage_id:
-            raise ValueError(_('You must specify a storage for saving data.'))
+            raise ValueError(gettext('You must specify a storage for saving data.'))
 
         self.tags = parameters.get(self.TAGS_PARAM, [])
         self.path = parameters.get(self.PATH_PARAM)
         #if self.path is None or not self.path.strip():
-        #    raise ValueError(_('You must specify a path for saving data.'))
+        #    raise ValueError(gettext('You must specify a path for saving data.'))
 
         self.workflow_json = parameters.get(self.WORKFLOW_JSON_PARAM, '')
 
@@ -654,7 +638,8 @@ class SaveOperation(Operation):
                 table_name=table_name,
                 input_data=self.named_inputs['input data'],
                 mode=self.mode,
-                missing_config=_('Cluster is not configured for Hive Warehouse')
+                missing_config=gettext(
+                    'Cluster is not configured for Hive Warehouse')
             ))
             register_in_limonero = False
 
@@ -734,9 +719,9 @@ class SaveOperation(Operation):
                 hdfs_user=hdfs_user,
                 storage_url=storage['url'],
                 task_id=self.parameters['task_id'],
-                error_file_exists=_('File already exists'),
-                warn_ignored=_('File not written (already exists)'),
-                error_invalid_mode=_('Invalid mode {}').format(self.mode)
+                error_file_exists=gettext('File already exists'),
+                warn_ignored=gettext('File not written (already exists)'),
+                error_invalid_mode=gettext('Invalid mode {}').format(self.mode)
             ))
             # Need to generate an output, even though it is not used.
         elif self.format == self.FORMAT_PARQUET:
@@ -810,7 +795,7 @@ class SaveOperation(Operation):
                 name=self.name,
                 format=self.format,
                 storage=self.storage_id,
-                description=_('Data source generated by workflow {}').format(
+                description=gettext('Data source generated by workflow {}').format(
                     self.workflow_id),
                 user_name=self.user['name'],
                 user_id=self.user['id'],
@@ -827,7 +812,7 @@ class SaveOperation(Operation):
             code += dedent(code_api)
         elif self.save_to_limonero:
             task_id=self.parameters['task_id']
-            warn_ignored=_('Data was written, but was '
+            warn_ignored=gettext('Data was written, but was '
                 'not registered as a data source in Lemonade (unsupported).')
             code += dedent(f"""
                 emit_event(name='update task',
@@ -887,7 +872,7 @@ class ChangeAttributeOperation(Operation):
         if self.ATTRIBUTES_PARAM in parameters:
             self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
         else:
-            raise ValueError(_(
+            raise ValueError(gettext(
                 "Parameter '{}' must be informed for task {}").format(
                 self.ATTRIBUTES_PARAM, self.__class__))
         self.has_code = len(self.named_inputs) == 1
@@ -984,18 +969,18 @@ class StreamConsumerOperation(DataReaderOperation):
 
         self.source_type = parameters.get(self.SOURCE_TYPE_PARAM, 'hdfs')
         if self.source_type not in self.SOURCE_TYPES:
-            raise ValueError(_("Invalid value '{}' for parameter '{}'".format(
+            raise ValueError(gettext("Invalid value '{}' for parameter '{}'".format(
                 self.source_type, self.SOURCE_TYPE_PARAM)))
 
         self.window_type = parameters.get(self.WINDOW_TYPE_PARAM, 'seconds')
         if self.window_type not in self.WINDOW_TYPES:
-            raise ValueError(_("Invalid value '{}' for parameter '{}'".format(
+            raise ValueError(gettext("Invalid value '{}' for parameter '{}'".format(
                 self.window_type, self.WINDOW_TYPE_PARAM)))
 
         self.broker_url = parameters.get(self.BROKER_URL_PARAM)
         if not self.broker_url:
             raise ValueError(
-                _("Parameter '{}' must be informed for task {}").format(
+                gettext("Parameter '{}' must be informed for task {}").format(
                     self.BROKER_URL_PARAM, self.__class__))
 
         self.window_size = parameters.get(self.WINDOW_SIZE_PARAM, 5)
@@ -1009,17 +994,17 @@ class StreamConsumerOperation(DataReaderOperation):
 
         code = []
         if 'attributes' in self.metadata:
-            code.append('schema_{0} = types.StructType()'.format(self.output))
+            code.append(f'{self.schema_var} = types.StructType()')
             attrs = self.metadata.get('attributes')
             for attr in attrs:
                 self._add_attribute_to_schema(attr, code)
             else:
-                v = "schema_{0}.add('value', types.StringType(), True, None)"
-                code.append(v.format(self.output))
+                code.append(
+                    f"{self.schema_var}.add('value', types.StringType(), True, None)")
             code.append("")
         else:
             raise ValueError(
-                _("Metadata do not include attributes information"))
+                gettext("Metadata do not include attributes information"))
 
         code.append(dedent("""
             from pyspark.streaming.kafka import KafkaUtils
