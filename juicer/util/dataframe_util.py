@@ -1085,6 +1085,11 @@ def handle_spark_exception(e):
                     _(
                         'Attribute {} not found. Valid attributes: {}').format(
                         used, correct))
+        elif 'requirement failed: A & B Dimension mismatch' in str(e):
+            raise ValueError(
+                gettext(
+                    'Number of features and neurons in input layer do not match')
+            )
         elif 'Binomial family only supports' in str(e):
             value_expr = re.compile(
                 r'outcome classes but found (\d+)',
@@ -1113,8 +1118,9 @@ def handle_spark_exception(e):
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
             ace = 'org.apache.hadoop.security.AccessControlException'
             iae = 'java.lang.IllegalArgumentException'
+            rte = 'java.lang.RuntimeException'
 
-            cause_msg = cause.getMessage()
+            cause_msg = cause.getMessage() or ''
             inner_cause = cause.getCause()
             if cause.getClass().getName() == nfe and cause_msg:
                 value_expr = re.compile(r'.+"(.+)"')
@@ -1133,6 +1139,20 @@ def handle_spark_exception(e):
                                 'Please, remove them before applying '
                                 'a data transformation.'))
                 pass
+            elif cause.getClass().getName() == rte:
+                rte_msg = cause_msg
+                if "Labels MUST be in {0, 1}" in cause_msg:
+                    rte_msg = gettext(
+                        "Algorithm (or output layer) supports only 2 classes, "
+                        "but the input data have more that 2."
+                    )
+                elif "Vector values MUST be in {0, 1}" in cause_msg:
+                    rte_msg = gettext(
+                        "The algorithm or parameter is applicable only to "
+                        "binary classification, but the input data have more "
+                        "that 2 classes."
+                    )
+                raise ValueError(rte_msg)
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _(

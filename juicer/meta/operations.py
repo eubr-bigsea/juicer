@@ -1773,7 +1773,7 @@ class FeaturesOperation(ModelMetaOperation):
         'quantis': 'quantis',
         'buckets': 'buckets'
     }
-    __slots__ = ('all_attributes', 'label', 'features', 'features',
+    __slots__ = ('all_attributes', 'label', 'features',
                  'categorical_features', 'textual_features', 'features_names'
                  'features_and_label', 'task_type', 'supervisioned'
                  )
@@ -1796,6 +1796,7 @@ class FeaturesOperation(ModelMetaOperation):
         self.textual_features = []
         self.features_names = []
         self.label = None
+
         for f in self.features_and_label:
             if f.get('usage') == 'unused' or not f.get('usage'):
                 continue
@@ -1846,7 +1847,8 @@ class FeaturesOperation(ModelMetaOperation):
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
-            scaler = f.get('scaler')
+            scaler = f.get('scale')
+
             is_numerical = data_type == 'numerical'
 
             if f.get('feature_type') not in ('numerical', 'categorical',
@@ -1935,8 +1937,11 @@ class FeaturesOperation(ModelMetaOperation):
                             features_stages.append({f['var']}_qtles) """))
                     else:
                         final_name = None
-                if scaler and transform in ('keep', '', None):
-                    # import pdb; pdb.set_trace()
+                if (
+                    scaler
+                    and transform in ("keep", "", None)
+                    and f.get("usage") != "label"
+                ):
                     old_final_name = final_name
                     final_name = final_name + '_scl'
                     if scaler == 'min_max':
@@ -1946,6 +1951,8 @@ class FeaturesOperation(ModelMetaOperation):
                     else:
                         scaler_cls = 'MaxAbsScaler'
                     code.append(dedent(f"""
+                        # Input for standard scaler must be a vector :(
+                        # Improve this code!
                         {f['var']}_asm = feature.VectorAssembler(
                             handleInvalid='skip',
                             inputCols=['{old_final_name}'],
@@ -1956,8 +1963,8 @@ class FeaturesOperation(ModelMetaOperation):
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_scl) """))
 
-                if final_name is not None:
-                    self.features_names.append(final_name)
+                #if final_name is not None:
+                #    self.features_names.append(final_name)
             elif data_type == 'categorical':
                 # if missing == 'constant' and transform != 'not_null':
                 #     cte = f.get('constant')
@@ -2008,7 +2015,7 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{old_final_name}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_ohe) """))
-                self.features_names.append(final_name)
+                # self.features_names.append(final_name)
             elif data_type == 'textual':
                 if transform == 'token_hash':
                     token_name = final_name + '_tkn'
@@ -2489,22 +2496,23 @@ class PerceptronClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
 
         layers = None
-        '''
         if parameters.get('layers'):
-            value = tuple(int(x.strip())
-                          for x in parameters.get('layers').split(','))
+            parts = parameters.get('layers').split(';')
+            values = []
+            for part in parts:
+                values.append(tuple(int(x.strip()) for x in part.split(',')))
+
             layers = HyperparameterInfo(
-                value=(value,), param_type='list',
-                values_count=1,
+                value=values, param_type='list',
+                values_count=len(values),
                 random_generator='random_generator')
-        '''
-        if 'layers' in parameters and 'list' in parameters['layers']:
-            layers = HyperparameterInfo(
-            value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
-            param_type='list',
-            values_count=1,
-            random_generator='random_generator'
-            )
+        # if 'layers' in parameters and 'list' in parameters['layers']:
+        #     layers = HyperparameterInfo(
+        #     value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
+        #     param_type='list',
+        #     values_count=1,
+        #     random_generator='random_generator'
+        #     )
 
         self.hyperparameters = {
             'layers': layers,
@@ -2579,7 +2587,7 @@ class SVMClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'standardization': _as_int_list(parameters.get('standardization'), self.grid_info),
+            'standardization': _as_boolean_list(parameters.get('standardization')),
             'threshold': _as_float_list(parameters.get('threshold'), self.grid_info),
             'tol': _as_float_list(parameters.get('tol'), self.grid_info),
             'weightCol': _as_string_list(parameters.get('weight_attr')),

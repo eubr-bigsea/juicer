@@ -500,7 +500,7 @@ class FeatureDisassemblerOperation(Operation):
         # but at the cost of decreased performance
 
         code = """
-    
+
         from pyspark.sql.functions import udf, col
         from pyspark.sql.types import ArrayType, DoubleType
 
@@ -516,8 +516,8 @@ class FeatureDisassemblerOperation(Operation):
         top_n = {topn}
         if top_n > 0 and top_n < n_features:
             n_features = top_n
-        {out} = {out}.select(columns + 
-            [col("tmp_vector")[i].alias("{alias}"+str(i+1)) 
+        {out} = {out}.select(columns +
+            [col("tmp_vector")[i].alias("{alias}"+str(i+1))
              for i in range(n_features)])
         """.format(input=input_data, out=self.output,
                    feature=self.feature[0],
@@ -724,7 +724,7 @@ class EvaluateModelOperation(Operation):
                 display_text=display_text,
                 display_image=display_image,
                 prediction_attr=self.prediction_attribute,
-                prob_attr=self.prob_attr, 
+                prob_attr=self.prob_attr,
                 label_attr=self.label_attribute,
                 headers=[_('Metric'), _('Value')],
                 evaluator=self.evaluator,
@@ -820,7 +820,7 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             evaluator = evaluation.BinaryClassificationEvaluator(
-                {prediction_arg}='{prob_attr}', 
+                {prediction_arg}='{prob_attr}',
                 labelCol=label_col,
                 metricName=metric)
             metric_value = evaluator.evaluate({input})
@@ -912,12 +912,12 @@ class EvaluateModelOperation(Operation):
                 (types.DoubleType, types.FloatType)):
                 df = {input}.withColumn(prediction_col,
                     {input}[prediction_col].cast('double'))
-                    
+
             """))
 
         if metric == 'mape':
             code.append(dedent("""
-            metric_value = df.withColumn('result', 
+            metric_value = df.withColumn('result',
                 functions.abs(df[label_col] - df[prediction_col]) /
                 functions.when(functions.abs(df[label_col]) == 0.0, 0.0000001).otherwise(functions.abs(df[label_col]))
                 ).select((functions.sum("result")/functions.count("result"))).collect()[0][0]
@@ -978,7 +978,7 @@ class EvaluateModelOperation(Operation):
                     else:
                         residuals_col = 'devianceResiduals'
                         df_residual = summary.residuals()
-                        
+
                     residuals = [r[residuals_col] for r in
                         df_residual.collect()]
                     pandas_df = pd.DataFrame.from_records(
@@ -1373,11 +1373,11 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                 individual_feat = features_names
             else:
                 final_features = features[0]
-                vector_field = next(filter(lambda ff: ff.name == final_features, 
+                vector_field = next(filter(lambda ff: ff.name == final_features,
                                     {train}.schema.fields))
-                individual_feat = [v['name'] for v in 
+                individual_feat = [v['name'] for v in
                     vector_field.metadata['ml_attr']['attrs'].get('nominal',[])] + \
-                    [v['name'] for v in 
+                    [v['name'] for v in
                         vector_field.metadata['ml_attr']['attrs'].get('numeric', [])]
 
             requires_revert_label = False
@@ -1490,8 +1490,8 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                     result = '<h6>{title}</h6>' + content.generate()
 
                     if has_feat_importance and hasattr(ml_model, fi_name):
-                        fi = SimpleTableReport('table w-auto table-bordered', 
-                            None, zip(individual_feat, 
+                        fi = SimpleTableReport('table w-auto table-bordered',
+                            None, zip(individual_feat,
                                       getattr(ml_model, fi_name)), numbered=0)
                         result += '<h6>{{}}</h6>{{}}'.format(
                             sst(fi_name), fi.generate())
@@ -1501,7 +1501,7 @@ class ClassificationModelOperation(DeployModelMixin, Operation):
                          type='HTML', title='{title}')
             if display_image:
                 if hasattr(ml_model, 'toDebugString'):
-                    dt_report = DecisionTreeReport(ml_model, 
+                    dt_report = DecisionTreeReport(ml_model,
                         {train}.schema, final_features, individual_feat)
                     emit(status='COMPLETED',
                          message=dt_report.generate(),
@@ -1851,7 +1851,6 @@ class PerceptronClassifier(ClassifierOperation):
         for spark_name, lemonade_name, f in params_name:
             if lemonade_name in parameters and parameters.get(lemonade_name):
                 ctor_params[spark_name] = f(parameters.get(lemonade_name))
-
         self.name = 'classification.MultilayerPerceptronClassifier(**{k})' \
             .format(k=ctor_params)
 
@@ -2110,22 +2109,22 @@ class ClusteringModelOperation(Operation):
             display_text = {display_text}
             if display_text:
                 metric_rows = []
-                
+
                 lda = algorithm.__class__.__name__ == 'LDA'
                 if not lda:
                     df_aux = pipeline_model.transform({input})
-                    
+
                     evaluator = ClusteringEvaluator(
                         predictionCol='{prediction}', featuresCol=final_features)
-                    metric_rows.append(['{silhouette_euclidean}', 
+                    metric_rows.append(['{silhouette_euclidean}',
                         evaluator.evaluate(df_aux)])
 
                     evaluator = ClusteringEvaluator(
-                        distanceMeasure='cosine', predictionCol='{prediction}', 
+                        distanceMeasure='cosine', predictionCol='{prediction}',
                         featuresCol=final_features)
-                    metric_rows.append(['{silhouette_cosine}', 
+                    metric_rows.append(['{silhouette_cosine}',
                         evaluator.evaluate(df_aux)])
-    
+
                     if hasattr(clustering_model, 'clusterCenters'):
                         metric_rows.append([
                             '{cluster_centers}', clustering_model.clusterCenters()])
@@ -2136,14 +2135,14 @@ class ClusteringModelOperation(Operation):
 
                     if hasattr(clustering_model, 'gaussianDF'):
                         metric_rows.append([
-                            'Gaussian distribution', 
+                            'Gaussian distribution',
                             clustering_model.gaussianDF.collect()])
                 else:
                     metric_rows.append([
-                        'Log Likelihood', 
+                        'Log Likelihood',
                         clustering_model.logLikelihood({input})])
                     metric_rows.append([
-                        'Log Perplexity', 
+                        'Log Perplexity',
                         clustering_model.logPerplexity({input})])
 
                 if hasattr(clustering_model, 'weights'):
@@ -2155,7 +2154,7 @@ class ClusteringModelOperation(Operation):
                         'table table-striped table-bordered w-auto', [],
                         metric_rows,
                         title='{metrics}')
- 
+
                     emit_event('update task', status='COMPLETED',
                         identifier='{task_id}',
                         message=metrics_content.generate(),
@@ -2169,7 +2168,7 @@ class ClusteringModelOperation(Operation):
                     summary_rows = []
                     for p in dir(summary):
                         if not p.startswith('_') and p != "cluster" \
-                                and p not in ['featuresCol', 'predictionCol', 
+                                and p not in ['featuresCol', 'predictionCol',
                                 'predictions', 'probability']:
                             try:
                                 summary_rows.append(
@@ -2211,7 +2210,7 @@ class ClusteringModelOperation(Operation):
                               'They will be implicitly assembled and rows with '
                               'null values will be discarded. If this is '
                               'undesirable, explicitly add a feature assembler '
-                              'in the workflow.'), 
+                              'in the workflow.'),
                        display_text=self.parameters['task']['forms'].get(
                            'display_text', {}).get('value') in (1, '1'))
 
@@ -2813,11 +2812,11 @@ class RegressionModelOperation(DeployModelMixin, Operation):
             else:
                 # If more than 1 vector is passed, use only the first
                 final_features = features[0]
-                vector_field = next(filter(lambda ff: ff.name == final_features, 
+                vector_field = next(filter(lambda ff: ff.name == final_features,
                                     {input}.schema.fields))
-                individual_feat = [v['name'] for v in 
+                individual_feat = [v['name'] for v in
                     vector_field.metadata['ml_attr']['attrs'].get('nominal',[])] + \
-                    [v['name'] for v in 
+                    [v['name'] for v in
                         vector_field.metadata['ml_attr']['attrs'].get('numeric', [])]
 
             algorithm.setFeaturesCol(final_features)
@@ -2842,7 +2841,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                     regression_model = pipeline_model.stages[-1]
                     headers = []
                     rows = []
-                    metrics = ['coefficients', 'intercept', 'scale', 
+                    metrics = ['coefficients', 'intercept', 'scale',
                         'featureImportances']
                     metric_names = ['{coefficients}', '{intercept}', '{scale}']
 
@@ -2859,27 +2858,27 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                                 has_feat_importance = True
                             else:
                                 rows.append([metric_names[i], value])
-                    
-                           
+
+
                     if rows or has_coefficients or has_feat_importance:
                         content = SimpleTableReport(
                             'table table-striped table-bordered w-auto',
                             headers, rows).generate()
 
                         if has_coefficients and hasattr(regression_model, coef_name):
-                            fi = SimpleTableReport('table w-auto table-bordered', 
-                                None, zip(features, 
+                            fi = SimpleTableReport('table w-auto table-bordered',
+                                None, zip(features,
                                           getattr(regression_model, coef_name)),
                                           title=metric_names[0])
                             content += fi.generate()
-                            
+
                         if has_feat_importance and hasattr(regression_model, fi_name):
-                            fi = SimpleTableReport('table w-auto table-bordered', 
-                                None, zip(individual_feat, 
+                            fi = SimpleTableReport('table w-auto table-bordered',
+                                None, zip(individual_feat,
                                           getattr(regression_model, fi_name)), numbered=0)
                             content += '<h6>{{}}</h6>{{}}'.format(
                                 sst(fi_name), fi.generate())
- 
+
                         emit_event('update task', status='COMPLETED',
                             identifier='{task_id}',
                             message=content,
@@ -2894,7 +2893,7 @@ class RegressionModelOperation(DeployModelMixin, Operation):
                        emit(status='COMPLETED',
                             message=dt_report.generate(),
                             type='HTML', title='{title}')
-                        
+
                     summary = getattr({model}, 'summary', None)
                     if summary:
                         summary_rows = []
@@ -3539,7 +3538,7 @@ class SaveModelOperation(Operation):
                     name = '{name}'
                     path = '{path}/{name}.{{0:04d}}'.format(i)
                     _save_model(model, path, name, format, {input})
-        """.format(models=', '.join(models), overwrite=overwrite, 
+        """.format(models=', '.join(models), overwrite=overwrite,
                    write_mode=write_mode,
                    path=self.path,
                    final_url=storage['url'],

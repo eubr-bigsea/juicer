@@ -6,14 +6,18 @@ Auto-generated Spark code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided.
 """
+from seaborn import jointplot
 from pyspark.ml import (classification, regression, clustering,
-                        evaluation, feature, tuning)
+                        evaluation, feature, tuning, Pipeline, PipelineModel)
 from pyspark.sql import functions, types, Row, DataFrame
 
-from pyspark.ml import Pipeline, PipelineModel
+from pyspark.mllib.evaluation import MulticlassMetrics
 
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from gettext import gettext
+import logging
+import logging.config
 import functools
 import itertools
 import math
@@ -22,17 +26,28 @@ import random
 import traceback
 import sys
 import time
+import threading
 import uuid
-
 import numpy as np
 import os
 from juicer.util import dataframe_util
+from juicer.spark.reports import (AreaUnderCurveReport,
+                                  ConfusionMatrixImageReport,
+                                  MatplotlibChartReport,
+                                  SeabornChartReport)
+from juicer.spark.util.results import CurveMetrics
 import dataclasses
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 {% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
 # FIXME: Do not work
 {% for imps in transpiler.imports %}
 {{imps}}
 {%- endfor %}
+
+submission_lock = threading.Lock()
 
 @dataclasses.dataclass(frozen=True)
 class TrainingContext:
@@ -67,26 +82,63 @@ class TrainingResult:
 {%- include auxiliary_code with context %}
 {%- endfor %}
 
-def get_feature_importance_score(model, features):
+def get_feature_importance_score(model, features, classes):
     if isinstance(model, classification.LogisticRegressionModel):
         m = model.extractParamMap()
         if m.get(model.family) in ('multinomial', 'auto'):
             coef = model.coefficientMatrix
-            mag_coef = []
-            result = coef
+            coefficients_dict = []
+            total_classes = len(classes)
+            for i in range(coef.numRows):
+                class_coeff = {
+                    "class": classes[i] if i < total_classes else str(i),
+                    "coefficients": {}
+                }
+                for j in range(coef.numCols):
+                    class_coeff["coefficients"][features[j]] = coef[i, j]
+
+                coefficients_dict.append(class_coeff)
+            result = {'coefficients': coefficients_dict,}
         else:
-            print(model.family, m.get(model.family))
-            coef = list(model.coefficients)
-            result = list(zip(features, coef))
-        print(result)
+            #print(model.family, m.get(model.family))
+            coef = list(model.coefficients.tolist())
+            odds_ratios = [math.exp(c) for c in coef]
+            result = {'coefficients': dict(zip(features, coef)),
+                      'odds_ratios': dict(zip(features, odds_ratios))}
+            # print('-' * 20)
+            # print(result)
+            # print('-' * 20)
+        return result
+    elif isinstance(model, classification.LinearSVCModel):
+        coefficients = model.coefficients
+        return dict(zip(features, coefficients))
+
     elif isinstance(model,
                     (classification.DecisionTreeClassificationModel,
-                     classification.RandomForestClassificationModel)):
+                     classification.RandomForestClassificationModel,
+                     classification.GBTClassificationModel,
+                     regression.DecisionTreeRegressionModel,
+                     regression.GBTRegressionModel,
+                     regression.RandomForestRegressionModel)):
         return model.featureImportances.toArray().tolist()
     elif isinstance(model, (classification.NaiveBayesModel)):
         return [{
             'pi': model.pi.values.tolist(),
             'theta': model.theta.values.tolist(),
+        }]
+    elif isinstance(model, (regression.LinearRegressionModel,
+            regression.GeneralizedLinearRegressionModel)):
+        return [{
+            'coefficients': dict(zip(features, model.coefficients.tolist())),
+            'intercept': model.intercept,
+            'importance': dict(zip(features, map(abs, model.coefficients.tolist()))),
+        }]
+    elif isinstance(model, (regression.FMRegressionModel,
+                            classification.FMClassificationModel)):
+        return [{
+            'coefficients': dict(zip(features, model.linear.tolist())),
+            'intercept': model.intercept,
+            'importance': dict(zip(features, map(abs, model.linear.tolist()))),
         }]
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
@@ -94,9 +146,9 @@ def get_feature_importance_score(model, features):
 class CustomTrainValidationSplit():
     """ Mimic the TrainValidationSplit from Spark, but emit information
     about the training process after each iteration."""
-    __slots__ = ('estimator', 'evaluator', 'train_ratio', 'seed', 'params',
-               'train_size', 'test_size', 'num_workers', 'strategy', 'folds',
-               'fold_col')
+    __slots__ = (
+        'estimator', 'evaluator', 'train_ratio', 'seed', 'params', 'train_size',
+        'test_size', 'num_workers', 'strategy', 'folds','fold_col')
     def __init__(self, estimator, evaluator, params,
                  train_ratio=0.7, seed=None,
                  num_workers=4, strategy='split', folds=None):
@@ -108,7 +160,7 @@ class CustomTrainValidationSplit():
         self.params = params
         self.train_size = 0
         self.test_size = 0
-        self.num_workers = 4
+        self.num_workers = num_workers
         self.strategy = strategy
         self.folds = folds
         self.fold_col = None
@@ -126,6 +178,7 @@ class CustomTrainValidationSplit():
             try:
                 dataframe_util.handle_spark_exception(e)
             except ValueError as ve:
+                logger.exception(ve)
                 return TrainingResult('ERROR', model=None, metric=None,
                                       details=details, exception=ve, ctx=ctx)
 
@@ -175,7 +228,7 @@ class CustomTrainValidationSplit():
 
             return datasets
 
-    def fit(self, df, emit):
+    def fit(self, df, emit, features_names, label_attr):
         results = []
 
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
@@ -212,6 +265,8 @@ class CustomTrainValidationSplit():
                 for future in as_completed(future_train):
                     result = future.result()
                     # future_train[future]
+                    if result is None:
+                        continue
                     ctx = result.ctx
                     message = {'params': ctx.details, 't': ctx.time,
                         'index': ctx.index}
@@ -231,7 +286,19 @@ class CustomTrainValidationSplit():
                             'is_larger_better': is_larger_better
                         }
                         ml_model = result.model.stages[-1]
-                        importance = get_feature_importance_score(ml_model, [])
+
+                        # Test if label was indexed with StringIndexer
+                        stage_indexer_label = next(
+                            (s for s in result.model.stages
+                                if isinstance(s, feature.StringIndexerModel)
+                                and s.getInputCol() == label_attr), None
+                        )
+                        if stage_indexer_label is not None:
+                            classes = stage_indexer_label.labels
+                        else:
+                            classes = []
+                        importance = get_feature_importance_score(
+                            ml_model, features_names, classes)
                         message['feature_importance'] = importance
 
                         emit(identifier=ctx.task_id, status='COMPLETED',
@@ -285,7 +352,7 @@ def read_data(spark_session):
 
     return df
 
-def create_pipeline(label: str):
+def create_pipeline(label: str, features_names):
     """ Define a Spark pipeline model."""
 
     # Feature engineering
@@ -294,12 +361,6 @@ def create_pipeline(label: str):
     {{builder_params.features.generate_code() | indent(width=4, first=False)}}
     {%- set has_numerical_features = builder_params.features.numerical_features|length > 0%}
     {%- set use_pca = builder_params.reduction.has_code and has_numerical_features and has_numerical_features%}
-
-    features_names = [
-        {%- for f in builder_params.features.get_final_features_names() -%}
-        '{{ f }}'{%- if not loop.last %}, {% endif %}
-        {%- endfor -%}
-    ]
 
     {%- if use_pca %}
 
@@ -409,9 +470,9 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
     try:
         {%- if builder_params.evaluator.task_type != 'clustering' %}
-        label = '{{builder_params.features.label.name}}'
+        label_attr = '{{builder_params.features.label.name}}'
         {%- else %}
-        label = None
+        label_attr = None
         {%- endif %}
         df = read_data(spark_session)
         {%- if builder_params.sample and builder_params.sample.type %}
@@ -422,8 +483,19 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {{builder_params.features.generate_code_for_missing_data_handling() |
                                                                           indent(width=8, first=False)}}
 
+        original_features_names = [
+            {%- for f in builder_params.features.features -%}
+            '{{ f.name }}'{%- if not loop.last %}, {% endif %}
+            {%- endfor -%}
+        ]
+        final_features_names = [
+            {%- for f in builder_params.features.get_final_features_names() -%}
+            '{{ f }}'{%- if not loop.last %}, {% endif %}
+            {%- endfor -%}
+        ]
         # Pipeline definition
-        pipeline, grid, label = create_pipeline(label)
+        pipeline, grid, label = create_pipeline(
+            label_attr, features_names=final_features_names)
 
         emit = emit_metric(emit_event)
 
@@ -439,30 +511,200 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {{builder_params.split.generate_code() | indent(width=8, first=False)}}
         {%- endif %}
 
-        results = executor.fit(df, emit)
+        results = executor.fit(df, emit, original_features_names, label_attr)
         results = sorted(results, key=lambda x: x.metric,
                          reverse=evaluator.isLargerBetter())
 
         if len(results):
             status, model, params, metric, ex, ctx, fi = results[0]
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
-            message = {'best': params, 'metric_value': metric,
+            message = {
+                'best': params, 'metric_value': metric,
                 'larger_better': evaluator.isLargerBetter(),
                 'index': ctx.index, 'metric_name': metric_name,
                 'estimator': ctx.name, 'task_name': ctx.task_name,
                 'train_size': executor.train_size,
                 'test_size': executor.test_size,
                 'model_count': len(results)
-                }
+            }
+
+            if model:
+                features = model.stages[-2].getInputCols()
+                df_transformed = model.transform(df)
+
+                # Test if label was indexed with StringIndexer
+                stage_indexer_label = next(
+                    (s for s in model.stages
+                        if isinstance(s, feature.StringIndexerModel)
+                        and s.getInputCol() == label_attr), None
+                )
+                # Revert the label indexing
+                if stage_indexer_label:
+                    label_reverse = feature.IndexToString(
+                            inputCol="prediction",
+                            outputCol="prediction2",
+                            labels=stage_indexer_label.labels
+                    )
+                    df_final = (
+                        label_reverse
+                            .transform(df_transformed)
+                            .select(
+                                df.columns +
+                                [functions.col('prediction2').alias('prediction')]
+                            )
+                    )
+                else:
+                    df_final = (df_transformed
+                        .select(df.columns + ['prediction']))
+
+                # print(df_final.show())
+                # TODO Emit a sample data
+                # If set, save the data
+                # If set, save the model
+                # Generate visualizations
+                # Type: {{builder_params.evaluator.task_type}}
+
+                {%- if builder_params.evaluator.task_type in ('binary-classification', 'multiclass-classification') %}
+                # Convert to RDD of (prediction, label)
+                rdd_cm = (df_transformed.select(label, 'prediction')
+                       .rdd
+                       .map(lambda row:
+                            (float(row['prediction']), float(row[label]))
+                        )
+                )
+                multiclass_metrics = MulticlassMetrics(rdd_cm)
+                metric_value = {
+                    'f1': multiclass_metrics.weightedFMeasure(),
+                    'weightedPrecision': multiclass_metrics.weightedPrecision,
+                    'weightedRecall': multiclass_metrics.weightedRecall,
+                    'accuracy': multiclass_metrics.accuracy,
+                }.get(metric_name)
+
+                # Get confusion matrix
+                if stage_indexer_label:
+                    cm = ConfusionMatrixImageReport(
+                        multiclass_metrics.confusionMatrix().toArray(),
+                        classes=stage_indexer_label.labels)
+                else:
+                    classes = (df
+                                .select(label_attr)
+                                .distinct()
+                                .rdd
+                                .flatMap(lambda x: x)
+                                .collect()
+                    )
+                    cm = ConfusionMatrixImageReport(
+                        multiclass_metrics.confusionMatrix().toArray(),
+                        classes=classes)
+
+                content = cm.generate()
+                #print(content)
+
+                emit(status='RUNNING', type='IMAGE',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title=cm.title,
+                    message=content)
+
+
+                {%- if builder_params.evaluator.task_type == 'binary-classification' %}
+                from pyspark.mllib.evaluation import BinaryClassificationMetrics
+
+                if metric_name == 'areaUnderPR':
+                    method_name = 'pr'
+                else:
+                    method_name = 'roc'
+
+                if 'probability' in df_transformed.columns:
+                    rdd_area = (df_transformed.select(label, 'probability')
+                        .rdd
+                        .map(lambda row:
+                             (float(row['probability'][1]), float(row[label]))
+                        )
+                    )
+                    cm = CurveMetrics(rdd_area)
+                    points = cm.get_curve(method_name)
+                    metric_value = cm.areaUnderROC
+                    x_val, y_val = zip(*points)
+
+                    curve_title = gettext(
+                        'Area under {} curve (AUC = {:1.4f})').format(
+                        method_name.upper(), metric_value)
+                    content = AreaUnderCurveReport(
+                        x_val, y_val, curve_title, method_name).generate(
+                            submission_lock
+                        )
+
+                    emit(status='RUNNING', type='IMAGE',
+                        identifier=evaluator.task_id,
+                        operation_id=evaluator.operation_id,
+                        title=curve_title,
+                        message=content)
+                #print(content)
+                {%- endif %}
+
+                {%- elif builder_params.evaluator.task_type == 'regression' %}
+                df_transformed = model.transform(df)
+
+                rdd = (df_transformed.select([label_attr, 'prediction'])
+                       .rdd
+                       .map(lambda row: (
+                                row[label_attr], row['prediction'],
+                                row[label_attr] - row['prediction']
+                            )
+                         )
+                )
+                actual, predicted, residual = zip(*rdd.collect())
+
+                min_value = min(min(actual), min(predicted))
+                max_value = max(max(actual), max(predicted))
+
+                report = MatplotlibChartReport()
+                content = report.plot(
+                    gettext('Actual versus Prediction'),
+                    gettext('Actual'),
+                    gettext('Prediction'),
+                    [min_value, max_value],
+                    [min_value, max_value], 'r-',
+                    actual, predicted,'b.', linewidth=1,
+                    submission_lock=submission_lock
+                )
+                emit(status='RUNNING', type='IMAGE',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title=gettext('Actual versus Prediction'),
+                    message=content)
+
+                data = [
+                    dict(prediction=x[0], residual=x[1])
+                        for x in zip(predicted, residual)
+                ]
+
+                report2 = SeabornChartReport()
+                content = report2.jointplot(
+                    data, 'prediction', 'residual',
+                    gettext('Prediction versus Residual'),
+                    gettext('Prediction'),
+                    gettext('Residual'),
+                    submission_lock=submission_lock
+                )
+                emit(status='RUNNING', type='IMAGE',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title=gettext('Prediction versus Residual'),
+                    message=content)
+
+                {%- elif builder_params.evaluator.task_type == 'clustering' %}
+                {%- endif%}
 
             emit(status='COMPLETED', type='OTHER',
                 identifier=evaluator.task_id,
                 operation_id=evaluator.operation_id,
                 title='{{ builder_params.evaluator.task_name}}',
                 message=message)
-            # print(message)
-        for status, model, params, metric, ex, ctx, fi in results:
-            pass
+            # print(message){#-
+        #for status, model, params, metric, ex, ctx, fi in results:
+        #    pass
             # print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
             # ml_model = model.stages[-1]
             # features = model.stages[-2].getInputCols()
@@ -472,8 +714,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             # print('#' * 20)
             # print(feature_assembler.metadata)
             # print(ml_model.metadata["ml_attr"]["attrs"].values())
-
-
+        #}
     except Exception as e:
         spark_session.sparkContext.cancelAllJobs()
         traceback.print_exc(file=sys.stderr)

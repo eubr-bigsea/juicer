@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 def emit(*a, **kwargs):
     if kwargs.get('type') != 'HTML':
-        print(colored(json.dumps(kwargs), 'green'))
+        print(colored(json.dumps(kwargs), 'cyan'))
     else:
         with open('/tmp/lemonade.html', 'a') as f:
             print(kwargs['message'], file=f)

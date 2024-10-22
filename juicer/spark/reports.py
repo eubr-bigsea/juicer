@@ -84,6 +84,7 @@ class SeabornChartReport(BaseHtmlReport):
 
             g.fig.subplots_adjust(top=.9, left=.15)
             fig_file = BytesIO()
+            plt.axhline(y=0, color='red', linestyle='--')
             plt.savefig(fig_file, format='png', dpi=75)
             plt.close('all')
             return base64.b64encode(fig_file.getvalue()).decode('utf-8')
@@ -331,11 +332,11 @@ class AreaUnderCurveReport(BaseHtmlReport):
             plt.plot(self.x_val, self.y_val)
             if self.curve_type == 'roc':
                 plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-                plt.xlabel(_('False positive rate'))
-                plt.ylabel(_('True positive rate'))
+                plt.xlabel(gettext('False positive rate'))
+                plt.ylabel(gettext('True positive rate'))
             else:
-                plt.xlabel(_('Precision'))
-                plt.ylabel(_('Recall'))
+                plt.xlabel(gettext('Precision'))
+                plt.ylabel(gettext('Recall'))
 
             plt.xlim([0.0, 1.0])
             plt.ylim([0.0, 1.05])
@@ -390,13 +391,13 @@ class DecisionTreeReport(BaseHtmlReport):
         return block
 
     def generate(self):
-        from juicer.spark.util.tree_visualization import get_graph_from_model 
+        from juicer.spark.util.tree_visualization import get_graph_from_model
         result = "<h6>{}</h6>{}".format(
                 gettext('Tree'),
-                get_graph_from_model(self.model, 
-                                     self.spark_schema, 
+                get_graph_from_model(self.model,
+                                     self.spark_schema,
                                      self.features).decode('utf-8'))
         mapping = dict([(f'feature {x}', v) for (x, v) in enumerate(self.features)])
         pattern = re.compile("|".join(mapping.keys()), re.IGNORECASE)
         return pattern.sub(lambda m: mapping[m.group(0).lower()], result)
-    
+
