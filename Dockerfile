@@ -77,6 +77,7 @@ RUN curl -Lo $JUICER_HOME/jars/lemonade-spark-ext-1.0.jar https://github.com/eub
 ENV PATH=$PATH:$HADOOP_HOME/bin
 ENV HADOOP_CONF_DIR $HADOOP_HOME/etc/hadoop
 RUN echo "export CLASSPATH=$(hadoop classpath --glob):/usr/local/juicer/jars/spark-lof_2.11-1.0.jar:/usr/local/juicer/jars/lemonade-spark-ext-1.0.jar" >> /etc/profile.d/juicer.sh && \
+    echo "export SPARK_EXTRA_CLASSPATH=$CLASSPATH" >> /etc/profile.d/juicer.sh && \
     echo "export HADOOP_HOME=$HADOOP_HOME" >> /etc/profile.d/juicer.sh && \
     echo "export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop" >> /etc/profile.d/juicer.sh && \
     chmod a+x /etc/profile.d/juicer.sh
