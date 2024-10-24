@@ -143,7 +143,7 @@ class ConfusionMatrixImageReport(BaseHtmlReport):
                          color="white" if self.cm[i, j] > thresh else "black")
 
             # issue: https://github.com/matplotlib/matplotlib/issues/19608
-            fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+            fig.tight_layout(rect=[0.05, 0.03, 1, 0.95])
 
             ax1.set_ylabel(self.axis[0])
             ax1.set_xlabel(self.axis[1])

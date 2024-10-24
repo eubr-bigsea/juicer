@@ -436,7 +436,7 @@ def create_pipeline(label: str, features_names):
     {%- endif %}
     {% endfor %}
     # Remove duplicated grid parameters
-    candidate_grid = {%- for estimator in builder_params.estimators -%}
+    candidate_grid = ({%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
         {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
@@ -447,7 +447,7 @@ def create_pipeline(label: str, features_names):
         {%- if loop.index % 3 == 0 %}
         {# extra line #}
         {%- endif %}
-    {%- endfor %}
+    {%- endfor %})
     distinct_grid = set()
     grid = []
     for row in candidate_grid:
@@ -518,15 +518,6 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         if len(results):
             status, model, params, metric, ex, ctx, fi = results[0]
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
-            message = {
-                'best': params, 'metric_value': metric,
-                'larger_better': evaluator.isLargerBetter(),
-                'index': ctx.index, 'metric_name': metric_name,
-                'estimator': ctx.name, 'task_name': ctx.task_name,
-                'train_size': executor.train_size,
-                'test_size': executor.test_size,
-                'model_count': len(results)
-            }
 
             if model:
                 features = model.stages[-2].getInputCols()
@@ -598,13 +589,13 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                         classes=classes)
 
                 content = cm.generate()
-                #print(content)
 
-                emit(status='RUNNING', type='IMAGE',
+                #print('>' * 30, 'confusion matrix', content)
+                emit(status='RUNNING', type='HTML',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
                     title=cm.title,
-                    message=content)
+                    message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
 
 
                 {%- if builder_params.evaluator.task_type == 'binary-classification' %}
@@ -635,12 +626,12 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                             submission_lock
                         )
 
-                    emit(status='RUNNING', type='IMAGE',
+                    # print('>' * 30 , 'auc', content)
+                    emit(status='RUNNING', type='HTML',
                         identifier=evaluator.task_id,
                         operation_id=evaluator.operation_id,
                         title=curve_title,
-                        message=content)
-                #print(content)
+                        message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
                 {%- endif %}
 
                 {%- elif builder_params.evaluator.task_type == 'regression' %}
@@ -669,11 +660,12 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     actual, predicted,'b.', linewidth=1,
                     submission_lock=submission_lock
                 )
-                emit(status='RUNNING', type='IMAGE',
+                # print('>' * 30 , 'actual vs prediction', content)
+                emit(status='RUNNING', type='HTML',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
                     title=gettext('Actual versus Prediction'),
-                    message=content)
+                    message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
 
                 data = [
                     dict(prediction=x[0], residual=x[1])
@@ -688,15 +680,37 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     gettext('Residual'),
                     submission_lock=submission_lock
                 )
-                emit(status='RUNNING', type='IMAGE',
+                #print('>' * 30, 'prediction vs residual', content)
+                emit(status='RUNNING', type='HTML',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
                     title=gettext('Prediction versus Residual'),
-                    message=content)
+                    message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
 
                 {%- elif builder_params.evaluator.task_type == 'clustering' %}
                 {%- endif%}
 
+
+                # Send a sample of data
+                css_classes = 'table table-sm table-striped mx-3 table-smallest'
+                emit(status='RUNNING', type='HTML',
+                        identifier=evaluator.task_id,
+                        operation_id=evaluator.operation_id,
+                        title=gettext('Resulting data (sample)'),
+                        message=(df_final.limit(50).toPandas()
+                                 .to_html(index=False, classes=css_classes))
+                )
+
+            # Send information about best result
+            message = {
+                'best': params, 'metric_value': metric,
+                'larger_better': evaluator.isLargerBetter(),
+                'index': ctx.index, 'metric_name': metric_name,
+                'estimator': ctx.name, 'task_name': ctx.task_name,
+                'train_size': executor.train_size,
+                'test_size': executor.test_size,
+                'model_count': len(results)
+            }
             emit(status='COMPLETED', type='OTHER',
                 identifier=evaluator.task_id,
                 operation_id=evaluator.operation_id,
