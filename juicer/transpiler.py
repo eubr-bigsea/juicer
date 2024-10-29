@@ -384,9 +384,9 @@ class Transpiler(object):
                                                       'jinja2.ext.do'])
 
         locales_path = os.path.join(os.path.dirname(__file__),
-                                    '..', 'i18n', 'locales')
+                                    'i18n', 'locales')
         translations = Translations.load(
-            locales_path, locales='pt')
+            locales_path, locales=['pt', 'en'])
         template_env.install_gettext_translations(translations)
         # import pdb; pdb.set_trace()
         # if (os.path.getmtime(self.template_dir) >

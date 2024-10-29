@@ -1026,7 +1026,7 @@ msgstr "Registro #"
 
 #: juicer/meta/templates/operation.tmpl:724
 msgid "Actual and Prediction"
-msgstr "Real versus Predito"
+msgstr "Real and Predito"
 
 #: juicer/meta/templates/operation.tmpl:744
 #: juicer/meta/templates/operation.tmpl:758

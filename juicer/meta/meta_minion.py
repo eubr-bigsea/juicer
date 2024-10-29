@@ -1,6 +1,5 @@
 # coding=utf-8
 import functools
-import gettext
 import json
 import logging.config
 import multiprocessing
@@ -10,9 +9,9 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
-from timeit import default_timer as timer
 from datetime import datetime
 import socketio
+from juicer.util.i18n import gettext, set_language
 from juicer.meta.transpiler import MetaTranspiler
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
@@ -80,7 +79,7 @@ class MetaMinion(Minion):
             self.config['juicer']['servers']['redis_url'],
             'job_output')
         def emit_event(name, message, status, identifier, **kwargs):
-            log.debug(gettext.gettext('Emit %s %s %s %s'), name, message,
+            log.debug(gettext('Emit %s %s %s %s'), name, message,
                       status, identifier)
             data = {'message': message, 'status': status, 'id': identifier}
             data.update(kwargs)
@@ -100,7 +99,7 @@ class MetaMinion(Minion):
                 self._process_message_nb()
             except Exception as ee:
                 tb = traceback.format_exception(*sys.exc_info())
-                log.exception(gettext.gettext('Unhandled error (%s) \n>%s'),
+                log.exception(gettext('Unhandled error (%s) \n>%s'),
                               str(ee), '>\n'.join(tb))
 
     def _process_message(self):
@@ -133,7 +132,7 @@ class MetaMinion(Minion):
         # Extract the message type
         msg_type = msg_info['type']
         self._generate_output(
-            gettext.gettext('Processing message %s for app %s') %
+            gettext('Processing message %s for app %s') %
             (msg_type, self.app_id))
 
         # Forward the message according to its purpose
@@ -146,13 +145,14 @@ class MetaMinion(Minion):
             self.current_lang = msg_info.get('app_configs', {}).get(
                 'locale', self.current_lang)
             lang = self.current_lang
-            t = gettext.translation('messages', locales_path, [lang],
-                                    fallback=True)
-            t.install()
+            # t = gettext.translation('messages', locales_path, [lang],
+            #                        fallback=True)
+            # t.install()
+            set_language(lang)
 
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job',
-                message=gettext.gettext('Running job with lang {}/{}').format(
+                message=gettext('Running job with lang {}/{}').format(
                     lang, self.current_lang),
                 status='RUNNING', identifier=job_id)
 
@@ -170,7 +170,7 @@ class MetaMinion(Minion):
                 self.job_future = self._execute_future(job_id, workflow,
                                                        app_configs,
                                                        cluster_info)
-                log.info(gettext.gettext('Execute message finished'))
+                log.info(gettext('Execute message finished'))
             except ValueError as e:
                 self._emit_event(room=job_id, namespace='/stand')(
                     message=str(e),
@@ -179,10 +179,10 @@ class MetaMinion(Minion):
             except Exception as e:
                 import traceback
                 tb = traceback.format_exception(*sys.exc_info())
-                log.exception(gettext.gettext('Unhandled error'))
+                log.exception(gettext('Unhandled error'))
                 self._emit_event(room=job_id, namespace='/stand')(
                     exception_stack='\n'.join(tb),
-                    message=gettext.gettext('Unhandled error'),
+                    message=gettext('Unhandled error'),
                     name='update job',
                     status='ERROR', identifier=job_id)
 
@@ -190,11 +190,11 @@ class MetaMinion(Minion):
             job_id = msg_info.get('job_id', None)
             if job_id:
                 log.info(
-                    gettext.gettext('Terminate message received (job_id=%s)'),
+                    gettext('Terminate message received (job_id=%s)'),
                     job_id)
                 self.cancel_job(job_id)
             else:
-                log.info(gettext.gettext('Terminate message received (app=%s)'),
+                log.info(gettext('Terminate message received (app=%s)'),
                          self.app_id)
                 self.terminate()
 
@@ -215,7 +215,7 @@ class MetaMinion(Minion):
             dataframe_util.analyse_attribute(
                 task_id, df, emit,
                 attribute=msg_info.get('attribute'), msg=msg_info)
-            log.info(gettext.gettext('Analyse attribute message finished'))
+            log.info(gettext('Analyse attribute message finished'))
 
         elif msg_type == juicer_protocol.MORE_DATA:
             job_id = msg_info['job_id']
@@ -252,15 +252,15 @@ class MetaMinion(Minion):
                 json.dumps(target_workflow))
 
             self._emit_event(room=job_id, namespace='/stand')(
-                message=gettext.gettext(
+                message=gettext(
                     'Workflow exported (id = {}').format(wf_id),
                 name='update job',
                 status='SUCCESS', identifier=job_id)
 
         else:
-            log.warn(gettext.gettext('Unknown message type %s'), msg_type)
+            log.warn(gettext('Unknown message type %s'), msg_type)
             print(msg)
-            self._generate_output(gettext.gettext(
+            self._generate_output(gettext(
                 'Unknown message type %s') % msg_type)
 
     def _execute_future(self, job_id, workflow, app_configs, cluster_info):
@@ -343,7 +343,7 @@ class MetaMinion(Minion):
         # remove variables that contain function calls
         workflow['expanded_variables'] = {k: v for k, v in
             workflow.get('expanded_variables', {}).items() if not callable(v)}
- 
+
         msg = json.dumps({
             'workflow_id': self.workflow_id,
             'app_id': self.app_id,
@@ -500,7 +500,7 @@ class MetaMinion(Minion):
         sys.exit(0)
 
     def process(self):
-        log.info(gettext.gettext(
+        log.info(gettext(
             'Meta minion (workflow_id=%s,app_id=%s) started (pid=%s)'),
             self.workflow_id, self.app_id, os.getpid())
         self.execute_process = multiprocessing.Process(
