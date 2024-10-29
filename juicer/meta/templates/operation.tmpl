@@ -15,7 +15,6 @@ from pyspark.mllib.evaluation import MulticlassMetrics
 
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from gettext import gettext
 import logging
 import logging.config
 import functools
@@ -490,7 +489,7 @@ def create_pipeline(label: str, features_names):
 
     if len(grid) == 0:
         raise ValueError(
-            gettext('No algorithm or algorithm parameter informed.'))
+            "{{gettext('No algorithm or algorithm parameter informed.')}}")
     {%- if builder_params.grid %}
     {{builder_params.grid.generate_code() | indent(width=4, first=False)}}
     {%- endif %}
@@ -648,8 +647,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     metric_value = cm.areaUnderROC
                     x_val, y_val = zip(*points)
 
-                    curve_title = gettext(
-                        'Area under {} curve (AUC = {:1.4f})').format(
+                    curve_title = "{{gettext('Area under {} curve (AUC = {:1.4f})')}}").format(
                         method_name.upper(), metric_value)
                     content = AreaUnderCurveReport(
                         x_val, y_val, curve_title, method_name).generate(
@@ -690,20 +688,20 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 content = report.plot(
                     #gettext('Actual versus Prediction'),
                     '',
-                    gettext('Actual'),
-                    gettext('Prediction'),
+                    "{{gettext('Actual')}}",
+                    "{{gettext('Prediction')}}",
                     (sorted_actual, sorted_predicted),
                     (identiy, identiy),
                     submission_lock=submission_lock,
-                    traces=[gettext('Actual versus Prediction'),
-                            gettext('Identity')],
+                    traces=["{{gettext('Actual versus Prediction')}}",
+                            "{{gettext('Identity')}}"],
                         mode=['markers', 'lines']
                 )
                 # print('>' * 30 , 'actual vs prediction', content)
                 emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Actual versus Prediction'),
+                    title="{{gettext('Actual versus Prediction')}}",
                     message=content)
 
                 report = PlotlyChartReport()
@@ -711,19 +709,19 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 content_a_p = report.plot(
                     #gettext('Actual and Prediction'),
                     '',
-                    gettext('Record #'),
+                    "{{gettext('Record #')}}",
                     label_attr,
                     (x_ax, actual),
                     (x_ax, predicted),
                     submission_lock=submission_lock,
                     show_legend=True,
-                    traces=[gettext('Actual'), gettext('Prediction'),],
+                    traces=["{{gettext('Actual')}}", "{{gettext('Prediction')}}",],
                     mode=['lines', 'lines']
                 )
                 emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Actual and Prediction'),
+                    title="{{gettext('Actual and Prediction')}}",
                     message=content_a_p)
 
                 data = [
@@ -742,29 +740,29 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     point_opacity=0.5,
                     hist_color='royalblue',
                     hist_opacity=0.8,
-                    x_label=gettext('Prediction'),
-                    y_label=gettext('Residual'),
+                    x_label="{{gettext('Prediction')}}",
+                    y_label="{{gettext('Residual')}}",
                     title='' # gettext('Prediction versus Residual')
                 )
                 emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Prediction versus Residual'),
+                    title="{{gettext('Prediction versus Residual')}}",
                     message=content)
 
                 report2 = SeabornChartReport()
                 content = report2.jointplot(
                     data, 'prediction', 'residual',
-                    gettext('Prediction versus Residual'),
-                    gettext('Prediction'),
-                    gettext('Residual'),
+                    "{{gettext('Prediction versus Residual')}}",
+                    "{{gettext('Prediction')}}",
+                    "{{gettext('Residual')}}",
                     submission_lock=submission_lock
                 )
                 #print('>' * 30, 'prediction vs residual', content)
                 emit(status='RUNNING', type='HTML',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Prediction versus Residual'),
+                    title="{{gettext('Prediction versus Residual')}}",
                     message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
 
                 {%- elif builder_params.evaluator.task_type == 'clustering' %}
@@ -776,7 +774,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 emit(status='RUNNING', type='HTML',
                         identifier=evaluator.task_id,
                         operation_id=evaluator.operation_id,
-                        title=gettext('Resulting data (sample)'),
+                        title="{{gettext('Resulting data (sample)')}}",
                         message=(df_final.limit(50).toPandas()
                                  .to_html(index=False, classes=css_classes))
                 )
