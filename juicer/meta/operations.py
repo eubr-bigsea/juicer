@@ -1711,8 +1711,8 @@ class EstimatorMetaOperation(ModelMetaOperation):
                     include_end else (lambda a, b: a < b))
 
         # Filter the input list based on the defined conditions
-        return (lambda x: [v for v in x if start_comp(start, v)
-                           and end_comp(v, end)])
+        return (lambda x: [v for v in x if not (start_comp(start, v)
+                           and end_comp(v, end))])
 
     def in_list(self, *search_list):
         return lambda x: [v for v in x if v not in search_list]
@@ -2755,15 +2755,23 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             parameters['solver'] = dict((s, v) for s, v in parameters['solver'].items()
                                     if s != 'auto')
 
+        if 'family_link' in parameters and parameters.get('family_link') is not None:
+            family_link = parameters.get('family_link').get('list')
+        else:
+            family, link = (None, None)
+        (family, link) = zip(*[x.split(':') for x in family_link])
         self.hyperparameters = {
             # 'aggregationDepth': parameters.get('aggregation_depth'),
             # 'fitIntercept': parameters.get('fit_intercept'),
             # 'linkPower': parameters.get('link_power'),
             # 'maxIter': parameters.get('max_iter'),
             # 'offsetCol': parameters.get('offset'),
-            'regParam': _as_float_list(parameters.get('elastic_net'),
+            'regParam': _as_float_list(
+                parameters.get('reg_param', {'type': 'list', 'list': [0.0001]}),
                                        self.grid_info),
             'solver': _as_string_list(parameters.get('solver')),
+            'family': _as_string_list({'list': family, 'type': 'list'}),
+            'link': _as_string_list({'list': link, 'type': 'list'}),
             # 'standardization': parameters.get('standardization'),
             # 'tol': parameters.get('tol'),
             # 'variancePower': parameters.get('variance_power'),
