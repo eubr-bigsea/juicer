@@ -433,9 +433,9 @@ def create_pipeline(label: str, features_names):
     candidate_grid = ({%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
-        {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
+        {%- for variation in variations -%} list(grid_{{estimator.var}}_{{loop.index0}}){% if not loop.last %} + {% endif %}{% endfor %}
         {%- else -%}
-        grid_{{estimator.var}}
+        list(grid_{{estimator.var}})
         {%- endif %}
         {%- if not loop.last %} + {% else %}{% endif %}
         {%- if loop.index % 3 == 0 %}
