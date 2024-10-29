@@ -33,7 +33,7 @@ import os
 from juicer.util import dataframe_util
 from juicer.spark.reports import (AreaUnderCurveReport,
                                   ConfusionMatrixImageReport,
-                                  MatplotlibChartReport,
+                                  MatplotlibChartReport, PlotlyChartReport,
                                   SeabornChartReport)
 from juicer.spark.util.results import CurveMetrics
 import dataclasses
@@ -122,24 +122,24 @@ def get_feature_importance_score(model, features, classes):
                      regression.RandomForestRegressionModel)):
         return model.featureImportances.toArray().tolist()
     elif isinstance(model, (classification.NaiveBayesModel)):
-        return [{
+        return {
             'pi': model.pi.values.tolist(),
             'theta': model.theta.values.tolist(),
-        }]
+        }
     elif isinstance(model, (regression.LinearRegressionModel,
             regression.GeneralizedLinearRegressionModel)):
-        return [{
+        return {
             'coefficients': dict(zip(features, model.coefficients.tolist())),
             'intercept': model.intercept,
             'importance': dict(zip(features, map(abs, model.coefficients.tolist()))),
-        }]
+        }
     elif isinstance(model, (regression.FMRegressionModel,
                             classification.FMClassificationModel)):
-        return [{
+        return {
             'coefficients': dict(zip(features, model.linear.tolist())),
             'intercept': model.intercept,
             'importance': dict(zip(features, map(abs, model.linear.tolist()))),
-        }]
+        }
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
 
@@ -424,6 +424,7 @@ def create_pipeline(label: str, features_names):
     {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
     )
     {%- endif %}
+
     {% endfor %}
     #}
 
@@ -433,6 +434,34 @@ def create_pipeline(label: str, features_names):
     {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
     {%- else %}
     {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
+    {%- endif %}
+
+    {%- set constrained = estimator.get_constrained_params() %}
+    {%- if constrained %}
+    # Remove invalid parameter combinations
+    valid_constrained = [
+    {%- for p in constrained %}
+        {{p}},
+    {%- endfor %}
+    ]
+
+    grid_{{estimator.var}}_constrained = {}
+    for item in grid_{{estimator.var}}:
+        valid = True
+        key = None
+        for validation in valid_constrained:
+            if all([item[k] == v for k, v in validation.items()]):
+                params = list(item.items())[1:]
+                key = tuple((k, item[k]) for k, v in params)
+                valid = True
+                break
+            else:
+                valid = False
+        if valid:
+            grid_{{estimator.var}}_constrained[key] = item
+
+    grid_{{estimator.var}} = grid_{{estimator.var}}_constrained.values()
+
     {%- endif %}
     {% endfor %}
     # Remove duplicated grid parameters
@@ -448,6 +477,7 @@ def create_pipeline(label: str, features_names):
         {# extra line #}
         {%- endif %}
     {%- endfor %})
+
     distinct_grid = set()
     grid = []
     for row in candidate_grid:
@@ -456,6 +486,7 @@ def create_pipeline(label: str, features_names):
         if key not in distinct_grid:
             distinct_grid.add(key)
             grid.append(row)
+
 
     if len(grid) == 0:
         raise ValueError(
@@ -496,7 +527,6 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         # Pipeline definition
         pipeline, grid, label = create_pipeline(
             label_attr, features_names=final_features_names)
-
         emit = emit_metric(emit_event)
 
         # Pipeline evaluator
@@ -649,28 +679,78 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
                 min_value = min(min(actual), min(predicted))
                 max_value = max(max(actual), max(predicted))
+                identiy = np.linspace(min_value, max_value, len(actual))
 
-                report = MatplotlibChartReport()
+                report = PlotlyChartReport()
+
+                sorted_pairs = sorted(zip(actual, predicted))
+                sorted_actual, sorted_predicted = (
+                    [x for x, _ in sorted_pairs], [y for _, y in sorted_pairs])
+
                 content = report.plot(
-                    gettext('Actual versus Prediction'),
+                    #gettext('Actual versus Prediction'),
+                    '',
                     gettext('Actual'),
                     gettext('Prediction'),
-                    [min_value, max_value],
-                    [min_value, max_value], 'r-',
-                    actual, predicted,'b.', linewidth=1,
-                    submission_lock=submission_lock
+                    (sorted_actual, sorted_predicted),
+                    (identiy, identiy),
+                    submission_lock=submission_lock,
+                    traces=[gettext('Actual versus Prediction'),
+                            gettext('Identity')],
+                        mode=['markers', 'lines']
                 )
                 # print('>' * 30 , 'actual vs prediction', content)
-                emit(status='RUNNING', type='HTML',
+                emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
                     title=gettext('Actual versus Prediction'),
-                    message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
+                    message=content)
+
+                report = PlotlyChartReport()
+                x_ax = list(range(0, len(actual)))
+                content_a_p = report.plot(
+                    #gettext('Actual and Prediction'),
+                    '',
+                    gettext('Record #'),
+                    label_attr,
+                    (x_ax, actual),
+                    (x_ax, predicted),
+                    submission_lock=submission_lock,
+                    show_legend=True,
+                    traces=[gettext('Actual'), gettext('Prediction'),],
+                    mode=['lines', 'lines']
+                )
+                emit(status='RUNNING', type='VISUALIZATION',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title=gettext('Actual and Prediction'),
+                    message=content_a_p)
 
                 data = [
                     dict(prediction=x[0], residual=x[1])
                         for x in zip(predicted, residual)
                 ]
+
+                report_res = PlotlyChartReport()
+                content = report_res.plot_jointplot(
+                    predicted, residual,
+                    width=800,
+                    height=500,
+                    n_bins=40,
+                    point_size=3,
+                    point_color='darkblue',
+                    point_opacity=0.5,
+                    hist_color='royalblue',
+                    hist_opacity=0.8,
+                    x_label=gettext('Prediction'),
+                    y_label=gettext('Residual'),
+                    title='' # gettext('Prediction versus Residual')
+                )
+                emit(status='RUNNING', type='VISUALIZATION',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title=gettext('Prediction versus Residual'),
+                    message=content)
 
                 report2 = SeabornChartReport()
                 content = report2.jointplot(
