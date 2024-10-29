@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python/
 """
 Auto-generated Spark code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
@@ -15,7 +14,6 @@ from pyspark.mllib.evaluation import MulticlassMetrics
 
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from gettext import gettext
 import logging
 import logging.config
 import functools
@@ -42,8 +40,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 {% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
-# FIXME: Do not work
 {% for imps in transpiler.imports %}
+# FIXME: Do not work
 {{imps}}
 {%- endfor %}
 
@@ -100,14 +98,10 @@ def get_feature_importance_score(model, features, classes):
                 coefficients_dict.append(class_coeff)
             result = {'coefficients': coefficients_dict,}
         else:
-            #print(model.family, m.get(model.family))
             coef = list(model.coefficients.tolist())
             odds_ratios = [math.exp(c) for c in coef]
             result = {'coefficients': dict(zip(features, coef)),
                       'odds_ratios': dict(zip(features, odds_ratios))}
-            # print('-' * 20)
-            # print(result)
-            # print('-' * 20)
         return result
     elif isinstance(model, classification.LinearSVCModel):
         coefficients = model.coefficients
@@ -240,19 +234,6 @@ class CustomTrainValidationSplit():
                 for counter, params in enumerate(self.params):
                     task_id, task_name, operation_id, estimator, details = (
                         self._extract_params(params))
-                    # task_id = None
-                    # task_name = None
-                    # operation_id = None
-                    # estimator = None
-                    # details = {}
-                    # for param, value in params.items():
-                    #     if param.name == 'stages':
-                    #         task_id = value[-1].task_id
-                    #         task_name = value[-1].task_name
-                    #         operation_id = value[-1].operation_id
-                    #         name = value[-1].__class__.__name__
-                    #     else:
-                    #         details[param.name] = value
 
                     ctx = TrainingContext(counter, task_id, task_name,
                         estimator, details, operation_id, time.time(), 0)
@@ -490,7 +471,7 @@ def create_pipeline(label: str, features_names):
 
     if len(grid) == 0:
         raise ValueError(
-            gettext('No algorithm or algorithm parameter informed.'))
+            "{{gettext('No algorithm or algorithm parameter informed.')}}")
     {%- if builder_params.grid %}
     {{builder_params.grid.generate_code() | indent(width=4, first=False)}}
     {%- endif %}
@@ -648,8 +629,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     metric_value = cm.areaUnderROC
                     x_val, y_val = zip(*points)
 
-                    curve_title = gettext(
-                        'Area under {} curve (AUC = {:1.4f})').format(
+                    curve_title = "{{gettext('Area under {} curve (AUC = {:1.4f})')}}".format(
                         method_name.upper(), metric_value)
                     content = AreaUnderCurveReport(
                         x_val, y_val, curve_title, method_name).generate(
@@ -673,7 +653,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                                 row[label_attr], row['prediction'],
                                 row[label_attr] - row['prediction']
                             )
-                         )
+                         ).sortBy(lambda x: x[0])
                 )
                 actual, predicted, residual = zip(*rdd.collect())
 
@@ -690,20 +670,20 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 content = report.plot(
                     #gettext('Actual versus Prediction'),
                     '',
-                    gettext('Actual'),
-                    gettext('Prediction'),
+                    "{{gettext('Actual')}}",
+                    "{{gettext('Prediction')}}",
                     (sorted_actual, sorted_predicted),
                     (identiy, identiy),
                     submission_lock=submission_lock,
-                    traces=[gettext('Actual versus Prediction'),
-                            gettext('Identity')],
+                    traces=["{{gettext('Actual versus Prediction')}}",
+                            "{{gettext('Identity')}}"],
                         mode=['markers', 'lines']
                 )
                 # print('>' * 30 , 'actual vs prediction', content)
                 emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Actual versus Prediction'),
+                    title="{{gettext('Actual versus Prediction')}}",
                     message=content)
 
                 report = PlotlyChartReport()
@@ -711,19 +691,21 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 content_a_p = report.plot(
                     #gettext('Actual and Prediction'),
                     '',
-                    gettext('Record #'),
+                    "{{gettext('Record #')}}",
                     label_attr,
                     (x_ax, actual),
                     (x_ax, predicted),
+                    (x_ax, residual),
                     submission_lock=submission_lock,
                     show_legend=True,
-                    traces=[gettext('Actual'), gettext('Prediction'),],
-                    mode=['lines', 'lines']
+                    traces=["{{gettext('Actual')}}", "{{gettext('Prediction')}}",
+                            "{{gettext('Residual')}}"],
+                    mode=['lines', 'lines', 'lines']
                 )
                 emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Actual and Prediction'),
+                    title="{{gettext('Actual and Prediction')}}",
                     message=content_a_p)
 
                 data = [
@@ -742,31 +724,32 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     point_opacity=0.5,
                     hist_color='royalblue',
                     hist_opacity=0.8,
-                    x_label=gettext('Prediction'),
-                    y_label=gettext('Residual'),
+                    x_label="{{gettext('Prediction')}}",
+                    y_label="{{gettext('Residual')}}",
                     title='' # gettext('Prediction versus Residual')
                 )
                 emit(status='RUNNING', type='VISUALIZATION',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Prediction versus Residual'),
+                    title="{{gettext('Prediction versus Residual')}}",
                     message=content)
 
+                {# old
                 report2 = SeabornChartReport()
                 content = report2.jointplot(
                     data, 'prediction', 'residual',
-                    gettext('Prediction versus Residual'),
-                    gettext('Prediction'),
-                    gettext('Residual'),
+                    "{{gettext('Prediction versus Residual')}}",
+                    "{{gettext('Prediction'),}}"
+                    "{{gettext('Residual')}}",
                     submission_lock=submission_lock
                 )
                 #print('>' * 30, 'prediction vs residual', content)
                 emit(status='RUNNING', type='HTML',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
-                    title=gettext('Prediction versus Residual'),
+                    title="{{gettext('Prediction versus Residual')}}",
                     message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
-
+                #}
                 {%- elif builder_params.evaluator.task_type == 'clustering' %}
                 {%- endif%}
 
@@ -776,7 +759,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 emit(status='RUNNING', type='HTML',
                         identifier=evaluator.task_id,
                         operation_id=evaluator.operation_id,
-                        title=gettext('Resulting data (sample)'),
+                        title="{{gettext('Resulting data (sample)')}}",
                         message=(df_final.limit(50).toPandas()
                                  .to_html(index=False, classes=css_classes))
                 )

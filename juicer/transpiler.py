@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from textwrap import dedent
 from typing import Callable
 from urllib.parse import urlparse
+from babel.support import Translations
 
 import autopep8
 import jinja2
@@ -379,7 +380,14 @@ class Transpiler(object):
         template_env = jinja2.Environment(loader=template_loader,
                                           extensions=[AutoPep8Extension,
                                                       HandleExceptionExtension,
+                                                      'jinja2.ext.i18n',
                                                       'jinja2.ext.do'])
+
+        locales_path = os.path.join(os.path.dirname(__file__),
+                                    'i18n', 'locales')
+        translations = Translations.load(
+            locales_path, locales=['pt', 'en'])
+        template_env.install_gettext_translations(translations)
         # import pdb; pdb.set_trace()
         # if (os.path.getmtime(self.template_dir) >
         #                 os.path.getmtime(compiled_tmpl_dir)):
