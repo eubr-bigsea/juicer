@@ -40,6 +40,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 {% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
+{%- set task_type = builder_params.evaluator.task_type %}
 {% for imps in transpiler.imports %}
 # FIXME: Do not work
 {{imps}}
@@ -57,6 +58,7 @@ class TrainingContext:
     operation_id: int
     start: float
     time: float
+    fold: int
     def replace(self, *args, start: float, time: float):
        return dataclasses.replace(
            self, start=start, time=time)
@@ -70,6 +72,7 @@ class TrainingResult:
     exception: str = None
     ctx: object = None
     feature_importance: str = None
+    fold: int = 0
     def __iter__(self):
         return iter(
             (self.status, self.model, self.details, self.metric,
@@ -84,19 +87,26 @@ def get_feature_importance_score(model, features, classes):
     if isinstance(model, classification.LogisticRegressionModel):
         m = model.extractParamMap()
         if m.get(model.family) in ('multinomial', 'auto'):
-            coef = model.coefficientMatrix
+            coef = model.coefficientMatrix.toArray()
             coefficients_dict = []
+            odds_dict = []
             total_classes = len(classes)
-            for i in range(coef.numRows):
+            #odds_ratios = np.exp(coef)
+            for i, row in enumerate(coef):
                 class_coeff = {
                     "class": classes[i] if i < total_classes else str(i),
-                    "coefficients": {}
                 }
-                for j in range(coef.numCols):
-                    class_coeff["coefficients"][features[j]] = coef[i, j]
+                class_odds = {
+                    "class": classes[i] if i < total_classes else str(i),
+                }
+
+                for j, col in enumerate(row):
+                    class_coeff[features[j]] = float(col)
+                    #class_odds[features[j]] = float(odds_ratios[i, j])
 
                 coefficients_dict.append(class_coeff)
-            result = {'coefficients': coefficients_dict,}
+                #odds_dict.append(class_odds)
+            result = {'coefficients': coefficients_dict, }
         else:
             coef = list(model.coefficients.tolist())
             odds_ratios = [math.exp(c) for c in coef]
@@ -227,7 +237,7 @@ class CustomTrainValidationSplit():
 
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             folds = self._generate_folds(df)
-            for train, test in folds:
+            for fold_n, (train, test) in enumerate(folds):
                 train.cache()
                 test.cache()
                 future_train = {}
@@ -236,7 +246,8 @@ class CustomTrainValidationSplit():
                         self._extract_params(params))
 
                     ctx = TrainingContext(counter, task_id, task_name,
-                        estimator, details, operation_id, time.time(), 0)
+                        estimator, details, operation_id, time.time(),
+                        0, fold_n)
                     submission = executor.submit(
                         self._perform_training, train, test, self.estimator,
                         self.evaluator, params, details, ctx)
@@ -247,6 +258,7 @@ class CustomTrainValidationSplit():
                     result = future.result()
                     # future_train[future]
                     if result is None:
+                        log.warning('Result is None')
                         continue
                     ctx = result.ctx
                     message = {'params': ctx.details, 't': ctx.time,
@@ -264,7 +276,8 @@ class CustomTrainValidationSplit():
                         message['metric'] = {
                             'name': metric_name,
                             'value': result.metric if not math.isnan(result.metric) else 1000,
-                            'is_larger_better': is_larger_better
+                            'is_larger_better': is_larger_better,
+                            'index': ctx.index, 'fold': ctx.fold
                         }
                         ml_model = result.model.stages[-1]
 
@@ -281,7 +294,6 @@ class CustomTrainValidationSplit():
                         importance = get_feature_importance_score(
                             ml_model, features_names, classes)
                         message['feature_importance'] = importance
-
                         emit(identifier=ctx.task_id, status='COMPLETED',
                             message=message, title=ctx.task_name,
                             operation_id=ctx.operation_id, )
@@ -369,7 +381,7 @@ def create_pipeline(label: str, features_names):
 
     # Algorithms definition
     common_params = {'predictionCol': 'prediction',
-        {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label, {% endif %}
+        {%- if task_type != 'clustering'%}'labelCol': label, {% endif %}
         'featuresCol': 'features'}
 
     {%- for estimator in builder_params.estimators %}
@@ -381,38 +393,10 @@ def create_pipeline(label: str, features_names):
     # See https://stackoverflow.com/a/54992651/1646932
     pipeline = Pipeline(stages=[])
 
-    {#-
-    {%- for estimator in builder_params.estimators %}
-    {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
-    {%- endfor -%}
-    {
-    # Grid parameters
-    {%- for estimator in builder_params.estimators %}
-    {%- set variations = estimator.get_variations() %}
-    {%- if variations %}
-    {%- for name, params in variations %}
-    grid_{{estimator.var}}_{{loop.index0}} = (tuning.ParamGridBuilder()
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}]})
-        {{estimator.generate_hyperparameters_code(estimator.var, loop.index0, params.get('invalid'))
-            | indent(width=8, first=False)}}
-    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
-    )
-    {%- endfor %}
-    {%- else %}
-    grid_{{estimator.var}} = (tuning.ParamGridBuilder()
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}]})
-        {{estimator.generate_hyperparameters_code() | indent(width=8, first=False)}}
-    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
-    )
-    {%- endif %}
-
-    {% endfor %}
-    #}
-
     # Grid parameters (Using: {{builder_params.grid.strategy}})
     {%- for estimator in builder_params.estimators %}
     {%- if builder_params.grid.strategy == 'grid' %}
-    {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
+    {{estimator.generate_hyperparameters_code(task_type=task_type) | indent(width=4, first=False)}}
     {%- else %}
     {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
     {%- endif %}
@@ -481,7 +465,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
 
     try:
-        {%- if builder_params.evaluator.task_type != 'clustering' %}
+        {%- if task_type != 'clustering' %}
         label_attr = '{{builder_params.features.label.name}}'
         {%- else %}
         label_attr = None
@@ -566,7 +550,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 # Generate visualizations
                 # Type: {{builder_params.evaluator.task_type}}
 
-                {%- if builder_params.evaluator.task_type in ('binary-classification', 'multiclass-classification') %}
+                {%- if task_type in ('binary-classification', 'multiclass-classification') %}
                 # Convert to RDD of (prediction, label)
                 rdd_cm = (df_transformed.select(label, 'prediction')
                        .rdd
@@ -609,7 +593,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
 
 
-                {%- if builder_params.evaluator.task_type == 'binary-classification' %}
+                {%- if task_type == 'binary-classification' %}
                 from pyspark.mllib.evaluation import BinaryClassificationMetrics
 
                 if metric_name == 'areaUnderPR':
@@ -644,7 +628,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                         message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
                 {%- endif %}
 
-                {%- elif builder_params.evaluator.task_type == 'regression' %}
+                {%- elif task_type == 'regression' %}
                 df_transformed = model.transform(df)
 
                 rdd = (df_transformed.select([label_attr, 'prediction'])
@@ -750,7 +734,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     title="{{gettext('Prediction versus Residual')}}",
                     message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
                 #}
-                {%- elif builder_params.evaluator.task_type == 'clustering' %}
+                {%- elif task_type == 'clustering' %}
                 {%- endif%}
 
 

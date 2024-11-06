@@ -1461,7 +1461,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
         #self.grid_info = parameters.get('workflow').get(
             #'forms', {}).get('$grid', {})
         self.grid_info = parameters.get('workflow', {}).get('forms', {}).get('$grid', {})
-
+        self.type = None
 
     def get_constrained_params(self):
         return None
@@ -1494,7 +1494,9 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 """))
         return '\n'.join(code).strip()
 
-    def generate_hyperparameters_code(self, var=None, index=None, invalid=None):
+
+    def generate_hyperparameters_code(self, var=None, index=None, invalid=None,
+                                      task_type=None):
         code = []
         if var == None:
             var = self.var
@@ -1506,9 +1508,23 @@ class EstimatorMetaOperation(ModelMetaOperation):
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         max_iterations = self.grid_info.get('value', {}).get(
             'max_iterations', 20)
+
         self.template = """
+            {%- if type == 'binary' and task_type == 'multiclass-classification' %}
+            {%- set using_ovr = True %}
+            # Using a binary classifier and multiclass classification => OneVsRest.
+            {{var}}_ovr = classification.OneVsRest(
+                classifier={{var}},
+                labelCol={{var}}.getOrDefault({{var}}.labelCol),
+                featuresCol={{var}}.getOrDefault({{var}}.featuresCol),
+            )
+             # Lemonade internal use
+            {{var}}_ovr.task_id = '{{task.get('id')}}'
+            {{var}}_ovr.task_name = '{{task.get('name')}}'
+            {{var}}_ovr.operation_id = {{task.get('operation').get('id')}}
+            {%- endif %}
             grid_{{var}} = (tuning.ParamGridBuilder()
-                .baseOn({pipeline.stages: common_stages + [{{var}}] })
+                .baseOn({pipeline.stages: common_stages + [{{var}}{%if using_ovr%}_ovr{% endif -%} ] })
                 {%- for p, v in hyperparameters %}
                 .addGrid({{var}}.{{p}}, {{v.value}})
                 {%- endfor %}
@@ -1528,8 +1544,9 @@ class EstimatorMetaOperation(ModelMetaOperation):
             {% endif -%}
         """
         return (dedent(self.render_template({
-            'strategy': grid_strategy,
+            'strategy': grid_strategy, 'task': self.task,
             'var': var, 'max_iterations': max_iterations,
+            'type': self.type, 'task_type': task_type,
             'hyperparameters': [(p, v) for p, v in self.hyperparameters.items()
                                 if v]
         }))).strip()
@@ -1561,7 +1578,8 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 grid_strategy))
         return dedent('\n'.join(code))
 
-    def generate_random_hyperparameters_code(self, limit=10, seed=None):
+    def generate_random_hyperparameters_code(self, limit=10, seed=None,
+                                             task_type=None):
 
         n = min(limit, self.get_hyperparameter_count())
 
@@ -2408,7 +2426,7 @@ class ClassificationOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         EstimatorMetaOperation.__init__(
             self, parameters,  named_inputs,  named_outputs, 'classification')
-
+        self.type = None
 
 class DecisionTreeClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2444,6 +2462,7 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
         self.var = 'decision_tree'
         self.name = 'DecisionTreeClassifier'
 
+        self.type = 'multilabel'
 
 class GBTClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2465,6 +2484,7 @@ class GBTClassifierOperation(ClassificationOperation):
 
         self.var = 'gbt_classifier'
         self.name = 'GBTClassifier'
+        self.type = 'binary'
 
 
 class NaiveBayesClassifierOperation(ClassificationOperation):
@@ -2488,6 +2508,7 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
         }
         self.var = 'nb_classifier'
         self.name = 'NaiveBayes'
+        self.type = 'multiclass'
 
 
 class PerceptronClassifierOperation(ClassificationOperation):
@@ -2525,7 +2546,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
         }
         self.var = 'mlp_classifier'
         self.name = 'MultilayerPerceptronClassifier'
-
+        self.type = 'multiclass'
 
 
 class RandomForestClassifierOperation(ClassificationOperation):
@@ -2553,6 +2574,7 @@ class RandomForestClassifierOperation(ClassificationOperation):
         }
         self.var = 'rand_forest_cls'
         self.name = 'RandomForestClassifier'
+        self.type = 'multiclass'
 
 
 class LogisticRegressionOperation(ClassificationOperation):
@@ -2579,6 +2601,7 @@ class LogisticRegressionOperation(ClassificationOperation):
         }
         self.var = 'lr'
         self.name = 'LogisticRegression'
+        self.type = 'binary'
 
 
 class SVMClassifierOperation(ClassificationOperation):
@@ -2594,6 +2617,7 @@ class SVMClassifierOperation(ClassificationOperation):
         }
         self.var = 'svm_cls'
         self.name = 'LinearSVC'
+        self.type = 'binary'
 
 class FactorizationMachinesClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2615,6 +2639,7 @@ class FactorizationMachinesClassifierOperation(ClassificationOperation):
         }
         self.var = 'fm_classifier'
         self.name = 'FMClassifier'
+        self.type = 'multiclass'
 
 
 class RegressionOperation(EstimatorMetaOperation):

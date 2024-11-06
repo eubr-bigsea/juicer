@@ -1101,7 +1101,7 @@ def handle_spark_exception(e):
                     _('Binomial family only supports 1 or 2 outcome '
                             'classes but found {}').format(total))
         else:
-            raise ValueError(e.desc)
+            raise ValueError(e.desc) from None
     elif hasattr(e, 'java_exception'):
         se = 'org.apache.spark.SparkException'
         cause = e.java_exception.getCause()

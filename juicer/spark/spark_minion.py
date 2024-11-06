@@ -134,9 +134,9 @@ class SparkMinion(Minion):
     def _cleanup(self, pid, flag):
         log.warn(_('Finishing minion'))
         msg = _('Pressed CTRL+C / SIGINT. Minion canceled the job.')
-        self._emit_event(room=self.last_job_id, namespace='/stand')(
-            name='update job', message=msg,
-            status='ERROR', identifier=self.last_job_id)
+        #self._emit_event(room=self.last_job_id, namespace='/stand')(
+        #    name='update job', message=msg,
+        #    status='ERROR', identifier=self.last_job_id)
         self.terminate()
         sys.exit(0)
 
