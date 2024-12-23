@@ -65,6 +65,7 @@ class TrainingContext:
 
 @dataclasses.dataclass(frozen=True)
 class TrainingResult:
+    index: int = None
     status: str = None
     model: str = None
     details: str = None
@@ -75,7 +76,7 @@ class TrainingResult:
     fold: int = 0
     def __iter__(self):
         return iter(
-            (self.status, self.model, self.details, self.metric,
+            (self.index, self.status, self.model, self.details, self.metric,
             self.exception, self.ctx, self.feature_importance)
         )
 
@@ -83,8 +84,14 @@ class TrainingResult:
 {%- include auxiliary_code with context %}
 {%- endfor %}
 
-def get_feature_importance_score(model, features, classes):
-    if isinstance(model, classification.LogisticRegressionModel):
+def get_feature_importance_score(model, features, classes, data=None):
+    if isinstance(model, clustering.KMeansModel):
+        result = {
+            "training cost": model.summary.trainingCost,
+            "cluster sizes": model.summary.clusterSizes,
+        }
+        return result
+    elif isinstance(model, classification.LogisticRegressionModel):
         m = model.extractParamMap()
         if m.get(model.family) in ('multinomial', 'auto'):
             coef = model.coefficientMatrix.toArray()
@@ -179,13 +186,13 @@ class CustomTrainValidationSplit():
             df = model.transform(test, params)
             metric = evaluator.evaluate(df)
             new_ctx = ctx.replace(start=start, time=time.time() - start)
-            return TrainingResult('OK', model, details, metric, ctx=new_ctx)
+            return TrainingResult(ctx.index, 'OK', model, details, metric, ctx=new_ctx)
         except Exception as e:
             try:
                 dataframe_util.handle_spark_exception(e)
             except ValueError as ve:
                 logger.exception(ve)
-                return TrainingResult('ERROR', model=None, metric=None,
+                return TrainingResult(ctx.index, 'ERROR', model=None, metric=None,
                                       details=details, exception=ve, ctx=ctx)
 
     def _extract_params(self, params):
@@ -294,7 +301,7 @@ class CustomTrainValidationSplit():
                         else:
                             classes = []
                         importance = get_feature_importance_score(
-                            ml_model, features_names, classes)
+                            ml_model, features_names, classes, df)
                         message['feature_importance'] = importance
                         emit(identifier=ctx.task_id, status='COMPLETED',
                             message=message, title=ctx.task_name,
@@ -513,7 +520,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                          reverse=evaluator.isLargerBetter())
 
         if len(results):
-            status, model, params, metric, ex, ctx, fi = results[0]
+            index, status, model, params, metric, ex, ctx, fi = results[0]
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
 
             if model:
@@ -737,6 +744,18 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
                 #}
                 {%- elif task_type == 'clustering' %}
+                # Prepare k-means models
+                km_models = sorted(
+                    filter(
+                        lambda model: isinstance(model[1], clustering.KMeansModel),
+                        map(lambda result: (result.index, result.model.stages[-1]),
+                            results),
+                    ),
+                    key=lambda model: model[1].extractParamMap().get(model[1].k)
+                )
+                print('*' * 20)
+                print([m[1].summary.trainingCost for m in km_models])
+                print('*' * 20)
                 {%- endif%}
 
 

@@ -140,7 +140,12 @@ def _as_list(input_values, transform=None, size=None, validate=None):
 
 
 def _as_boolean_list(values):
-    if values is None:
+    if (
+        values is None
+        or not isinstance(values, dict)
+        or "type" not in values
+        or values["type"] != "list"
+    ):
         return None
     values['list'] = [v for v in values['list'] if v in [False, True]]
     return _as_list(values)
