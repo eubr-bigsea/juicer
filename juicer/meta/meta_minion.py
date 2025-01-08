@@ -355,6 +355,9 @@ class MetaMinion(Minion):
             'cluster': cluster_info
         }, cls=DateTimeEncoder)
         self.target_minion.state_control.push_app_queue(self.app_id, msg)
+
+        self.target_minion.transpiler.transpiler_utils.imports.update(
+            self.transpiler.transpiler_utils.imports)
         self.target_minion._process_message()
         #self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 

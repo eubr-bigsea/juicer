@@ -457,9 +457,9 @@ class SparkMinion(Minion):
                         os.environ.get('LD_LIBRARY_PATH', ''),
                         os.environ.get('HADOOP_HOME', '/opt/hadoop').rstrip('/')
                             + '/lib/native'])
-        print('*' * 20)
-        print(os.environ['SPARK_HOME'])
-        print(sys.path)
+        # print('*' * 20)
+        # print(os.environ['SPARK_HOME'])
+        # print(sys.path)
         if self.spark_dir:
             py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
             files = glob.glob(py4j_dir)

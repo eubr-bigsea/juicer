@@ -210,7 +210,6 @@ class DataReaderOperation(Operation):
                 url = 'hdfs://xxxxx:0000/path/name'
                 code.append("# URL is protected, please update it")
             if self.metadata['format'] in ['CSV', 'TEXT']:
-
                 if self.metadata['storage']['type'] != 'S3':
                     code.append(
                         f"url = '/'.join({repr(url.split('/'))}) #@HIDE_INFO@")
@@ -290,9 +289,9 @@ class DataReaderOperation(Operation):
                 if self.infer_schema == 'NO_IF_PARQUET':
                     infer_from_data = True
                     infer_from_limonero = False
-                self._generate_code_for_parquet(code, infer_from_data,
-                                                infer_from_limonero,
-                                                read_options)
+                self._generate_code_for_parquet(
+                    code, infer_from_data, infer_from_limonero, read_options,
+                    use_s3=self.metadata['storage']['type'] == 'S3')
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
                 # parsed = urlparse(self.metadata['url'])
@@ -379,8 +378,11 @@ class DataReaderOperation(Operation):
 
     def _generate_code_for_parquet(self, code, infer_from_data,
                                    infer_from_limonero,
-                                   read_options):
-        code.append(f"url = 's3a://{self.metadata['url']}' #@HIDE_INFO@")
+                                   read_options, use_s3=False):
+        if use_s3:
+            code.append(f"url = 's3a://{self.metadata['url']}' #@HIDE_INFO@")
+        else:
+            code.append(f"url = '{self.metadata['url']}' #@HIDE_INFO@")
         code.append("read_options = { # These options are from storage")
         for opt in read_options:
             code.append(f"{(4*' ')}{opt}")

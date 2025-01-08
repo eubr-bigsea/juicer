@@ -245,7 +245,7 @@ class ScikitLearnMinion(Minion):
             loader.graph.nodes[ids[0]]['parents'].append(ids[1])
         workflow['flows'] = flows
 
-    def perform_execute(self, job_id, workflow, app_configs):
+    def perform_execute(self, job_id, workflow, app_configs, code=None):
 
         # Sleeps 1s in order to wait for client join notification room
         # time.sleep(1)

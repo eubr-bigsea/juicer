@@ -6,6 +6,7 @@ Auto-generated Spark code from Lemonade Workflow
 More information about Lemonade to be provided.
 """
 from seaborn import jointplot
+from packaging.version import Version
 from pyspark.ml import (classification, regression, clustering,
                         evaluation, feature, tuning, Pipeline, PipelineModel)
 from pyspark.sql import functions, types, Row, DataFrame
@@ -14,6 +15,7 @@ from pyspark.mllib.evaluation import MulticlassMetrics
 
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Union
 import logging
 import logging.config
 import functools
@@ -51,7 +53,7 @@ submission_lock = threading.Lock()
 @dataclasses.dataclass(frozen=True)
 class TrainingContext:
     index: int
-    task_id: int
+    task_id: str
     task_name: str
     name: str
     details: str
@@ -65,15 +67,16 @@ class TrainingContext:
 
 @dataclasses.dataclass(frozen=True)
 class TrainingResult:
-    index: int = None
-    status: str = None
-    model: str = None
-    details: str = None
-    metric: str = None
-    exception: str = None
+    index: Union[int, None] = None
+    status: Union[str, None] = None
+    model: Union[str, None] = None
+    details: Union[str, None] = None
+    metric: Union[str, None] = None
+    exception: Union[Exception, None] = None
     ctx: object = None
-    feature_importance: str = None
+    feature_importance: Union[int, None] = None
     fold: int = 0
+    test_transformed: Union[DataFrame, None] = None
     def __iter__(self):
         return iter(
             (self.index, self.status, self.model, self.details, self.metric,
@@ -164,7 +167,7 @@ class CustomTrainValidationSplit():
         'test_size', 'num_workers', 'strategy', 'folds','fold_col')
     def __init__(self, estimator, evaluator, params,
                  train_ratio=0.7, seed=None,
-                 num_workers=4, strategy='split', folds=None):
+                 num_workers=4, strategy='split', folds=1):
 
         self.estimator = estimator
         self.evaluator = evaluator
@@ -183,10 +186,12 @@ class CustomTrainValidationSplit():
         try:
             start = time.time()
             model = estimator.fit(train, params)
-            df = model.transform(test, params)
-            metric = evaluator.evaluate(df)
+            test_transformed = model.transform(test, params)
+            metric = evaluator.evaluate(test_transformed)
             new_ctx = ctx.replace(start=start, time=time.time() - start)
-            return TrainingResult(ctx.index, 'OK', model, details, metric, ctx=new_ctx)
+            return TrainingResult(
+                ctx.index, 'OK', model, details, metric, ctx=new_ctx,
+                test_transformed=test_transformed)
         except Exception as e:
             try:
                 dataframe_util.handle_spark_exception(e)
@@ -213,7 +218,7 @@ class CustomTrainValidationSplit():
             return [df.randomSplit(
                 [self.train_ratio, 1 - self.train_ratio], self.seed)]
         elif self.strategy == 'cross_validation':
-            return self._k_fold()
+            return self._k_fold(df)
         else:
             raise ValueError('Invalid train split: {}'.format(self.strategy))
 
@@ -228,7 +233,7 @@ class CustomTrainValidationSplit():
             pass
         else:
             h = 1.0 / self.folds
-            rand_col = f'{uuid.uuid5()}_rand'
+            rand_col = f'{uuid.uuid4()}_rand'
             df = df.select("*", functions.rand(self.seed).alias(rand_col))
             for i in range(self.folds):
                 validate_lower_bound = i * h
@@ -267,7 +272,7 @@ class CustomTrainValidationSplit():
                     result = future.result()
                     # future_train[future]
                     if result is None:
-                        log.warning('Result is None')
+                        logger.warning('Result is None')
                         continue
                     ctx = result.ctx
                     message = {'params': ctx.details, 't': ctx.time,
@@ -333,15 +338,18 @@ def read_data(spark_session):
     {{builder_params.read_data.model_builder_code() | indent(width=4, first=False)}}
     {%- endif %}
 
-    # Many Spark 2.x transformers, including Binarizer and Imputer,
-    # work only with float or double types.
-    # Decimal and even integer is not supported.
-    # See https://issues.apache.org/jira/browse/SPARK-20604.
-    # Current solution is to convert all unsupported numeric data types
-    # to double
-    for s in df.schema:
-        if s.dataType.typeName() in ['integer', 'decimal']:
-            df = df.withColumn(s.name, df[s.name].cast('double'))
+    spark_version = Version(spark_session.version)
+
+    if spark_version < Version('3.0.0'):
+        # Many Spark 2.x transformers, including Binarizer and Imputer,
+        # work only with float or double types.
+        # Decimal and even integer is not supported.
+        # See https://issues.apache.org/jira/browse/SPARK-20604, fixed in 3.0.0
+        # Current solution is to convert all unsupported numeric data types
+        # to double
+        for s in df.schema:
+            if s.dataType.typeName() in ['integer', 'decimal']:
+                df = df.withColumn(s.name, df[s.name].cast('double'))
 
     {% for feat in builder_params.features.numerical_features %}
     {%- if feat.feature_type == 'numerical' %}
@@ -520,19 +528,27 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                          reverse=evaluator.isLargerBetter())
 
         if len(results):
-            index, status, model, params, metric, ex, ctx, fi = results[0]
+            #index, status, model, params, metric, ex, ctx, fi = results[0]
+            winner: TrainingResult = results[0]
+
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
 
-            if model:
-                features = model.stages[-2].getInputCols()
-                df_transformed = model.transform(df)
+            if winner.model:
+                features = winner.model.stages[-2].getInputCols()
+
+                # Contains test dataframe transformed by winner.model
+                test_transformed = winner.test_transformed
 
                 # Test if label was indexed with StringIndexer
                 stage_indexer_label = next(
-                    (s for s in model.stages
+                    (s for s in winner.model.stages
                         if isinstance(s, feature.StringIndexerModel)
                         and s.getInputCol() == label_attr), None
                 )
+                # Only original columns and relevant information.
+                # Intermediate columns are ignored
+                columns = df.columns
+
                 # Revert the label indexing
                 if stage_indexer_label:
                     label_reverse = feature.IndexToString(
@@ -542,15 +558,15 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                     )
                     df_final = (
                         label_reverse
-                            .transform(df_transformed)
+                            .transform(test_transformed)
                             .select(
-                                df.columns +
+                                columns +
                                 [functions.col('prediction2').alias('prediction')]
                             )
                     )
                 else:
-                    df_final = (df_transformed
-                        .select(df.columns + ['prediction']))
+                    df_final = (test_transformed
+                        .select(columns + ['prediction']))
 
                 # print(df_final.show())
                 # TODO Emit a sample data
@@ -561,7 +577,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
                 {%- if task_type in ('binary-classification', 'multiclass-classification') %}
                 # Convert to RDD of (prediction, label)
-                rdd_cm = (df_transformed.select(label, 'prediction')
+                rdd_cm = (df_final.select(label, 'prediction')
                        .rdd
                        .map(lambda row:
                             (float(row['prediction']), float(row[label]))
@@ -581,7 +597,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                         multiclass_metrics.confusionMatrix().toArray(),
                         classes=stage_indexer_label.labels)
                 else:
-                    classes = (df
+                    classes = (df_final
                                 .select(label_attr)
                                 .distinct()
                                 .rdd
@@ -594,7 +610,6 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
                 content = cm.generate()
 
-                #print('>' * 30, 'confusion matrix', content)
                 emit(status='RUNNING', type='HTML',
                     identifier=evaluator.task_id,
                     operation_id=evaluator.operation_id,
@@ -610,8 +625,8 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 else:
                     method_name = 'roc'
 
-                if 'probability' in df_transformed.columns:
-                    rdd_area = (df_transformed.select(label, 'probability')
+                if 'probability' in test_transformed.columns:
+                    rdd_area = (test_transformed.select(label, 'probability')
                         .rdd
                         .map(lambda row:
                              (float(row['probability'][1]), float(row[label]))
@@ -638,9 +653,10 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 {%- endif %}
 
                 {%- elif task_type == 'regression' %}
-                df_transformed = model.transform(df)
+                 # Contains test dataframe transformed by winner.model
+                test_transformed = winner.test_transformed
 
-                rdd = (df_transformed.select([label_attr, 'prediction'])
+                rdd = (test_transformed.select([label_attr, 'prediction'])
                        .rdd
                        .map(lambda row: (
                                 row[label_attr], row['prediction'],
@@ -771,10 +787,10 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
             # Send information about best result
             message = {
-                'best': params, 'metric_value': metric,
+                'best': winner.details, 'metric_value': winner.metric,
                 'larger_better': evaluator.isLargerBetter(),
-                'index': ctx.index, 'metric_name': metric_name,
-                'estimator': ctx.name, 'task_name': ctx.task_name,
+                'index': winner.ctx.index, 'metric_name': metric_name,
+                'estimator': winner.ctx.name, 'task_name': winner.ctx.task_name,
                 'train_size': executor.train_size,
                 'test_size': executor.test_size,
                 'model_count': len(results)
@@ -784,19 +800,6 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 operation_id=evaluator.operation_id,
                 title='{{ builder_params.evaluator.task_name}}',
                 message=message)
-            # print(message){#-
-        #for status, model, params, metric, ex, ctx, fi in results:
-        #    pass
-            # print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
-            # ml_model = model.stages[-1]
-            # features = model.stages[-2].getInputCols()
-            # print('#' * 20)
-            # print('Features', features)
-            # importance = get_feature_importance_score(ml_model, features)
-            # print('#' * 20)
-            # print(feature_assembler.metadata)
-            # print(ml_model.metadata["ml_attr"]["attrs"].values())
-        #}
     except Exception as e:
         spark_session.sparkContext.cancelAllJobs()
         traceback.print_exc(file=sys.stderr)
