@@ -5,6 +5,7 @@ Auto-generated Spark code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided.
 """
+from decimal import Decimal
 from seaborn import jointplot
 from packaging.version import Version
 from sklearn import preprocessing
@@ -145,11 +146,20 @@ def get_feature_importance_score(model, features, classes, data=None):
         }
     elif isinstance(model, (regression.LinearRegressionModel,
             regression.GeneralizedLinearRegressionModel)):
-        return {
+        summary = model.summary
+        result = {
             'coefficients': dict(zip(features, model.coefficients.tolist())),
             'intercept': model.intercept,
             'importance': dict(zip(features, map(abs, model.coefficients.tolist()))),
         }
+        props = ['degreesOfFreedom',
+            'explainedVariance', 'meanAbsoluteError', 'meanSquaredError',
+            'numInstances', 'r2', 'r2adj',
+            'rootMeanSquaredError',]
+        for prop in props:
+            if hasattr(summary, prop):
+                result[prop] = str(getattr(summary, prop))
+        return result
     elif isinstance(model, (regression.FMRegressionModel,
                             classification.FMClassificationModel)):
         return {
@@ -671,14 +681,14 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                        .rdd
                        .map(lambda row: (
                                 row[label_attr], row['prediction'],
-                                row[label_attr] - row['prediction']
+                                row[label_attr] - Decimal(str(row['prediction']))
                             )
                          ).sortBy(lambda x: x[0])
                 )
                 actual, predicted, residual = zip(*rdd.collect())
 
-                min_value = min(min(actual), min(predicted))
-                max_value = max(max(actual), max(predicted))
+                min_value = float(min(min(actual), min(predicted)))
+                max_value = float(max(max(actual), max(predicted)))
                 identiy = np.linspace(min_value, max_value, len(actual))
 
                 report = PlotlyChartReport()

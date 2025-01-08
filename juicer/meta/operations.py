@@ -1461,7 +1461,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.var = "CHANGE_VAR"
         self.name = "CHANGE_NAME"
-        self.hyperparameters: dict[str, HyperparameterInfo] = {}
+        self.hyperparameters = {}
         self.task_type = task_type
         #self.grid_info = parameters.get('workflow').get(
             #'forms', {}).get('$grid', {})
@@ -2787,11 +2787,13 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             parameters['solver'] = dict((s, v) for s, v in parameters['solver'].items()
                                     if s != 'auto')
 
-        if 'family_link' in parameters and parameters.get('family_link') is not None:
+        if ('family_link' in parameters and parameters.get('family_link') and
+                 parameters.get('family_link').get('list')
+        ):
             family_link = parameters.get('family_link').get('list')
+            (family, link) = zip(*[x.split(':') for x in family_link])
         else:
-            family, link = (None, None)
-        (family, link) = zip(*[x.split(':') for x in family_link])
+            family, link = ([], [])
         self.hyperparameters = {
             # 'aggregationDepth': parameters.get('aggregation_depth'),
             # 'fitIntercept': parameters.get('fit_intercept'),
