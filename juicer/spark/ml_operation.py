@@ -3556,7 +3556,7 @@ class SaveModelOperation(Operation):
                    msg1=_('You cannot mix models built using with '
                           'different metrics ({}).'),
                    job_id=self.job_id,
-                   task_id=self.parameters['task_id'],
+                   task_id=self.parameters['task']['id'],
                    workflow_id=self.workflow_id,
                    workflow_version=self.workflow_version,
                    workflow_name=self.workflow_name,

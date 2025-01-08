@@ -40,10 +40,12 @@ from juicer.spark.reports import (AreaUnderCurveReport,
 from juicer.spark.util.results import CurveMetrics
 import dataclasses
 
+from tests.model_builder.fixtures import builder_params_no_label
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-{% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
+{% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances, workflow.forms, workflow.user) %}
 {%- set task_type = builder_params.evaluator.task_type %}
 {% for imps in transpiler.imports %}
 # FIXME: Do not work
@@ -491,6 +493,19 @@ def create_pipeline(label: str, features_names):
     {%- endif %}
     return pipeline, preprocessing_pipeline, grid, label
 
+
+{%- if builder_params.save_data %}
+
+def save_data(df):
+    {{builder_params.save_data.generate_code() | indent(width=4, first=False)}}
+{%- endif %}
+
+{%- if builder_params.save_model %}
+
+def save_model(model):
+    {{builder_params.save_model.generate_code()| indent(width=4, first=False)}}
+{%- endif %}
+
 def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
 
@@ -588,13 +603,6 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 else:
                     df_final = (test_transformed
                         .select(columns + ['prediction']))
-
-                # print(df_final.show())
-                # TODO Emit a sample data
-                # If set, save the data
-                # If set, save the model
-                # Generate visualizations
-                # Type: {{builder_params.evaluator.task_type}}
 
                 {%- if task_type in ('binary-classification', 'multiclass-classification') %}
                 # Convert to RDD of (prediction, label)
@@ -805,6 +813,14 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                         message=(df_final.limit(50).toPandas()
                                  .to_html(index=False, classes=css_classes))
                 )
+
+            {%- if builder_params.save_data %}
+            save_data(df_final)
+            {%- endif %}
+
+            {%- if builder_params.save_model %}
+            save_model(winner)
+            {%- endif %}
 
             # Send information about best result
             message = {

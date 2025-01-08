@@ -85,7 +85,7 @@ def builder_params(sample_workflow: dict) -> ModelBuilderParams:
     services (e.g. Limonero and Tahiti). It also returns an object
     organized according to the Model Builder template.
     """
-    with patch('juicer.workflow.workflow.Workflow._get_operations', 
+    with patch('juicer.workflow.workflow.Workflow._get_operations',
         return_value=mock_get_operations()):
         with patch('juicer.service.limonero_service.get_data_source_info',
             return_value=mock_get_datasource()):
@@ -93,19 +93,19 @@ def builder_params(sample_workflow: dict) -> ModelBuilderParams:
             loader = Workflow(sample_workflow, config, lang='en')
             instances = loader.workflow['tasks']
 
-            minion = MetaMinion(None, config=config, 
+            minion = MetaMinion(None, config=config,
                                 workflow_id=sample_workflow['id'],
                                 app_id=sample_workflow['id'])
 
             job_id = 1
-            opt = GenerateCodeParams(loader.graph, job_id, None, {}, 
-                ports={}, state={}, task_hash=hashlib.sha1(), 
+            opt = GenerateCodeParams(loader.graph, job_id, None, {},
+                ports={}, state={}, task_hash=hashlib.sha1(),
                 workflow=loader.workflow,
                 tasks_ids=list(loader.graph.nodes.keys()))
             instances, _ = minion.transpiler.get_instances(opt)
 
             builder_params = minion.transpiler.prepare_model_builder_parameters(
-                ops=instances.values())
+                tasks=instances.values())
             yield builder_params
 
 @pytest.fixture(scope='function')

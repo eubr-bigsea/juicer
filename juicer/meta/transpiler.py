@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import ast
+from dataclasses import dataclass
 import os
 from typing import Callable
 from gettext import gettext
+import uuid
 import juicer.meta.operations as ops
 from collections import namedtuple
 from juicer.service import tahiti_service
@@ -22,7 +24,7 @@ class ModelBuilderTemplateParams:
                'reduction', 'split', 'features', 'enabled')
     def __init__(self, evaluator=None, estimators=None, grid=None,
                  read_data=None, sample=None, reduction=None, split=None,
-                 features=None):
+                 features=None, save_data=None, save_model=None):
         self.evaluator: ops.EvaluatorOperation = evaluator
         self.estimators: list[ops.EstimatorMetaOperation] = estimators
         self.grid: ops.GridOperation = grid
@@ -31,6 +33,8 @@ class ModelBuilderTemplateParams:
         self.reduction: ops.FeaturesReductionOperation = reduction
         self.split: ops.SplitOperation = split
         self.features: ops.FeaturesOperation = features
+        self.save_data = save_data
+        self.save_model = save_model
 
 
 # noinspection SpellCheckingInspection
@@ -171,7 +175,8 @@ class MetaTranspiler(Transpiler):
 
         for f in transform:
             self.operations[f] = ops.TransformOperation
-    def prepare_model_builder_parameters(self, ops) -> \
+    def prepare_model_builder_parameters(self, tasks, workflow_forms=None,
+        user=None) -> \
             ModelBuilderTemplateParams:
         """ Organize operations to be used in the code generation
         template.
@@ -182,8 +187,11 @@ class MetaTranspiler(Transpiler):
         Returns:
             _type_: Model builder parameters
         """
-
-        estimators = {'k-means', 'gaussian-mix', 'pic_clustering', 'lda_clustering', 'bkm_clustering', 'decision-tree-classifier',
+        if workflow_forms is None:
+            workflow_forms = {}
+        estimators = {'k-means', 'gaussian-mix', 'pic_clustering',
+                      'lda_clustering', 'bkm_clustering',
+                      'decision-tree-classifier',
                       'gbt-classifier', 'naive-bayes', 'perceptron',
                       'random-forest-classifier', 'logistic-regression', 'svm',
                       'linear-regression', 'isotonic-regression',
@@ -191,16 +199,75 @@ class MetaTranspiler(Transpiler):
                       'generalized-linear-regressor', 'decision-tree-regressor',
                       'fm-classifier', 'fm-regression'}
         param_dict = {'estimators': []}
-        for op in ops:
-            slug = op.task.get('operation').get('slug')
+        for task in tasks:
+            slug = task.task.get('operation').get('slug')
             if slug == 'read-data':
-                param_dict['read_data'] = op
+                param_dict['read_data'] = task
             elif slug == 'features-reduction':
-                param_dict['reduction'] = op
+                param_dict['reduction'] = task
             elif slug in estimators:
-                param_dict['estimators'].append(op)
+                param_dict['estimators'].append(task)
             else:
-                param_dict[slug] = op
+                param_dict[slug] = task
+
+        def get_value(name, default=None):
+            return workflow_forms.get(name, {"value": default}).get("value")
+
+        save_data_task = None
+        from juicer.spark.data_operation import SaveOperation
+        if bool(get_value("save_data", False)):
+            save_data_task = SaveOperation(
+                {
+                    "task": {"id": str(uuid.uuid4())},
+                    "name": get_value("data_name"),
+                    "path": get_value("data_path"),
+                    "storage": get_value("data_storage"),
+                    "format": "PARQUET",
+                    "mode": get_value("data_overwrite"),
+                    "configuration": self.configuration,
+                    "use_storage_path": True,
+                    "user": user,
+               },
+                {"input data": "df"},
+                {},
+            )
+        param_dict["save_data"] = save_data_task # type: ignore
+
+        from juicer.spark.ml_operation import SaveModelOperation
+        if bool(get_value("save_model", False)):
+            save_model_task = SaveModelOperation(
+                {
+                    "task": {"id": str(uuid.uuid4())},
+                    "name": get_value("data_name"),
+                    "path": get_value("data_path"),
+                    "storage": get_value("data_storage"),
+                    "format": "DEFAULT",
+                    "mode": get_value("data_overwrite"),
+                    "configuration": self.configuration,
+                    "use_storage_path": True,
+                    "user": user,
+               },
+                {"models": "model"},
+                {},
+            )
+        param_dict["save_model"] = save_model_task # type: ignore
+
+        # save_model_task = None
+        # if bool(get_value("save_model", False)):
+        #     save_model_task = ops.SaveOperation(
+        #         {
+        #             "name": get_value("name"),
+        #             "path": get_value("path"),
+        #             "storage": get_value("storage"),
+        #             "format": get_value("format"),
+        #             "tags": get_value("tags"),
+        #             "mode": get_value("mode"),
+        #             "header": get_value("header"),
+        #         },
+        #         {},
+        #         {},
+        #     )
+        # param_dict["save_model"] = save_model_task # type: ignore
         if (not param_dict.get('estimators')):
             raise ValueError(gettext('No algorithm or algorithm parameter informed.'))
         return ModelBuilderTemplateParams(**param_dict)

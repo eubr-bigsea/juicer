@@ -591,7 +591,6 @@ class SaveOperation(Operation):
         url =limonero_config['url']
         token = str(limonero_config['auth_token'])
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
-
         if self.use_storage_path:
             storage_url = storage['url'].strip('/')
             path = self.path.strip('/')

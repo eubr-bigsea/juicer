@@ -1960,7 +1960,7 @@ def test_builder_params(sample_workflow: dict, builder_params: ModelBuilderParam
     instances, _ = minion.transpiler.get_instances(opt)
 
     builder_params = minion.transpiler.prepare_model_builder_parameters(
-        ops=instances.values()
+        tasks=instances.values()
     )
 
     print(dir(builder_params))
