@@ -7,6 +7,7 @@ More information about Lemonade to be provided.
 """
 from seaborn import jointplot
 from packaging.version import Version
+from sklearn import preprocessing
 from pyspark.ml import (classification, regression, clustering,
                         evaluation, feature, tuning, Pipeline, PipelineModel)
 from pyspark.sql import functions, types, Row, DataFrame
@@ -405,7 +406,9 @@ def create_pipeline(label: str, features_names):
     {{estimator.generate_code() | indent(width=4, first=False)}}
     {%- endfor %}
 
-    common_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
+    preprocessing_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
+    preprocessing_pipeline = (
+        Pipeline(stages=preprocessing_stages) if preprocessing_stages else None)
     # CrossValidation/TrainValidationSplit with multiple pipelines in PySpark:
     # See https://stackoverflow.com/a/54992651/1646932
     pipeline = Pipeline(stages=[])
@@ -476,7 +479,7 @@ def create_pipeline(label: str, features_names):
     {%- if builder_params.grid %}
     {{builder_params.grid.generate_code() | indent(width=4, first=False)}}
     {%- endif %}
-    return pipeline, grid, label
+    return pipeline, preprocessing_pipeline, grid, label
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
@@ -507,7 +510,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             {%- endfor -%}
         ]
         # Pipeline definition
-        pipeline, grid, label = create_pipeline(
+        pipeline, preprocessing_pipeline, grid, label = create_pipeline(
             label_attr, features_names=final_features_names)
         emit = emit_metric(emit_event)
 
@@ -517,13 +520,20 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
         {%- endif %}
 
+        if preprocessing_pipeline is not None:
+            # There are some preprocessing transformations that need to be
+            # executed before the spliting part.
+            preprocessing_pipeline_model = preprocessing_pipeline.fit(df)
+            preprocessed_df = preprocessing_pipeline_model.transform(df)
+
         # Train/validation definition
         # It can be a simple train + validation or cross validation
         {%- if builder_params.split %}
         {{builder_params.split.generate_code() | indent(width=8, first=False)}}
         {%- endif %}
 
-        results = executor.fit(df, emit, original_features_names, label_attr)
+        results = executor.fit(
+            preprocessed_df, emit, original_features_names, label_attr)
         results = sorted(results, key=lambda x: x.metric,
                          reverse=evaluator.isLargerBetter())
 
@@ -534,7 +544,8 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
 
             if winner.model:
-                features = winner.model.stages[-2].getInputCols()
+                ## FIXME REMOVE:
+                # features = winner.model.stages[-2].getInputCols()
 
                 # Contains test dataframe transformed by winner.model
                 test_transformed = winner.test_transformed
@@ -793,6 +804,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                 'estimator': winner.ctx.name, 'task_name': winner.ctx.task_name,
                 'train_size': executor.train_size,
                 'test_size': executor.test_size,
+                'data_size': df.count(),
                 'model_count': len(results)
             }
             emit(status='COMPLETED', type='OTHER',

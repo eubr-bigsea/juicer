@@ -1529,7 +1529,7 @@ class EstimatorMetaOperation(ModelMetaOperation):
             {{var}}_ovr.operation_id = {{task.get('operation').get('id')}}
             {%- endif %}
             grid_{{var}} = (tuning.ParamGridBuilder()
-                .baseOn({pipeline.stages: common_stages + [{{var}}{%if using_ovr%}_ovr{% endif -%} ] })
+                .baseOn({pipeline.stages: [{{var}}{%if using_ovr %}_ovr{% endif -%} ] })
                 {%- for p, v in hyperparameters %}
                 .addGrid({{var}}.{{p}}, {{v.value}})
                 {%- endfor %}
@@ -2227,6 +2227,8 @@ class SplitOperation(ModelMetaOperation):
                 pipeline, evaluator, grid, seed={self.seed},
                 strategy='{self.strategy}', folds={self.folds})
             """)
+        else:
+            raise ValueError(f'Unsupported {self.strategy=}')
 
         return code.strip()
 
