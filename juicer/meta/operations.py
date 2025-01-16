@@ -2228,7 +2228,7 @@ class SplitOperation(ModelMetaOperation):
                 strategy='{self.strategy}', folds={self.folds})
             """)
         else:
-            raise ValueError(f'Unsupported {self.strategy=}')
+            raise ValueError(f'Unsupported strategy {self.strategy}')
 
         return code.strip()
 
