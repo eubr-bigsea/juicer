@@ -6,7 +6,7 @@ Pillow==9.4.0
 PyMySQL==1.0.2
 PyYAML==6.0
 Pyqtree==1.0.0
-RestrictedPython==6.0
+RestrictedPython==8.0
 autopep8==2.0.1
 coverage==7.0.3
 datasketch==1.5.8
