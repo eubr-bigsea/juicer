@@ -962,9 +962,10 @@ class SparkMinion(Minion):
         log.info('Minion finished')
 
         # Kill remaining processes
-        parent_pid = os.getppid()
-        process_group_id = os.getpgid(os.getpid())
-        os.killpg(process_group_id, signal.SIGKILL)
+        ## Removed. It is killing server as well
+        ###parent_pid = os.getppid()
+        ###process_group_id = os.getpgid(os.getpid())
+        ###os.killpg(process_group_id, signal.SIGKILL)
 
     def process(self):
         log.info(_(

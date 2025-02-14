@@ -193,7 +193,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {%- endif %}
         {%- endfor %}
         {%- if transpiler.get_app_config('job_type') != 'BATCH' %}
-        if results and results[-1][0].columns:
+        if results and results[-1] and results[-1][0] and results[-1][0].columns:
             task_id = results[-1][1]
             dataframe_util.emit_sample_data_explorer(
                 task_id, results[-1][0], emit_event, 'output')

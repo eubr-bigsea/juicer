@@ -31,7 +31,7 @@ logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.runner.server')
 
 # https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
-_: Callable[[str], str] 
+_: Callable[[str], str]
 
 class JuicerServer:
     """
@@ -46,13 +46,13 @@ class JuicerServer:
     HELP_UNHANDLED_EXCEPTION = 1
     HELP_STATE_LOST = 2
     BANNER = """
-     ██╗██╗   ██╗██╗ ██████╗███████╗██████╗ 
+     ██╗██╗   ██╗██╗ ██████╗███████╗██████╗
      ██║██║   ██║██║██╔════╝██╔════╝██╔══██╗
      ██║██║   ██║██║██║     █████╗  ██████╔╝
 ██   ██║██║   ██║██║██║     ██╔══╝  ██╔══██╗
 ╚█████╔╝╚██████╔╝██║╚██████╗███████╗██║  ██║
  ╚════╝  ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚═╝  ╚═╝
-"""                                            
+"""
 
     def __init__(self, config, minion_executable, log_dir='/tmp',
                  config_file_path=None):
@@ -91,7 +91,7 @@ class JuicerServer:
         self.mgr = socketio.RedisManager(
             config['juicer']['servers']['redis_url'],
             'job_output')
-        
+
         parsed_url = urlparse(
             self.config['juicer']['servers']['redis_url'])
 
@@ -100,7 +100,7 @@ class JuicerServer:
                                        decode_responses=True)
 
         self.redis_conn.delete('active_minions')
-        
+
         # Used to kill minions
         self.sub_processes = {}
 
@@ -117,7 +117,7 @@ class JuicerServer:
         signal.signal(signal.SIGTERM, self._terminate_minions)
         log.info(_('Starting master process. Reading "start" queue'))
 
-        redis_conn = self.redis_conn 
+        redis_conn = self.redis_conn
         # Start pending minions
         apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
         self.state_control = StateControlRedis(redis_conn)
@@ -129,18 +129,18 @@ class JuicerServer:
                     pending = json.loads(pending)
                     if pending.get('type') != 'terminate' and pending:
                         try:
-                            msg = json.loads(pending[0])
-                            log.warn(_('Starting pending app_id {}').format(app_id))
+                            msg = pending
+                            log.warning(_('Starting pending app_id {}').format(app_id))
                             # FIXME: cluster
                             platform = msg['workflow']['platform']['slug']
                             job_id = msg['job_id']
-        
+
                             self._start_minion(app_id, app_id, job_id, self.state_control,
                                            platform)
                         except Exception as e:
-                            print(pending, e)
+                            log.exception(e)
             else:
-                log.warn(_("Pending queue is empty"))
+                log.warning(_("Pending queue is empty"))
 
         while True:
             self.read_start_queue(redis_conn)
@@ -176,10 +176,10 @@ class JuicerServer:
                     'slug', 'spark')
                 job_id = 0
                 cluster = msg_info.get('cluster')
-                self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
-                                        msg, platform, cluster)
+                #self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
+                #                        msg, platform, cluster)
                 self._terminate_minion(workflow_id, cluster)
-            elif msg_type in (juicer_protocol.MORE_DATA, 
+            elif msg_type in (juicer_protocol.MORE_DATA,
                     juicer_protocol.ANALYSE_ATTRIBUTE):
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, None, None)
@@ -342,34 +342,37 @@ class JuicerServer:
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
-       
-        return
-        active_minions = self.redis_conn.hgetall('active_minions')
-        if not workflow_id in active_minions:
-            log.warn('(%s, %s) not in active minions ', workflow_id, workflow_id)
-        log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
-                 workflow_id, workflow_id)
-        minion_data = active_minions.get(str(workflow_id))
-        print('=' * 40)
-        print(cluster)
-        print('=' * 40)
-        if cluster is not None and cluster.get('type') == 'KUBERNETES':
-            # try to kill Job in KB8s
-            delete_kb8s_job(workflow_id, cluster)
+        try:
+            active_minions = self.redis_conn.hgetall('active_minions')
+            #if workflow_id not in active_minions:
+            #    log.warning('(%s, %s) not in active minions ', workflow_id, workflow_id)
+            log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
+                    workflow_id, workflow_id)
 
-        elif workflow_id in active_minions:
-            minion_pid = int(active_minions[workflow_id])
-            if minion_pid > 1:
-                # os.system('kill - {}'.format(active_minions[workflow_id]))
-                log.info('SIGTERM %s', active_minions[workflow_id])
-                my_pgid = os.getpgid(os.getpid())
-                minion_pgid = os.getpgid(minion_pid)
-                if my_pgid != minion_pgid: 
-                    os.killpg(minion_pgid, signal.SIGTERM)
-                else:
+            log.info('*' * 40)
+            log.info("Terminating workflow %s in cluster %s", workflow_id, cluster)
+            log.info('=' * 40)
+            if cluster is not None and cluster.get('type') == 'KUBERNETES':
+                # try to kill Job in KB8s
+                delete_kb8s_job(workflow_id, cluster)
+
+            elif workflow_id in active_minions:
+                minion_pid = int(active_minions[workflow_id])
+                if minion_pid > 1:
+                    # os.system('kill - {}'.format(active_minions[workflow_id]))
+                    log.info('SIGKILL %s', active_minions[workflow_id])
+                    my_pgid = os.getpgid(os.getpid())
+                    minion_pgid = os.getpgid(minion_pid)
+                    log.info("Minion in same process group as server? %s. Pid %s",
+                        my_pgid == minion_pgid, minion_pid)
+                    #if my_pgid != minion_pgid:
+                    #    os.killpg(minion_pgid, signal.SIGTERM)
+                    #else:
                     if minion_pid in self.sub_processes:
                         self.sub_processes[minion_pid].kill()
-                    os.kill(minion_pid, signal.SIGTERM)
+                    os.killpg(minion_pid, signal.SIGKILL)
+        except Exception as ex:
+            log.warning("Exception terminating minion: %s", str(ex))
 
     def minion_support(self):
         """
@@ -429,7 +432,7 @@ class JuicerServer:
                                 app_id), 0, 0)
                             # FIXME
                             if pendings and False:
-                                for pending in pendings: 
+                                for pending in pendings:
                                     if pending.get('type') != 'terminate':
                                         log.warn(
                                             _('There are messages to process in app {} '
@@ -445,13 +448,13 @@ class JuicerServer:
                                         self._start_minion(
                                             app_id, app_id, job_id, self.state_control,
                                             platform)
-        
+
                     elif data == b'set':
                         # Externally launched minion
                         minion_info = json.loads(redis_conn.get(
                             'key_minion_app_{}'.format(app_id)).decode('utf8'))
                         port = self._get_next_available_port()
-                        self.redis_conn.hset('active_minions', key[0], 
+                        self.redis_conn.hset('active_minions', key[0],
                                 minion_info.get('pid'))
 
                         #self.active_minions[key] = {
@@ -492,8 +495,6 @@ class JuicerServer:
 
     # noinspection PyUnusedLocal
     def _terminate_minions(self, _signal, _frame):
-        sys.exit(0)
-        return
         try:
             active_minions = self.redis_conn.hgetall('active_minions')
             log.info(_('Terminating %s active minions'), len(active_minions))
@@ -501,7 +502,7 @@ class JuicerServer:
             for wid in minions:
                 self._terminate_minion(wid)
             sys.exit(0)
-        except:
+        except Exception:
             sys.exit(1)
 
     # noinspection PyUnusedLocal
@@ -510,14 +511,17 @@ class JuicerServer:
         This is a handler that reacts to a sigkill signal.
         """
         log.info(_('Killing juicer server subprocesses and terminating'))
-        if self.start_process:
-            os.kill(self.start_process.pid, signal.SIGTERM)
-        if self.minion_support_process:
-            os.kill(self.minion_support_process.pid, signal.SIGKILL)
-        # if self.minion_watch_process:
-        #     os.kill(self.minion_watch_process.pid, signal.SIGKILL)
-        if self.new_minion_watch_process:
-            os.kill(self.new_minion_watch_process.pid, signal.SIGKILL)
+        try:
+            if self.start_process:
+                os.kill(self.start_process.pid, signal.SIGTERM)
+            if self.minion_support_process:
+                os.kill(self.minion_support_process.pid, signal.SIGKILL)
+            # if self.minion_watch_process:
+            #     os.kill(self.minion_watch_process.pid, signal.SIGKILL)
+            if self.new_minion_watch_process:
+                os.kill(self.new_minion_watch_process.pid, signal.SIGKILL)
+        except:
+            pass
 
 
 if __name__ == '__main__':

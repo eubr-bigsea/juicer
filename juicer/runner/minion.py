@@ -24,6 +24,9 @@ sys.path.append('.')
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 if __name__ == '__main__':
+
+    # Used to kill all spawned processes
+    os.setpgrp()
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", help="Config file.", required=True)
