@@ -463,7 +463,7 @@ class Expression(object):
             "date_patterning": self.get_expr_function,
             "physical_or_legal_person": self.get_expr_function,
             "strip_accents": self.get_expr_function,
-            "complete_cpf_cnpj" self.get_expr_function,
+            "complete_cpf_cnpj": self.get_expr_function,
         }
 
         column_functions = {
