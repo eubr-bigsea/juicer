@@ -463,6 +463,7 @@ class Expression(object):
             "date_patterning": self.get_expr_function,
             "physical_or_legal_person": self.get_expr_function,
             "strip_accents": self.get_expr_function,
+            "complete_cpf_cnpj" self.get_expr_function,
         }
 
         column_functions = {
@@ -514,4 +515,5 @@ class Expression(object):
             "date_patterning": 'spark_session.udf.registerJavaFunction("date_patterning", "br.ufmg.dcc.lemonade.udfs.DatePatterningUDF", types.StringType())',
             "physical_or_legal_person": 'spark_session.udf.registerJavaFunction("physical_or_legal_person", "br.ufmg.dcc.lemonade.udfs.PhysicalOrLegalPersonUDF", types.StringType())',
             "strip_accents": 'spark_session.udf.registerJavaFunction("strip_accents", "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF", types.StringType())',
+            "complete_cpf_cnpj": 'spark_session.udf.registerJavaFunction("complete_cpf_cnpj", "br.ufmg.dcc.lemonade.udfs.CompleteCpfCnpjUDF", types.StringType())',
         }

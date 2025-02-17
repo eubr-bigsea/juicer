@@ -108,6 +108,10 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             "strip_accents",
             "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF",
             types.StringType())
+        spark_session.udf.registerJavaFunction(
+            "complete_cpf_cnpj",
+            "br.ufmg.dcc.lemonade.udfs.CompleteCpfCnpjUDF",
+            types.StringType())
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
 
