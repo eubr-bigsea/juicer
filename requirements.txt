@@ -30,6 +30,7 @@ pep8==1.7.1
 plotly==5.11.0
 polars-lts-cpu==0.18.4
 prefixspan==0.5.2
+psycopg2-binary==2.9.9
 py4j==0.10.9.7
 pyaml==21.10.1
 pyarrow==10.0.1
