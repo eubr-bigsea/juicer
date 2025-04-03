@@ -408,7 +408,7 @@ class ExecutePythonOperation(MetaPlatformOperation):
     def generate_code(self):
         task_obj = self._get_task_obj()
         task_obj['forms'].update({
-            "code": {"value": self.query},
+            "code": {"value": self.code},
         })
         task_obj['operation'] = {"id": self.TARGET_OP}
         return json.dumps(task_obj)

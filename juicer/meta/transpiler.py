@@ -5,7 +5,6 @@ import os
 from typing import Callable
 from gettext import gettext
 import juicer.meta.operations as ops
-from collections import namedtuple
 from juicer.service import tahiti_service
 from juicer.transpiler import Transpiler
 
@@ -229,16 +228,20 @@ class MetaTranspiler(Transpiler):
     def get_source_code_library_code(self, workflow):
         """Retrieve the source code stored as a code library"""
         result = []
+        imports = []
         ids = workflow.get('forms').get(
             'code_libraries', {}).get('value', [])
 
         if ids:
             libraries = self._get_code_libraries(ids)
             for library in libraries.get('data'):
-                code = library.get("code", "")
+                code:str = library.get("code", "")
                 self._validate_code_library(code)
+                import_: str = library.get("imports", "")
+                self._validate_code_library(import_)
                 result.append(code)
-        return ["\n".join(result)]
+                imports.append(import_)
+        return ["\n".join(result), "\n".join(imports)]
 
     def _validate_code_library(self, code):
         """Validate code library"""
@@ -246,11 +249,14 @@ class MetaTranspiler(Transpiler):
             tree = ast.parse(code)
             # Test the code is a function definition
             for node in tree.body:
-                if not isinstance(node, ast.FunctionDef):
+                if not isinstance(node,
+                    (ast.FunctionDef, ast.Import, ast.ImportFrom)):
                     raise ValueError(
                         gettext(
-                            "Provided Python code is not a function definition. "
-                            "Code libraries must define Python functions."
+                            "Provided Python code is not a function definition "
+                            "nor an import. "
+                            "Code libraries must define Python functions. "
+                            f"Type: {type(node)}"
                         )
                     )
             return True

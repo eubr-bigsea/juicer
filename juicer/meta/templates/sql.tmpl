@@ -5,6 +5,7 @@ Auto-generated Spark code from Lemonade Workflow
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided.
 """
+{%- set code_library = transpiler.transpiler.get_source_code_library_code(workflow) %}
 import traceback
 import sys
 import os
@@ -13,6 +14,9 @@ from juicer.util import dataframe_util
 from termcolor import colored
 from gettext import gettext
 import functools
+{%- if code_library %}
+{{code_library[1]}}
+{%- endif %}
 
 {%- set use_hwc = workflow.forms.get('$meta', {}).get('value', {}).get('use_hwc') in [True, 'true'] %}
 {%- if use_hwc %}{{transpiler.add_import('from pyspark_llap import HiveWarehouseSession') or ''}}{%- endif %}
@@ -21,13 +25,10 @@ import functools
 {{imps}}
 {%- endfor %}
 
-{%- set code_library = transpiler.transpiler.get_source_code_library_code(workflow) %}
 {%- if code_library %}
 
 # Code from Code Libraries. They must be Python functions.
-{%- for code in code_library %}
-{{code}}
-{%- endfor %}
+{{code_library[0]}}
 {%- endif %}
 
 {%- set builder_params = transpiler.transpiler.prepare_sql_workflow_parameters(instances) %}
