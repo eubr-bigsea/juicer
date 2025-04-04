@@ -14,6 +14,8 @@ from juicer.util import dataframe_util
 from termcolor import colored
 from gettext import gettext
 import functools
+from juicer.service.stand_service import set_pipeline_run_variable_data as set_var
+
 {%- if code_library %}
 {{code_library[1]}}
 {%- endif %}
@@ -32,6 +34,18 @@ import functools
 {%- endif %}
 
 {%- set builder_params = transpiler.transpiler.prepare_sql_workflow_parameters(instances) %}
+
+def set_pipeline_run_variable_data(pipeline_run_id, name, value):
+    # {{transpiler.transpiler.configuration}}
+    {%- set stand_config = transpiler.transpiler.configuration.get('juicer', {}).get('services', {}).get('stand', {}) %}
+    {%- if stand_config %}
+    base_url = "{{stand_config.get('url')}}" # @HIDE_INFO
+    token = "{{stand_config.get('auth_token')}}" # @HIDE_INFO
+    set_var(base_url, token, pipeline_run_id, name, value)
+    {%- else %}
+    raise ValueError("Juicer config does not contain information about Stand.")
+    {%- endif %}
+
 
 {%- if use_hwc %}
 

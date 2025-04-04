@@ -5,6 +5,7 @@ import json
 import logging
 
 import re
+import typing
 import requests
 
 log = logging.getLogger()
@@ -36,6 +37,38 @@ def save_job_source_code(base_url, token, job_id, source):
         log.warning("Error saving source code in stand: HTTP %s %s  (%s)",
                 r.status_code, r.text, url)
         return {}
+
+def set_pipeline_run_variable_data(
+    base_url: str, token: str, pipeline_run_id: int, name: str, value: typing.Any
+):
+    headers = {"X-Auth-Token": str(token), "Content-Type": "application/json"}
+    url = f"{base_url}/pipeline-runs/context"
+
+    r = requests.post(
+        url,
+        data=json.dumps(
+            {
+                "pipeline_run_id": pipeline_run_id,
+                "name": name,
+                "value": str(value),
+            }
+        ),
+        headers=headers,
+    )
+    if r.status_code == 200:
+        return json.loads(r.text)
+    else:
+        log.warning(
+            "Error setting pipeline run context in stand: HTTP %s %s  (%s)",
+            r.status_code,
+            r.text,
+            url,
+        )
+        raise RuntimeError(
+            "Error setting pipeline run context in stand: HTTP "
+            f"{r.status_code} {r.text}"
+        )
+
 
 
 def get_cluster_info(base_url, token, cluster_id):
