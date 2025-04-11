@@ -4,7 +4,7 @@ Faker==15.3.4
 GitPython==3.1.30
 Jinja2==3.1.5
 Pillow==9.4.0
-PyMySQL==1.0.2
+PyMySQL==1.1.1
 PyYAML==6.0
 Pyqtree==1.0.0
 RestrictedPython==6.0
