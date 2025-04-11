@@ -36,9 +36,9 @@ class VisualizationOperation(Operation):
     """
 
     AGGR = {"COUNTD": "n_unique"}
-    CHART_MAP_TYPES = ("scattermapbox",)
+    CHART_MAP_TYPES = ("scattermapbox", "densitymapbox", "choropleth")
     SCATTER_FAMILY = ("scatter", "indicator", "bubble")
-    SUPPORTED_CHARTS = [
+    SUPPORTED_CHARTS = {
         "bar",
         "boxplot",
         "bubble",
@@ -62,7 +62,9 @@ class VisualizationOperation(Operation):
         "sunburst",
         "treemap",
         "violin",
-    ]
+        'densitymapbox',
+        "choropleth"
+        }
 
     def __init__(self, parameters, named_inputs, named_outputs):
         super().__init__(parameters, named_inputs, named_outputs)
@@ -73,8 +75,12 @@ class VisualizationOperation(Operation):
         self.display_legend = self.get_required_parameter(
             parameters, "display_legend"
         )
-
-        if self.type not in self.CHART_MAP_TYPES:
+        self.x = []
+        self.y = []
+        self.x_axis = {}
+        self.y_axis = {}
+        self.geo_json_url = None
+        if not self._is_map_family():
             self.x = self.get_required_parameter(parameters, "x")
 
             self.y_limit = None
@@ -85,6 +91,11 @@ class VisualizationOperation(Operation):
 
             self.aggregations = [y for y in self.y if y.get("aggregation")]
             self.literal = [y for y in self.y if not y.get("aggregation")]
+
+            if self.aggregations and self.literal:
+                raise ValueError(gettext(
+                    'It is not possible to combine aggregated columns '
+                    'and values without aggregation at the same time'))
 
             if self.aggregations and self.literal:
                 raise(ValueError(gettext(
@@ -108,6 +119,17 @@ class VisualizationOperation(Operation):
                         f"{tmp[i]}-{tmp[i+1]}%" for i in range(len(tmp) - 1)
                     ]
                     x["quantiles_list"] = [0.01 * q for q in quantiles]
+        elif self.type == 'choropleth':
+            self.transpiler_utils.add_import('from pathlib import Path')
+            self.transpiler_utils.add_import('import hashlib')
+            self.transpiler_utils.add_import('import requests')
+            self.transpiler_utils.add_import('import tempfile')
+
+            self.geo_json_url = self.get_required_parameter(parameters,
+                                                            'geo_json_url')
+            self.locations = self.get_required_parameter(parameters, 'locations')
+            self.feature_id_key = parameters.get('feature_id_key',
+                                                'properties.id')
 
         self.animation = parameters.get("animation")
         self.auto_margin = parameters.get("auto_margin") in (True, 1, "1")
@@ -142,8 +164,17 @@ class VisualizationOperation(Operation):
         self.top_margin = parameters.get("top_margin", 30)
         self.width = parameters.get("width")
         self.zoom = parameters.get("zoom")
+        self.max_width = parameters.get("max_width")
+        self.max_height = parameters.get("max_height")
 
+        self.hover_name = parameters.get('hover_name')
+        self.hover_data = parameters.get('hover_data')
+        self.magnitude = parameters.get('magnitude')
         self._compute_properties()
+
+        #print('*' * 20)
+        #print(self.hover_data)
+        #print('*' * 20)
 
         self.has_code = len(named_inputs) == 1
         self.transpiler_utils.add_import(
@@ -189,6 +220,9 @@ class VisualizationOperation(Operation):
 
         self.supports_cache = False
 
+    def _is_map_family(self):
+        return self.type in self.CHART_MAP_TYPES
+
     def _compute_properties(self):
         """Compute properties used in template"""
         # Ranges
@@ -209,6 +243,11 @@ class VisualizationOperation(Operation):
                                                 'stacked-area-100')
         self.scatter_family = self.type in ('scatter', 'bubble')
 
+        self.use_color_scale = self.type in (
+            'sunburst', 'treemap', 'histogram2dcontour', 'parcoords',
+            'scattergeo', 'densitymapbox','histogram2d', 'choropleth')
+        self.use_color_discrete = not self.use_color_scale
+
     def _define_colors(self):
         if self.palette:
             if not self.pie_family:
@@ -220,6 +259,8 @@ class VisualizationOperation(Operation):
                             series_color, self.fill_opacity
                         )
                     self.discrete_colors.append(series_color)
+                if len(self.x) > 1:
+                    self.discrete_colors = self.palette
             else:
                 if self.fill_opacity < 1:
                     pass
@@ -252,3 +293,12 @@ class VisualizationOperation(Operation):
         }
         code = self.render_template(ctx, install_gettext=True)
         return dedent(code)
+    def get_plotly_map_type(self):
+        if self.type == 'densitymapbox':
+            return 'density_mapbox'
+        elif self.type == 'scattermapbox':
+            return 'scatter_mapbox'
+        elif self.type == 'choropleth':
+            return 'choropleth'
+        else:
+            raise ValueError('Not a map type')

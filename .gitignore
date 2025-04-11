@@ -51,8 +51,8 @@ coverage.xml
 .hypothesis/
 
 # Translations
-*.mo
-*.pot
+#*.mo
+#*.pot
 
 # Django stuff:
 *.log
@@ -106,4 +106,4 @@ MANIFEST.in
 README
 ajuda.py
 dask-worker-space/
-
+.vscode/

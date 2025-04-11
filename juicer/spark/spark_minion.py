@@ -134,9 +134,9 @@ class SparkMinion(Minion):
     def _cleanup(self, pid, flag):
         log.warn(_('Finishing minion'))
         msg = _('Pressed CTRL+C / SIGINT. Minion canceled the job.')
-        self._emit_event(room=self.last_job_id, namespace='/stand')(
-            name='update job', message=msg,
-            status='ERROR', identifier=self.last_job_id)
+        #self._emit_event(room=self.last_job_id, namespace='/stand')(
+        #    name='update job', message=msg,
+        #    status='ERROR', identifier=self.last_job_id)
         self.terminate()
         sys.exit(0)
 
@@ -246,6 +246,7 @@ class SparkMinion(Minion):
 
     def _process_message_nb(self):
         # Get next message
+
         msg = self.state_control.pop_app_queue(self.app_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
@@ -428,7 +429,8 @@ class SparkMinion(Minion):
                             ])
                 if gp.get('lemonade.spark.dir'):
                     self.spark_dir = gp.get('lemonade.spark.dir')
-                    log.info('Setting SPARK_HOME={}', self.spark_dir)
+                    log.info(gettext.gettext('Setting SPARK_HOME={}').format(
+                        self.spark_dir))
                     os.environ['SPARK_HOME'] = self.spark_dir
                             # Find the Py4J version
                     py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/*.zip'
@@ -455,9 +457,9 @@ class SparkMinion(Minion):
                         os.environ.get('LD_LIBRARY_PATH', ''),
                         os.environ.get('HADOOP_HOME', '/opt/hadoop').rstrip('/')
                             + '/lib/native'])
-        print('*' * 20)
-        print(os.environ['SPARK_HOME'])
-        print(sys.path)
+        # print('*' * 20)
+        # print(os.environ['SPARK_HOME'])
+        # print(sys.path)
         if self.spark_dir:
             py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
             files = glob.glob(py4j_dir)
@@ -473,7 +475,6 @@ class SparkMinion(Minion):
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
         workflow_name = workflow.get('name', '')
-
         if code is None:
             loader = Workflow(workflow, self.config)
             loader.handle_variables({'job_id': job_id})
@@ -504,10 +505,8 @@ class SparkMinion(Minion):
                 log.warn(_('Minion is using the module name {}'.format(freeze)))
                 module_name = freeze
             else:
-                module_name = 'juicer_app_{}_{}_{}'.format(
-                    self.workflow_id,
-                    self.app_id,
-                    job_id)
+                module_name = \
+                    f'juicer_app_{self.workflow_id}_{self.app_id}_{job_id}'
 
             generated_code_path = os.path.join(
                     self.tmp_dir, module_name + '.py')
@@ -757,7 +756,7 @@ class SparkMinion(Minion):
             if not self.cluster_options.get('remote', False):
                 # noinspection PyBroadException
                 try:
-                    log_level = logging.getLevelName(log.getEffectiveLevel())
+                    log_level = logging.getLevelName(logging.getLogger('spark').getEffectiveLevel())
                     self.spark_session.sparkContext.setLogLevel(log_level)
                 except Exception:
                     log_level = 'WARN'
@@ -922,7 +921,6 @@ class SparkMinion(Minion):
                 self.app_id,
                 json.dumps(msg_processed,
                     cls=dataframe_util.CustomEncoder))
-        log.info('Sending message processed message: %s' % msg_processed)
 
     # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):
@@ -962,7 +960,12 @@ class SparkMinion(Minion):
 
         self.self_terminate = False
         log.info('Minion finished')
-        # sys.exit(0)
+
+        # Kill remaining processes
+        ## Removed. It is killing server as well
+        ###parent_pid = os.getppid()
+        ###process_group_id = os.getpgid(os.getpid())
+        ###os.killpg(process_group_id, signal.SIGKILL)
 
     def process(self):
         log.info(_(

@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import re
+import ast
 from collections import namedtuple
 from functools import reduce
 from gettext import gettext
@@ -9,12 +10,13 @@ from textwrap import dedent, indent
 from typing import List
 
 from juicer.operation import Operation
-from juicer.service import limonero_service
+from juicer.service import limonero_service, tahiti_service
 from juicer.spark.data_operation import DataReaderOperation
 from juicer.spark.data_operation import SaveOperation as SparkSaveOperation
 from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOperation
 from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
 from juicer.util.template_util import strip_accents
+from juicer.util.variable import handle_variables
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -138,7 +140,12 @@ def _as_list(input_values, transform=None, size=None, validate=None):
 
 
 def _as_boolean_list(values):
-    if values is None:
+    if (
+        values is None
+        or not isinstance(values, dict)
+        or "type" not in values
+        or values["type"] != "list"
+    ):
         return None
     values['list'] = [v for v in values['list'] if v in [False, True]]
     return _as_list(values)
@@ -272,6 +279,7 @@ class ReadDataOperation(MetaPlatformOperation):
         task_obj['forms'].update({
             "mode": {"value": "PERMISSIVE"},
             "data_source": {"value": self.data_source_id},
+            "infer_schema": {"value": 'NO_IF_PARQUET'},
         })
         task_obj['operation'] = {"id": 18}
         return json.dumps(task_obj)
@@ -290,6 +298,18 @@ class ReadDataOperation(MetaPlatformOperation):
     def sql_code(self):
         return self.model_builder_code()
 
+def _not_first():
+    """Creates a function returning False only the first time."""
+    _first_time_call = True
+
+    def fn(_) -> bool:
+        nonlocal _first_time_call
+
+        res = not _first_time_call
+        _first_time_call = False
+        return res
+
+    return fn
 class ExecuteSQLOperation(MetaPlatformOperation):
     TARGET_OP = 93
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -297,10 +317,14 @@ class ExecuteSQLOperation(MetaPlatformOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.query = self.get_required_parameter(
             parameters, 'query')
+        self._validate_ast_code()
         self.input_port_name = 'input data 1'
         valid_true = (1, '1', 'true', True)
         self.save = parameters.get('save') in valid_true
         self.use_hwc = parameters.get('useHWC', None)
+        self.mode = parameters.get('mode', 'error')
+        self.supports_cache = self.use_hwc != 'executeUpdate'
+
         if self.save:
             self.transpiler_utils.add_import(
                 'from juicer.service.limonero_service import register_datasource')
@@ -313,49 +337,143 @@ class ExecuteSQLOperation(MetaPlatformOperation):
         task_obj['operation'] = {"id": self.TARGET_OP}
         return json.dumps(task_obj)
 
-    def _not_first(self):
-        """Creates a function returning False only the first time."""
-        _first_time_call = True
-
-        def fn(_) -> bool:
-            nonlocal _first_time_call
-
-            res = not _first_time_call
-            _first_time_call = False
-            return res
-
-        return fn
     def sql_code(self):
         sql = repr(self.query.strip())[1:-1].replace('\\n', '\n').replace(
             '"""', '')
         code = []
-
-        if self.use_hwc == 'execute':
-            cmd = 'get_hwc_connection(spark_session).execute(sql)'
-        elif self.use_hwc == 'executeQuery':
-            cmd = 'get_hwc_connection(spark_session).executeQuery(sql)'
-        elif self.use_hwc == 'executeUpdate':
-            cmd = 'get_hwc_connection(spark_session).executeUpdate(sql)'
-        else:
-            cmd = 'spark_session.sql(sql)'
         code.append(dedent(
             f"""
             sql = \"\"\"
-                {indent(dedent(sql), ' '*15, self._not_first())}
-            \"\"\"
-            result = {cmd}
+                {indent(dedent(sql), ' '*15, _not_first())}
+            \"\"\".format(**context)
             """).strip())
 
-        if self.save:
+        if self.use_hwc == 'execute':
+            cmd = 'df = get_hwc_connection(spark_session).execute(sql)'
+        elif self.use_hwc == 'executeQuery':
+            cmd = 'df = get_hwc_connection(spark_session).executeQuery(sql)'
+        elif self.use_hwc == 'executeUpdate':
+            cmd = 'success = get_hwc_connection(spark_session).executeUpdate(sql)'
+        else:
+            cmd = 'df = spark_session.sql(sql)'
+        code.append(cmd)
+
+        if self.use_hwc  != 'executeUpdate' and self.save:
+            # Only Spark dataframes are saved
             params = {}
             params.update(self.parameters)
             params['name'] = self.parameters.get('new_name')
             params['format'] = 'PARQUET' # FIXME
             params['path'] = params.get('path', '')
+            params['save_to_limonero'] = False
+            params['use_storage_path'] = True
+            params['mode'] = self.mode or 'error'
 
             dro = SparkSaveOperation(params, {'input data': 'df'}, {})
             code.append(dro.generate_code())
         return '\n'.join(code)
+    def _validate_ast_code(self):
+        if '{' in self.query: # Use variables or context
+            return True
+        import sqlglot
+        try:
+            sqlglot.transpile(self.query, read="spark")
+            return True
+        except sqlglot.errors.ParseError as e:
+            error = e.errors[0]
+            ctx = (
+                f'{error.get("start_context", "")}'
+                f'{error.get("hightlight", "")} '
+                f'{error.get("end_context", "")}')
+            raise ValueError(
+                gettext(
+                    'Provided SQL code has syntax error(s): '
+                    '{text}, line {l}, offset: {o} ({ctx}) ').format(
+                    text=error['description'],
+                    l=error['line'], o=error['col'], ctx=ctx
+                ))
+
+class ExecutePythonOperation(MetaPlatformOperation):
+    TARGET_OP = 82
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        MetaPlatformOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+
+        self.input_port_name = 'input data 1'
+        self.code = self.get_required_parameter(parameters, 'code')
+        self._validate_ast_code()
+        self.code_libraries = parameters.get('code_libraries', [])
+        self.supports_cache = False
+
+    def generate_code(self):
+        task_obj = self._get_task_obj()
+        task_obj['forms'].update({
+            "code": {"value": self.code},
+        })
+        task_obj['operation'] = {"id": self.TARGET_OP}
+        return json.dumps(task_obj)
+
+    def sql_code(self):
+        """ Code for SQL Builder """
+        code = [self.code]
+        #code.append(indent(dedent(self.code), ' '*15, _not_first()))
+        return '\n'.join(code)
+
+    def _validate_code_library(self, code):
+        try:
+            tree = ast.parse(code)
+            # Test the code is a function definition
+            for node in tree.body:
+                if not isinstance(node, ast.FunctionDef):
+                    raise ValueError(
+                        gettext(
+                            'Provided Python code is not a function definition. '
+                            'Code libraries must define Python functions.'
+                        ))
+            return True
+        except SyntaxError as se:
+            raise ValueError(
+                gettext(
+                    'Provided Python code has syntax error(s): '
+                    '{text}, line {l}, offset: {o} ').format(
+                    text=se.text, l=se.lineno, o=se.offset
+                ))
+
+    def get_auxiliary_code(self):
+        result = []
+        if self.code_libraries:
+            code_libraries = self._get_code_libraries().get('data')
+            for library in code_libraries:
+                code = library.get('code', '')
+                self._validate_code_library(code)
+                result.append(code)
+        return ['\n'.join(result)]
+
+    def _get_code_libraries(self):
+        tahiti_config = \
+            self.parameters['configuration']['juicer']['services']['tahiti']
+        url =tahiti_config['url']
+        token = str(tahiti_config['auth_token'])
+
+        ids = ','.join([str(i) for i in self.code_libraries])
+        return tahiti_service.query_tahiti(
+            base_url=url, item_path='/source-codes', item_id=None,
+            token=token, qs=f'ids={ids}')
+
+
+    def _validate_ast_code(self):
+        try:
+            import ast
+            ast.parse(self.code)
+            return True
+        except SyntaxError as se:
+            raise ValueError(
+                gettext(
+                    'Provided Python code has syntax error(s): '
+                    '{text}, line {l}, offset: {o} ').format(
+                    text=se.text, l=se.lineno, o=se.offset
+                ))
+
 
 @dataclasses.dataclass
 class TransformParam:
@@ -1343,12 +1461,12 @@ class EstimatorMetaOperation(ModelMetaOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.var = "CHANGE_VAR"
         self.name = "CHANGE_NAME"
-        self.hyperparameters: dict[str, HyperparameterInfo] = {}
+        self.hyperparameters = {}
         self.task_type = task_type
         #self.grid_info = parameters.get('workflow').get(
             #'forms', {}).get('$grid', {})
         self.grid_info = parameters.get('workflow', {}).get('forms', {}).get('$grid', {})
-
+        self.type = None
 
     def get_constrained_params(self):
         return None
@@ -1381,7 +1499,9 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 """))
         return '\n'.join(code).strip()
 
-    def generate_hyperparameters_code(self, var=None, index=None, invalid=None):
+
+    def generate_hyperparameters_code(self, var=None, index=None, invalid=None,
+                                      task_type=None):
         code = []
         if var == None:
             var = self.var
@@ -1393,9 +1513,23 @@ class EstimatorMetaOperation(ModelMetaOperation):
         grid_strategy = self.grid_info.get('value', {}).get('strategy', 'grid')
         max_iterations = self.grid_info.get('value', {}).get(
             'max_iterations', 20)
+
         self.template = """
+            {%- if type == 'binary' and task_type == 'multiclass-classification' %}
+            {%- set using_ovr = True %}
+            # Using a binary classifier and multiclass classification => OneVsRest.
+            {{var}}_ovr = classification.OneVsRest(
+                classifier={{var}},
+                labelCol={{var}}.getOrDefault({{var}}.labelCol),
+                featuresCol={{var}}.getOrDefault({{var}}.featuresCol),
+            )
+             # Lemonade internal use
+            {{var}}_ovr.task_id = '{{task.get('id')}}'
+            {{var}}_ovr.task_name = '{{task.get('name')}}'
+            {{var}}_ovr.operation_id = {{task.get('operation').get('id')}}
+            {%- endif %}
             grid_{{var}} = (tuning.ParamGridBuilder()
-                .baseOn({pipeline.stages: common_stages + [{{var}}] })
+                .baseOn({pipeline.stages: [{{var}}{%if using_ovr %}_ovr{% endif -%} ] })
                 {%- for p, v in hyperparameters %}
                 .addGrid({{var}}.{{p}}, {{v.value}})
                 {%- endfor %}
@@ -1415,8 +1549,9 @@ class EstimatorMetaOperation(ModelMetaOperation):
             {% endif -%}
         """
         return (dedent(self.render_template({
-            'strategy': grid_strategy,
+            'strategy': grid_strategy, 'task': self.task,
             'var': var, 'max_iterations': max_iterations,
+            'type': self.type, 'task_type': task_type,
             'hyperparameters': [(p, v) for p, v in self.hyperparameters.items()
                                 if v]
         }))).strip()
@@ -1448,7 +1583,8 @@ class EstimatorMetaOperation(ModelMetaOperation):
                 grid_strategy))
         return dedent('\n'.join(code))
 
-    def generate_random_hyperparameters_code(self, limit=10, seed=None):
+    def generate_random_hyperparameters_code(self, limit=10, seed=None,
+                                             task_type=None):
 
         n = min(limit, self.get_hyperparameter_count())
 
@@ -1598,8 +1734,8 @@ class EstimatorMetaOperation(ModelMetaOperation):
                     include_end else (lambda a, b: a < b))
 
         # Filter the input list based on the defined conditions
-        return (lambda x: [v for v in x if start_comp(start, v)
-                           and end_comp(v, end)])
+        return (lambda x: [v for v in x if not (start_comp(start, v)
+                           and end_comp(v, end))])
 
     def in_list(self, *search_list):
         return lambda x: [v for v in x if v not in search_list]
@@ -1660,7 +1796,7 @@ class FeaturesOperation(ModelMetaOperation):
         'quantis': 'quantis',
         'buckets': 'buckets'
     }
-    __slots__ = ('all_attributes', 'label', 'features', 'features',
+    __slots__ = ('all_attributes', 'label', 'features',
                  'categorical_features', 'textual_features', 'features_names'
                  'features_and_label', 'task_type', 'supervisioned'
                  )
@@ -1683,6 +1819,7 @@ class FeaturesOperation(ModelMetaOperation):
         self.textual_features = []
         self.features_names = []
         self.label = None
+
         for f in self.features_and_label:
             if f.get('usage') == 'unused' or not f.get('usage'):
                 continue
@@ -1733,7 +1870,8 @@ class FeaturesOperation(ModelMetaOperation):
             transform = f.get('transform')
             data_type = f.get('feature_type')
             missing = f.get('missing_data')
-            scaler = f.get('scaler')
+            scaler = f.get('scale')
+
             is_numerical = data_type == 'numerical'
 
             if f.get('feature_type') not in ('numerical', 'categorical',
@@ -1822,8 +1960,11 @@ class FeaturesOperation(ModelMetaOperation):
                             features_stages.append({f['var']}_qtles) """))
                     else:
                         final_name = None
-                if scaler and transform in ('keep', '', None):
-                    # import pdb; pdb.set_trace()
+                if (
+                    scaler
+                    and transform in ("keep", "", None)
+                    and f.get("usage") != "label"
+                ):
                     old_final_name = final_name
                     final_name = final_name + '_scl'
                     if scaler == 'min_max':
@@ -1833,6 +1974,8 @@ class FeaturesOperation(ModelMetaOperation):
                     else:
                         scaler_cls = 'MaxAbsScaler'
                     code.append(dedent(f"""
+                        # Input for standard scaler must be a vector :(
+                        # Improve this code!
                         {f['var']}_asm = feature.VectorAssembler(
                             handleInvalid='skip',
                             inputCols=['{old_final_name}'],
@@ -1843,8 +1986,8 @@ class FeaturesOperation(ModelMetaOperation):
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_scl) """))
 
-                if final_name is not None:
-                    self.features_names.append(final_name)
+                #if final_name is not None:
+                #    self.features_names.append(final_name)
             elif data_type == 'categorical':
                 # if missing == 'constant' and transform != 'not_null':
                 #     cte = f.get('constant')
@@ -1895,7 +2038,7 @@ class FeaturesOperation(ModelMetaOperation):
                             inputCol='{old_final_name}',
                             outputCol='{final_name}')
                         features_stages.append({f['var']}_ohe) """))
-                self.features_names.append(final_name)
+                # self.features_names.append(final_name)
             elif data_type == 'textual':
                 if transform == 'token_hash':
                     token_name = final_name + '_tkn'
@@ -2084,6 +2227,8 @@ class SplitOperation(ModelMetaOperation):
                 pipeline, evaluator, grid, seed={self.seed},
                 strategy='{self.strategy}', folds={self.folds})
             """)
+        else:
+            raise ValueError(f'Unsupported strategy {self.strategy}')
 
         return code.strip()
 
@@ -2288,7 +2433,7 @@ class ClassificationOperation(EstimatorMetaOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         EstimatorMetaOperation.__init__(
             self, parameters,  named_inputs,  named_outputs, 'classification')
-
+        self.type = None
 
 class DecisionTreeClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2324,6 +2469,7 @@ class DecisionTreeClassifierOperation(ClassificationOperation):
         self.var = 'decision_tree'
         self.name = 'DecisionTreeClassifier'
 
+        self.type = 'multilabel'
 
 class GBTClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2345,6 +2491,7 @@ class GBTClassifierOperation(ClassificationOperation):
 
         self.var = 'gbt_classifier'
         self.name = 'GBTClassifier'
+        self.type = 'binary'
 
 
 class NaiveBayesClassifierOperation(ClassificationOperation):
@@ -2368,6 +2515,7 @@ class NaiveBayesClassifierOperation(ClassificationOperation):
         }
         self.var = 'nb_classifier'
         self.name = 'NaiveBayes'
+        self.type = 'multiclass'
 
 
 class PerceptronClassifierOperation(ClassificationOperation):
@@ -2376,22 +2524,23 @@ class PerceptronClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
 
         layers = None
-        '''
         if parameters.get('layers'):
-            value = tuple(int(x.strip())
-                          for x in parameters.get('layers').split(','))
+            parts = parameters.get('layers').split(';')
+            values = []
+            for part in parts:
+                values.append(tuple(int(x.strip()) for x in part.split(',')))
+
             layers = HyperparameterInfo(
-                value=(value,), param_type='list',
-                values_count=1,
+                value=values, param_type='list',
+                values_count=len(values),
                 random_generator='random_generator')
-        '''
-        if 'layers' in parameters and 'list' in parameters['layers']:
-            layers = HyperparameterInfo(
-            value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
-            param_type='list',
-            values_count=1,
-            random_generator='random_generator'
-            )
+        # if 'layers' in parameters and 'list' in parameters['layers']:
+        #     layers = HyperparameterInfo(
+        #     value=parameters['layers']['list'],  # Apenas a lista, sem a tupla externa
+        #     param_type='list',
+        #     values_count=1,
+        #     random_generator='random_generator'
+        #     )
 
         self.hyperparameters = {
             'layers': layers,
@@ -2404,7 +2553,7 @@ class PerceptronClassifierOperation(ClassificationOperation):
         }
         self.var = 'mlp_classifier'
         self.name = 'MultilayerPerceptronClassifier'
-
+        self.type = 'multiclass'
 
 
 class RandomForestClassifierOperation(ClassificationOperation):
@@ -2432,6 +2581,7 @@ class RandomForestClassifierOperation(ClassificationOperation):
         }
         self.var = 'rand_forest_cls'
         self.name = 'RandomForestClassifier'
+        self.type = 'multiclass'
 
 
 class LogisticRegressionOperation(ClassificationOperation):
@@ -2458,6 +2608,7 @@ class LogisticRegressionOperation(ClassificationOperation):
         }
         self.var = 'lr'
         self.name = 'LogisticRegression'
+        self.type = 'binary'
 
 
 class SVMClassifierOperation(ClassificationOperation):
@@ -2466,13 +2617,14 @@ class SVMClassifierOperation(ClassificationOperation):
             self, parameters,  named_inputs,  named_outputs)
         self.hyperparameters = {
             'maxIter': _as_int_list(parameters.get('max_iter'), self.grid_info),
-            'standardization': _as_int_list(parameters.get('standardization'), self.grid_info),
+            'standardization': _as_boolean_list(parameters.get('standardization')),
             'threshold': _as_float_list(parameters.get('threshold'), self.grid_info),
             'tol': _as_float_list(parameters.get('tol'), self.grid_info),
             'weightCol': _as_string_list(parameters.get('weight_attr')),
         }
         self.var = 'svm_cls'
         self.name = 'LinearSVC'
+        self.type = 'binary'
 
 class FactorizationMachinesClassifierOperation(ClassificationOperation):
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -2494,6 +2646,7 @@ class FactorizationMachinesClassifierOperation(ClassificationOperation):
         }
         self.var = 'fm_classifier'
         self.name = 'FMClassifier'
+        self.type = 'multiclass'
 
 
 class RegressionOperation(EstimatorMetaOperation):
@@ -2634,15 +2787,25 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             parameters['solver'] = dict((s, v) for s, v in parameters['solver'].items()
                                     if s != 'auto')
 
+        if ('family_link' in parameters and parameters.get('family_link') and
+                 parameters.get('family_link').get('list')
+        ):
+            family_link = parameters.get('family_link').get('list')
+            (family, link) = zip(*[x.split(':') for x in family_link])
+        else:
+            family, link = ([], [])
         self.hyperparameters = {
             # 'aggregationDepth': parameters.get('aggregation_depth'),
             # 'fitIntercept': parameters.get('fit_intercept'),
             # 'linkPower': parameters.get('link_power'),
             # 'maxIter': parameters.get('max_iter'),
             # 'offsetCol': parameters.get('offset'),
-            'regParam': _as_float_list(parameters.get('elastic_net'),
+            'regParam': _as_float_list(
+                parameters.get('reg_param', {'type': 'list', 'list': [0.0001]}),
                                        self.grid_info),
             'solver': _as_string_list(parameters.get('solver')),
+            'family': _as_string_list({'list': family, 'type': 'list'}),
+            'link': _as_string_list({'list': link, 'type': 'list'}),
             # 'standardization': parameters.get('standardization'),
             # 'tol': parameters.get('tol'),
             # 'variancePower': parameters.get('variance_power'),
@@ -2689,7 +2852,7 @@ class VisualizationOperation(MetaPlatformOperation):
     DEFAULT_PALETTE = ['#636EFA', '#EF553B',
                        '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',
                        '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
-    CHART_MAP_TYPES = ('scattermapbox', )
+    CHART_MAP_TYPES = ('scattermapbox', 'densitymapbox', 'choropleth')
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         MetaPlatformOperation.__init__(
@@ -2707,31 +2870,40 @@ class VisualizationOperation(MetaPlatformOperation):
             self.y = None
             self.x_axis = None
             self.y_axis = None
-            self.latitude = self.get_required_parameter(parameters, 'latitude')
-            self.longitude = self.get_required_parameter(
-                parameters, 'longitude')
+            if self.type != 'choropleth':
+                self.latitude = self.get_required_parameter(
+                    parameters, 'latitude')
+                self.longitude = self.get_required_parameter(
+                    parameters, 'longitude')
 
         self.parameters = parameters
 
+    def _is_map_family(self):
+        return self.type in VisualizationOperation.CHART_MAP_TYPES
     def generate_code(self):
         task_obj = self._get_task_obj()
         task_obj['forms'].update({
             k: {'value': getattr(self, k)} for k in
             ['type', 'display_legend', 'palette', 'x', 'y', 'x_axis', 'y_axis']
         })
+        series = task_obj['forms']['y'].get('value', []) or []
         task_obj['forms']['y']['value'] = [
-            y for y in task_obj['forms']['y']['value']
+            y for y in series
             if y.get('enabled')
         ]
-        if len(task_obj['forms']['y']['value']) == 0:
+        if len(series) == 0 and not self._is_map_family():
             raise ValueError(gettext('There is no series or none is enabled'))
-        for p in ['hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
+        available_properties = [
+            'hole', 'text_position', 'text_info', 'smoothing', 'color_scale',
                   'auto_margin', 'right_margin', 'left_margin', 'top_margin', 'bottom_margin',
                   'title', 'template', 'blackWhite', 'subgraph', 'subgraph_orientation',
                   'animation', 'height', 'width', 'opacity', 'fill_opacity',
                   'color_attribute', 'size_attribute', 'number_format', 'text_attribute',
                   'style', 'tooltip_info', 'zoom', 'center_latitude', 'center_longitude',
-                  'marker_size', 'limit', 'filter']:
+                  'marker_size', 'limit', 'filter', 'max_height', 'max_width', 'magnitude',
+                  'hover_name', 'hover_value', 'hover_data', 'latitude',
+                  'longitude', 'geo_json_url', 'locations', 'feature_id_key']
+        for p in available_properties:
             task_obj['forms'][p] = {'value': self.parameters.get(p)}
 
         task_obj['operation'] = {"id": 145}
@@ -2844,6 +3016,14 @@ class ConvertDataSourceFormat(BatchMetaOperation):
         token = str(limonero_config['auth_token'])
         metadata = limonero_service.get_data_source_info(
             url, token, self.data_source_id)
+        # Expand variables
+        (metadata['url'],) = handle_variables(
+            None,
+            [metadata['url'],],
+            parameters['workflow']['expanded_variables'],
+            parse_date=False
+        )
+
 
         if metadata.get('format') not in ('CSV', ):
             raise ValueError(

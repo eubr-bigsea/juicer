@@ -10,6 +10,24 @@ import networkx as nx
 from juicer import privaaas
 from juicer.service import tahiti_service, limonero_service
 
+# Lista de padrões de formatação para testar
+date_formats = [
+    "%Y-%m-%d",       # Date only
+    "%H:%M:%S",       # Time only
+    "%Y-%m-%d %H:%M:%S", # Date and time
+    "%d/%m/%Y",       # Date with slashes (day first)
+    "%d/%m/%Y %H:%M:%S", # Date and time with slashes (day first)
+    "%Y/%m/%d",       # Date with slashes (year first)
+    "%Y/%m/%d %H:%M:%S"  # Date and time with slashes (year first)
+]
+
+def parse_date(date_str):
+    for date_format in date_formats:
+        try:
+            return datetime.datetime.strptime(date_str, date_format)
+        except ValueError:
+            continue
+    return None
 
 class Workflow(object):
     """
@@ -76,7 +94,7 @@ class Workflow(object):
             self.sorted_tasks = self.get_topological_sorted_tasks()
         else:
             raise AttributeError(
-                _("Port '{}/{}' must be informed for operation{}").format(
+                gettext("Port '{}/{}' must be informed for operation{}").format(
                     self.WORKFLOW_GRAPH_SOURCE_ID_PARAM,
                     self.WORKFLOW_GRAPH_TARGET_ID_PARAM,
                     self.__class__))
@@ -94,6 +112,7 @@ class Workflow(object):
                 if self.query_data_sources:
                     ds = next(self.query_data_sources())
                 else:
+                    # FIXME: Handle variables!
                     ds = limonero_service.get_data_source_info(
                         limonero_config['url'],
                         str(limonero_config['auth_token']),
@@ -268,7 +287,7 @@ class Workflow(object):
                         parents=[],
                         attr_dict=task)
                 else:
-                    msg = _("Task {task} uses an invalid or disabled "
+                    msg = gettext("Task {task} uses an invalid or disabled "
                             "operation ({op})")
                     raise ValueError(
                         msg.format(task=task['id'], op=task['operation']['id']))
@@ -285,10 +304,10 @@ class Workflow(object):
                 source_ports = task_map[flow['source_id']]['operation']['ports']
                 target_ports = task_map[flow['target_id']]['operation']['ports']
 
-                source_port = next((p for p in source_ports 
+                source_port = next((p for p in source_ports
                     if p['id'] == flow['source_port'] or p['slug'] == flow['source_port_name']),
                     None)
-                target_port = next((p for p in target_ports 
+                target_port = next((p for p in target_ports
                     if p['id'] == flow['target_port'] or p['slug'] == flow['target_port_name']),
                     None)
                 # source_port = list([p for p in
@@ -320,9 +339,9 @@ class Workflow(object):
                         flow['source_id'])
                 else:
                     self.log.warn(
-                        _("Incorrect configuration for ports: %s, %s"),
+                        gettext("Incorrect configuration for ports: %s, %s"),
                         source_port, target_port)
-                    raise ValueError(_(
+                    raise ValueError(gettext(
                         "Invalid or non-existing port: Operation: {op} ({s} {t})").format(
                         op=task_map[flow['source_id']]['operation']['name'],
                         s=flow['source_port'], t=flow['target_port']))
@@ -484,7 +503,7 @@ class Workflow(object):
         operations_ports = tahiti_service.query_tahiti(params['base_url'],
                                                        params['item_path'],
                                                        params['token'],
-                                                       params['item_id'], 
+                                                       params['item_id'],
                                                        qs='code_gen=1')
         # Get operation requirements in tahiti
         result = {
@@ -537,15 +556,6 @@ class Workflow(object):
         #                 )
         #     if self.query_operations:
         #         return self.query_operations()
-    def _replace_variable(self, all_vars, v, found, task):
-        var_name = found[2:-1]
-        if var_name in all_vars:
-            new_value = str(all_vars[var_name])
-            return v.replace(found, new_value)
-        else:
-            raise ValueError(
-                 _('Undefined variable "{}" used in task "{}"').format(
-                 var_name, task['name']))
 
     def _replace(self, data, all_vars, var_re, task):
         if isinstance(data, dict):
@@ -553,54 +563,88 @@ class Workflow(object):
         elif isinstance(data, list):
             return [self._replace(i, all_vars, var_re, task) for i in data]
         else:
-            if isinstance(data, (str,)):
-                for found in var_re.findall(data):
-                    #print('<=', data)
-                    data = self._replace_variable(all_vars, data, found, task)
-                    #print('=>', data)
+            if isinstance(data, (int, float)):
+                return data
+            elif isinstance(data, (str,)):
+                def replacer(match):
+                    variable = match.group(1)  # Extracts content between ${}
+                    param = match.group(2)
+                    if param:
+                        # Variables that support parameters are identified by
+                        # $name and associated to a lambda function
+                        value = all_vars.get(variable)
+                        return all_vars.get(f'${variable}')(value, param)
+                    else:
+                        return str(all_vars.get(variable))
+
+                return var_re.sub(replacer, data)
+
             elif data is None:
                 ...
             return data
+
+    def _handle_ref(self, value, fmt):
+        if value:
+            return value.strftime(fmt)
+        else:
+            raise ValueError(gettext('Variable "ref" was not set'))
 
     def handle_variables(self, custom_vars=None):
         """
         Handles variable substitution
         """
         now = datetime.datetime.now()
-        date_at_min = datetime.datetime.combine(datetime.datetime.now(), datetime.time.min)
-        date_at_max = datetime.datetime.combine(datetime.datetime.now(), datetime.time.max)
+        # date_at_min = datetime.datetime.combine(datetime.datetime.now(),
+        #                                         datetime.time.min)
+        # date_at_max = datetime.datetime.combine(datetime.datetime.now(),
+        #                                         datetime.time.max)
         all_vars = {
-            'second': now.strftime('%S'),
-            'minute': now.strftime('%M'),
-            'hour': now.strftime('%H'),
-            'day': now.strftime('%d'),
-            'week_day': now.isoweekday(),
-            'month': now.strftime('%m'),
-            'year': now.strftime('%Y'),
-            'year2': now.strftime('%y'),
+            #'second': now.strftime('%S'),
+            #'minute': now.strftime('%M'),
+            #'hour': now.strftime('%H'),
+            #'day': now.strftime('%d'),
+            #'week_day': now.isoweekday(),
+            #'month': now.strftime('%m'),
+            #'year': now.strftime('%Y'),
+            #'year2': now.strftime('%y'),
             'date': now.strftime('%Y-%m-%d'),
-            'now': now.strftime('%Y-%m-%d %H:%M:%S'),
-            'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
-            'date_at_max': date_at_max.strftime('%Y-%m-%d %H:%M:%S'),
+            #'now': now.strftime('%Y-%m-%d %H:%M:%S'),
+            #'date_at_min': date_at_min.strftime('%Y-%m-%d %H:%M:%S'),
+            #'date_at_max': date_at_max.strftime('%Y-%m-%d %H:%M:%S'),
             'user_login': self.workflow['user']['login'],
             'user_name': self.workflow['user']['name'],
             'user_email': self.workflow['user']['login'], # FIXME
             'user_id': str(self.workflow['user']['id']),
             'workflow_name': self.workflow['name'],
             'workflow_id': self.workflow['id'],
+            # Special variable, used in conjunction with a formatting pattern
+            # Variables that support parameters are identified by $name and
+            # are associated to a lambda function
+            '$date': lambda value, fmt: datetime.datetime.now().strftime(fmt),
+            # $ref is a special variable, used by pipelines
+            '$ref': self._handle_ref
         }
-        
+
         if custom_vars:
             all_vars.update(custom_vars)
         for variable in self.workflow.get('variables', []):
             var_value = variable.get('value', variable.get('default_value'))
+            var_type = variable.get('type')
             if var_value is not None and var_value != '':
+                if var_type == 'DATE':
+                    var_value = parse_date(var_value)
+                elif var_type == 'DECIMAL':
+                    var_value = str(float(var_value))
+                elif var_type == 'INTEGER':
+                    var_value = str(int(var_value))
+
                 all_vars[variable['name']] = var_value
 
-        variable_re = re.compile(r'\$\{[_A-Za-z][_A-Za-z0-9]*\}')
+        variable_re = re.compile(r'\$\{([_A-Za-z][_A-Za-z0-9]*)(?:\|(.+?))?\}')
         for task in self.workflow['tasks']:
             if 'forms' in task and (task['enabled'] or self.include_disabled):
-                task['forms'] = self._replace(task['forms'], all_vars, variable_re, task)
+                task['forms'] = self._replace(
+                    task['forms'], all_vars, variable_re, task)
 
                 # Handle properties associated to variables
                 for prop, value in task['forms'].items():
@@ -608,7 +652,8 @@ class Workflow(object):
                         var_name = value.get('variable')
                         if var_name in all_vars:
                             v = all_vars[var_name]
-                            # print(f'>>> Setting {prop} to {v} (was {value["value"]}) {type(value["value"])}')
+                            # print(f'>>> Setting {prop} to {v}
+                            # (was {value["value"]}) {type(value["value"])}')
                             if isinstance(value['value'], list):
                                 value['value'] = [f"{v}"]
                             elif isinstance(value['value'], (str,)):
@@ -620,47 +665,7 @@ class Workflow(object):
                                 value['value'] = f'{v}'
                         else:
                             raise ValueError(
-                                 _('Undefined variable "{}" used in task "{}"').format(
-                                    var_name, task['name']))
-
-                        # print(f'>>> Set {prop} to {value["value"]} {type(value["value"])}')
-
-                # for k, v in list(task.get('forms').items()):
-                #     value = v.get('value')
-                #     if task['operation']['slug'] == 'user-filter' and \
-                #             k == 'filters': # FIXME: Needs to be dynamic
-                #         for filter_value in value:
-                #             value1 = str(filter_value.get('value', filter_value.get('default_value', '')))
-                #             filter_value['value'] = value1
-                #             for found in variable_re.findall(value1):
-                #                 v['value'] = self._replace_variable(all_vars, value, found)
-                #     else:
-
-                    # if isinstance(value, (str,)):
-                    #     for found in variable_re.findall(value):
-                    #         v['value'] = self._replace_variable(all_vars, value, found)
-                    # elif value is None:
-                    #     pass
-                    # elif isinstance(value, list):
-                    #     for index, value_in_list in enumerate(value):
-                    #         if isinstance(value_in_list, str):
-                    #             for found in variable_re.findall(value_in_list):
-                    #                 value_in_list[index] = self._replace_variable(
-                    #                     all_vars, value_in_list, found)
-                    #         elif isinstance(value_in_list, dict):
-                    #             for k1, value_in_dict in value_in_list.items():
-                    #                 if isinstance(value_in_dict, (str, )):
-                    #                     for found in variable_re.findall(value_in_dict):
-                    #                         value_in_list[k1] = self._replace_variable(all_vars, value_in_dict, found)
-                    #                 else:
-                    #                     print(type(value), value)
-
-
-                    # elif isinstance(value, dict):
-                    #     for k1, value_in_dict in value.items():
-                    #         for found in variable_re.findall(value_in_dict):
-                    #             value[k] = self._replace_variable(all_vars, value_in_dict, found)
-
-                    # else:
-                    #     print(value, type(value))
-
+                                 gettext(
+                                     'Undefined variable "{}" used in task "{}"'
+                                     ).format(var_name, task['name']))
+        self.workflow['expanded_variables'] = all_vars

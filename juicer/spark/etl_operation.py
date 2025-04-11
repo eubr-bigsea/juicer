@@ -564,14 +564,19 @@ class TransformationOperation(Operation):
         params = {'input': input_data}
 
         expr_alias = []
+        register_udf = ""
         for expr in self.expressions:
             # Builds the expression and identify the target column
             expression = Expression(expr['tree'], params)
             expr_alias.append("                [{}, '{}']".format(
                 expression.parsed_expression, expr['alias']))
 
+            if expression.add_import_udf:
+                register_udf += expression.add_import_udf + "\n"   
+            
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
+            {imports}
             expr_alias = [
                 {expr_alias}
             ]
@@ -581,7 +586,7 @@ class TransformationOperation(Operation):
                                                           expression=expr)
                 tmp_out = transformer.transform(tmp_out)
             {out} = tmp_out
-        """.format(out=self.output, in1=input_data,
+        """.format(out=self.output, imports=register_udf, in1=input_data,
                    expr_alias=',\n'.join(expr_alias).strip()))
 
         return dedent(code)
@@ -903,16 +908,21 @@ class FilterOperation(Operation):
                 f['attribute'], f['f'], f.get('value', f.get('alias')))
             for f in self.filter]
 
+        register_udf = ""
         for expr in self.advanced_filter:
             expression = Expression(expr['tree'], params)
             filters.append('({})'.format(expression.parsed_expression))
+            if expression.add_import_udf:
+                register_udf += expression.add_import_udf + "\n"
 
         indentation = ' & \n' + (17 * ' ')
         code = """
+            {imports}
             {out} = {in1}.filter(
                 {f})
             """.format(
-            out=self.output, in1=input_data, f=indentation.join(filters))
+                    imports=register_udf, out=self.output, 
+                    in1=input_data, f=indentation.join(filters))
 
         return dedent(code)
 

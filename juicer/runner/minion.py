@@ -1,15 +1,15 @@
-# coding=utf-8
-
-
 import argparse
-import gettext
+from gettext import gettext, translation
 import logging.config
 import os
+import sys
+from dotenv import load_dotenv, find_dotenv
 from urllib.parse import urlparse
 
 import matplotlib
 import redis
 import yaml
+from juicer.util.i18n import set_language
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932
@@ -18,11 +18,15 @@ matplotlib.set_loglevel("warning")
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
+load_dotenv(find_dotenv())
+sys.path.append('.')
 
-# locale.setlocale(locale.LC_ALL, 'en.UTF-8')
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 if __name__ == '__main__':
+
+    # Used to kill all spawned processes
+    os.setpgrp()
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", help="Config file.", required=True)
@@ -37,15 +41,16 @@ if __name__ == '__main__':
     parser.add_argument("--jars", help="Add Java JAR files to class path.",
                         required=False)
 
-    parser.add_argument("--freeze", help="Always execute the generated code from infomed file", 
+    parser.add_argument("--freeze", help="Always execute the generated code from infomed file",
         required=False)
     args = parser.parse_args()
-    t = gettext.translation('messages', locales_path, [args.lang],
+    t = translation('messages', locales_path, [args.lang],
                             fallback=True)
     t.install()
+    set_language(args.lang)
 
-    log.info(_("Starting minion"))
-    log.debug(_('(c) Lemonade - DCC UFMG'))
+    log.info(gettext("Starting minion"))
+    log.info(gettext('(c) Lemonade - DCC UFMG'))
     try:
         with open(args.config) as config_file:
             juicer_config = yaml.load(config_file.read(),
@@ -117,8 +122,8 @@ if __name__ == '__main__':
 
         else:
             raise ValueError(
-                _("{type} is not supported (yet!)").format(type=args.type))
+                gettext("{type} is not supported (yet!)").format(type=args.type))
         minion.process()
     except Exception as ex:
         print(ex)
-        log.exception(_("Error running minion"), exc_info=ex)
+        log.exception(gettext("Error running minion"), exc_info=ex)

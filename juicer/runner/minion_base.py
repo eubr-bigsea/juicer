@@ -1,6 +1,3 @@
-# coding=utf-8
-
-
 import importlib
 import json
 import logging.config
@@ -11,6 +8,7 @@ import datetime
 import os
 import pyinotify
 from juicer.runner.control import StateControlRedis
+from juicer.util.i18n import gettext
 
 # noinspection PyUnresolvedReferences
 from six.moves import reload_module
@@ -119,7 +117,7 @@ class Minion:
 
     def ping(self, q):
         """ Pings redis to inform master this minion is online """
-        log.info('Start ping')
+        log.info(gettext('Start ping'))
         while q.empty():
             self._perform_ping()
             time.sleep(5)

@@ -1,19 +1,25 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python/
 """
 Auto-generated Spark code from Lemonade Workflow
 (c) Speed Labs - Departamento de Ciência da Computação
     Universidade Federal de Minas Gerais
 More information about Lemonade to be provided.
 """
+from decimal import Decimal
+from seaborn import jointplot
+from packaging.version import Version
+from sklearn import preprocessing
 from pyspark.ml import (classification, regression, clustering,
-                        evaluation, feature, tuning)
+                        evaluation, feature, tuning, Pipeline, PipelineModel)
 from pyspark.sql import functions, types, Row, DataFrame
 
-from pyspark.ml import Pipeline, PipelineModel
+from pyspark.mllib.evaluation import MulticlassMetrics
 
 from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Union
+import logging
+import logging.config
 import functools
 import itertools
 import math
@@ -22,44 +28,60 @@ import random
 import traceback
 import sys
 import time
+import threading
 import uuid
-
 import numpy as np
 import os
 from juicer.util import dataframe_util
+from juicer.spark.reports import (AreaUnderCurveReport,
+                                  ConfusionMatrixImageReport,
+                                  MatplotlibChartReport, PlotlyChartReport,
+                                  SeabornChartReport)
+from juicer.spark.util.results import CurveMetrics
 import dataclasses
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 {% set builder_params = transpiler.transpiler.prepare_model_builder_parameters(instances) %}
-# FIXME: Do not work
+{%- set task_type = builder_params.evaluator.task_type %}
 {% for imps in transpiler.imports %}
+# FIXME: Do not work
 {{imps}}
 {%- endfor %}
+
+submission_lock = threading.Lock()
 
 @dataclasses.dataclass(frozen=True)
 class TrainingContext:
     index: int
-    task_id: int
+    task_id: str
     task_name: str
     name: str
     details: str
     operation_id: int
     start: float
     time: float
+    fold: int
     def replace(self, *args, start: float, time: float):
        return dataclasses.replace(
            self, start=start, time=time)
 
 @dataclasses.dataclass(frozen=True)
 class TrainingResult:
-    status: str = None
-    model: str = None
-    details: str = None
-    metric: str = None
-    exception: str = None
+    index: Union[int, None] = None
+    status: Union[str, None] = None
+    model: Union[str, None] = None
+    details: Union[str, None] = None
+    metric: Union[str, None] = None
+    exception: Union[Exception, None] = None
     ctx: object = None
-    feature_importance: str = None
+    feature_importance: Union[int, None] = None
+    fold: int = 0
+    test_transformed: Union[DataFrame, None] = None
     def __iter__(self):
         return iter(
-            (self.status, self.model, self.details, self.metric,
+            (self.index, self.status, self.model, self.details, self.metric,
             self.exception, self.ctx, self.feature_importance)
         )
 
@@ -67,39 +89,96 @@ class TrainingResult:
 {%- include auxiliary_code with context %}
 {%- endfor %}
 
-def get_feature_importance_score(model, features):
-    if isinstance(model, classification.LogisticRegressionModel):
+def get_feature_importance_score(model, features, classes, data=None):
+    if isinstance(model, clustering.KMeansModel):
+        result = {
+            "training cost": model.summary.trainingCost,
+            "cluster sizes": model.summary.clusterSizes,
+        }
+        return result
+    elif isinstance(model, classification.LogisticRegressionModel):
         m = model.extractParamMap()
         if m.get(model.family) in ('multinomial', 'auto'):
-            coef = model.coefficientMatrix
-            mag_coef = []
-            result = coef
+            coef = model.coefficientMatrix.toArray()
+            coefficients_dict = []
+            odds_dict = []
+            total_classes = len(classes)
+            #odds_ratios = np.exp(coef)
+            for i, row in enumerate(coef):
+                class_coeff = {
+                    "class": classes[i] if i < total_classes else str(i),
+                }
+                class_odds = {
+                    "class": classes[i] if i < total_classes else str(i),
+                }
+
+                for j, col in enumerate(row):
+                    class_coeff[features[j]] = float(col)
+                    #class_odds[features[j]] = float(odds_ratios[i, j])
+
+                coefficients_dict.append(class_coeff)
+                #odds_dict.append(class_odds)
+            result = {'coefficients': coefficients_dict, }
         else:
-            print(model.family, m.get(model.family))
-            coef = list(model.coefficients)
-            result = list(zip(features, coef))
-        print(result)
+            coef = list(model.coefficients.tolist())
+            odds_ratios = [math.exp(c) for c in coef]
+            result = {'coefficients': dict(zip(features, coef)),
+                      'odds_ratios': dict(zip(features, odds_ratios))}
+        return result
+    elif isinstance(model, classification.LinearSVCModel):
+        coefficients = model.coefficients
+        return {'coefficients': dict(zip(features, coefficients))}
+
     elif isinstance(model,
                     (classification.DecisionTreeClassificationModel,
-                     classification.RandomForestClassificationModel)):
-        return model.featureImportances.toArray().tolist()
+                     classification.RandomForestClassificationModel,
+                     classification.GBTClassificationModel,
+                     regression.DecisionTreeRegressionModel,
+                     regression.GBTRegressionModel,
+                     regression.RandomForestRegressionModel)):
+        return {'importance': dict(zip(features,
+            model.featureImportances.toArray().tolist()))
+        }
     elif isinstance(model, (classification.NaiveBayesModel)):
-        return [{
+        return {
             'pi': model.pi.values.tolist(),
             'theta': model.theta.values.tolist(),
-        }]
+        }
+    elif isinstance(model, (regression.LinearRegressionModel,
+            regression.GeneralizedLinearRegressionModel)):
+        summary = model.summary
+        result = {
+            'coefficients': dict(zip(features, model.coefficients.tolist())),
+            'intercept': model.intercept,
+            'importance': dict(zip(features, map(abs, model.coefficients.tolist()))),
+        }
+        props = ['degreesOfFreedom',
+            'explainedVariance', 'meanAbsoluteError', 'meanSquaredError',
+            'numInstances', 'r2', 'r2adj',
+            'rootMeanSquaredError',]
+        for prop in props:
+            if hasattr(summary, prop):
+                result[prop] = str(getattr(summary, prop))
+        return result
+    elif isinstance(model, (regression.FMRegressionModel,
+                            classification.FMClassificationModel)):
+        return {
+            'coefficients': dict(zip(features, model.linear.tolist())),
+            'intercept': model.intercept,
+            'importance': dict(zip(features, map(abs, model.linear.tolist()))),
+        }
     else:
         print('>>>>>>>>>>>>>>>>>>', type(model))
 
 class CustomTrainValidationSplit():
     """ Mimic the TrainValidationSplit from Spark, but emit information
     about the training process after each iteration."""
-    __slots__ = ('estimator', 'evaluator', 'train_ratio', 'seed', 'params',
-               'train_size', 'test_size', 'num_workers', 'strategy', 'folds',
-               'fold_col')
+    __slots__ = (
+        'estimator', 'evaluator', 'train_ratio', 'seed', 'params', 'train_size',
+        'test_size', 'num_workers', 'strategy', 'folds','fold_col')
     def __init__(self, estimator, evaluator, params,
                  train_ratio=0.7, seed=None,
-                 num_workers=4, strategy='split', folds=None):
+                 num_workers=4, strategy='split', folds=1):
 
         self.estimator = estimator
         self.evaluator = evaluator
@@ -108,7 +187,7 @@ class CustomTrainValidationSplit():
         self.params = params
         self.train_size = 0
         self.test_size = 0
-        self.num_workers = 4
+        self.num_workers = num_workers
         self.strategy = strategy
         self.folds = folds
         self.fold_col = None
@@ -118,15 +197,18 @@ class CustomTrainValidationSplit():
         try:
             start = time.time()
             model = estimator.fit(train, params)
-            df = model.transform(test, params)
-            metric = evaluator.evaluate(df)
+            test_transformed = model.transform(test, params)
+            metric = evaluator.evaluate(test_transformed)
             new_ctx = ctx.replace(start=start, time=time.time() - start)
-            return TrainingResult('OK', model, details, metric, ctx=new_ctx)
+            return TrainingResult(
+                ctx.index, 'OK', model, details, metric, ctx=new_ctx,
+                test_transformed=test_transformed)
         except Exception as e:
             try:
                 dataframe_util.handle_spark_exception(e)
             except ValueError as ve:
-                return TrainingResult('ERROR', model=None, metric=None,
+                logger.exception(ve)
+                return TrainingResult(ctx.index, 'ERROR', model=None, metric=None,
                                       details=details, exception=ve, ctx=ctx)
 
     def _extract_params(self, params):
@@ -147,7 +229,7 @@ class CustomTrainValidationSplit():
             return [df.randomSplit(
                 [self.train_ratio, 1 - self.train_ratio], self.seed)]
         elif self.strategy == 'cross_validation':
-            return self._k_fold()
+            return self._k_fold(df)
         else:
             raise ValueError('Invalid train split: {}'.format(self.strategy))
 
@@ -162,7 +244,7 @@ class CustomTrainValidationSplit():
             pass
         else:
             h = 1.0 / self.folds
-            rand_col = f'{uuid.uuid5()}_rand'
+            rand_col = f'{uuid.uuid4()}_rand'
             df = df.select("*", functions.rand(self.seed).alias(rand_col))
             for i in range(self.folds):
                 validate_lower_bound = i * h
@@ -175,34 +257,22 @@ class CustomTrainValidationSplit():
 
             return datasets
 
-    def fit(self, df, emit):
+    def fit(self, df, emit, features_names, label_attr):
         results = []
 
         with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
             folds = self._generate_folds(df)
-            for train, test in folds:
+            for fold_n, (train, test) in enumerate(folds):
                 train.cache()
                 test.cache()
                 future_train = {}
                 for counter, params in enumerate(self.params):
                     task_id, task_name, operation_id, estimator, details = (
                         self._extract_params(params))
-                    # task_id = None
-                    # task_name = None
-                    # operation_id = None
-                    # estimator = None
-                    # details = {}
-                    # for param, value in params.items():
-                    #     if param.name == 'stages':
-                    #         task_id = value[-1].task_id
-                    #         task_name = value[-1].task_name
-                    #         operation_id = value[-1].operation_id
-                    #         name = value[-1].__class__.__name__
-                    #     else:
-                    #         details[param.name] = value
 
                     ctx = TrainingContext(counter, task_id, task_name,
-                        estimator, details, operation_id, time.time(), 0)
+                        estimator, details, operation_id, time.time(),
+                        0, fold_n)
                     submission = executor.submit(
                         self._perform_training, train, test, self.estimator,
                         self.evaluator, params, details, ctx)
@@ -212,6 +282,9 @@ class CustomTrainValidationSplit():
                 for future in as_completed(future_train):
                     result = future.result()
                     # future_train[future]
+                    if result is None:
+                        logger.warning('Result is None')
+                        continue
                     ctx = result.ctx
                     message = {'params': ctx.details, 't': ctx.time,
                         'index': ctx.index}
@@ -228,12 +301,24 @@ class CustomTrainValidationSplit():
                         message['metric'] = {
                             'name': metric_name,
                             'value': result.metric if not math.isnan(result.metric) else 1000,
-                            'is_larger_better': is_larger_better
+                            'is_larger_better': is_larger_better,
+                            'index': ctx.index, 'fold': ctx.fold
                         }
                         ml_model = result.model.stages[-1]
-                        importance = get_feature_importance_score(ml_model, [])
-                        message['feature_importance'] = importance
 
+                        # Test if label was indexed with StringIndexer
+                        stage_indexer_label = next(
+                            (s for s in result.model.stages
+                                if isinstance(s, feature.StringIndexerModel)
+                                and s.getInputCol() == label_attr), None
+                        )
+                        if stage_indexer_label is not None:
+                            classes = stage_indexer_label.labels
+                        else:
+                            classes = []
+                        importance = get_feature_importance_score(
+                            ml_model, features_names, classes, df)
+                        message['feature_importance'] = importance
                         emit(identifier=ctx.task_id, status='COMPLETED',
                             message=message, title=ctx.task_name,
                             operation_id=ctx.operation_id, )
@@ -264,15 +349,18 @@ def read_data(spark_session):
     {{builder_params.read_data.model_builder_code() | indent(width=4, first=False)}}
     {%- endif %}
 
-    # Many Spark 2.x transformers, including Binarizer and Imputer,
-    # work only with float or double types.
-    # Decimal and even integer is not supported.
-    # See https://issues.apache.org/jira/browse/SPARK-20604.
-    # Current solution is to convert all unsupported numeric data types
-    # to double
-    for s in df.schema:
-        if s.dataType.typeName() in ['integer', 'decimal']:
-            df = df.withColumn(s.name, df[s.name].cast('double'))
+    spark_version = Version(spark_session.version)
+
+    if spark_version < Version('3.0.0'):
+        # Many Spark 2.x transformers, including Binarizer and Imputer,
+        # work only with float or double types.
+        # Decimal and even integer is not supported.
+        # See https://issues.apache.org/jira/browse/SPARK-20604, fixed in 3.0.0
+        # Current solution is to convert all unsupported numeric data types
+        # to double
+        for s in df.schema:
+            if s.dataType.typeName() in ['integer', 'decimal']:
+                df = df.withColumn(s.name, df[s.name].cast('double'))
 
     {% for feat in builder_params.features.numerical_features %}
     {%- if feat.feature_type == 'numerical' %}
@@ -285,7 +373,7 @@ def read_data(spark_session):
 
     return df
 
-def create_pipeline(label: str):
+def create_pipeline(label: str, features_names):
     """ Define a Spark pipeline model."""
 
     # Feature engineering
@@ -294,12 +382,6 @@ def create_pipeline(label: str):
     {{builder_params.features.generate_code() | indent(width=4, first=False)}}
     {%- set has_numerical_features = builder_params.features.numerical_features|length > 0%}
     {%- set use_pca = builder_params.reduction.has_code and has_numerical_features and has_numerical_features%}
-
-    features_names = [
-        {%- for f in builder_params.features.get_final_features_names() -%}
-        '{{ f }}'{%- if not loop.last %}, {% endif %}
-        {%- endfor -%}
-    ]
 
     {%- if use_pca %}
 
@@ -327,66 +409,70 @@ def create_pipeline(label: str):
 
     # Algorithms definition
     common_params = {'predictionCol': 'prediction',
-        {%- if builder_params.evaluator.task_type != 'clustering'%}'labelCol': label, {% endif %}
+        {%- if task_type != 'clustering'%}'labelCol': label, {% endif %}
         'featuresCol': 'features'}
 
     {%- for estimator in builder_params.estimators %}
     {{estimator.generate_code() | indent(width=4, first=False)}}
     {%- endfor %}
 
-    common_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
+    preprocessing_stages = features_stages + {% if use_pca %}[pca_va, feature_reducer] + {% endif %} [vec_assembler]
+    preprocessing_pipeline = (
+        Pipeline(stages=preprocessing_stages) if preprocessing_stages else None)
     # CrossValidation/TrainValidationSplit with multiple pipelines in PySpark:
     # See https://stackoverflow.com/a/54992651/1646932
     pipeline = Pipeline(stages=[])
 
-    {#-
-    {%- for estimator in builder_params.estimators %}
-    {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
-    {%- endfor -%}
-    {
-    # Grid parameters
-    {%- for estimator in builder_params.estimators %}
-    {%- set variations = estimator.get_variations() %}
-    {%- if variations %}
-    {%- for name, params in variations %}
-    grid_{{estimator.var}}_{{loop.index0}} = (tuning.ParamGridBuilder()
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}_{{loop.index0}}]})
-        {{estimator.generate_hyperparameters_code(estimator.var, loop.index0, params.get('invalid'))
-            | indent(width=8, first=False)}}
-    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
-    )
-    {%- endfor %}
-    {%- else %}
-    grid_{{estimator.var}} = (tuning.ParamGridBuilder()
-        .baseOn({pipeline.stages: common_stages + [{{estimator.var}}]})
-        {{estimator.generate_hyperparameters_code() | indent(width=8, first=False)}}
-    {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
-    )
-    {%- endif %}
-    {% endfor %}
-    #}
-
     # Grid parameters (Using: {{builder_params.grid.strategy}})
     {%- for estimator in builder_params.estimators %}
     {%- if builder_params.grid.strategy == 'grid' %}
-    {{estimator.generate_hyperparameters_code() | indent(width=4, first=False)}}
+    {{estimator.generate_hyperparameters_code(task_type=task_type) | indent(width=4, first=False)}}
     {%- else %}
     {{estimator.generate_random_hyperparameters_code() | indent(width=4, first=False)}}
     {%- endif %}
+
+    {%- set constrained = estimator.get_constrained_params() %}
+    {%- if constrained %}
+    # Remove invalid parameter combinations
+    valid_constrained = [
+    {%- for p in constrained %}
+        {{p}},
+    {%- endfor %}
+    ]
+
+    grid_{{estimator.var}}_constrained = {}
+    for item in grid_{{estimator.var}}:
+        valid = True
+        key = None
+        for validation in valid_constrained:
+            if all([item[k] == v for k, v in validation.items()]):
+                params = list(item.items())[1:]
+                key = tuple((k, item[k]) for k, v in params)
+                valid = True
+                break
+            else:
+                valid = False
+        if valid:
+            grid_{{estimator.var}}_constrained[key] = item
+
+    grid_{{estimator.var}} = grid_{{estimator.var}}_constrained.values()
+
+    {%- endif %}
     {% endfor %}
     # Remove duplicated grid parameters
-    candidate_grid = {%- for estimator in builder_params.estimators -%}
+    candidate_grid = ({%- for estimator in builder_params.estimators -%}
         {%- set variations = estimator.get_variations() %}
         {%- if variations %}
-        {%- for variation in variations -%} grid_{{estimator.var}}_{{loop.index0}}{% if not loop.last %} + {% endif %}{% endfor %}
+        {%- for variation in variations -%} list(grid_{{estimator.var}}_{{loop.index0}}){% if not loop.last %} + {% endif %}{% endfor %}
         {%- else -%}
-        grid_{{estimator.var}}
+        list(grid_{{estimator.var}})
         {%- endif %}
         {%- if not loop.last %} + {% else %}{% endif %}
         {%- if loop.index % 3 == 0 %}
         {# extra line #}
         {%- endif %}
-    {%- endfor %}
+    {%- endfor %})
+
     distinct_grid = set()
     grid = []
     for row in candidate_grid:
@@ -396,22 +482,23 @@ def create_pipeline(label: str):
             distinct_grid.add(key)
             grid.append(row)
 
+
     if len(grid) == 0:
         raise ValueError(
-            gettext('No algorithm or algorithm parameter informed.'))
+            "{{gettext('No algorithm or algorithm parameter informed.')}}")
     {%- if builder_params.grid %}
     {{builder_params.grid.generate_code() | indent(width=4, first=False)}}
     {%- endif %}
-    return pipeline, grid, label
+    return pipeline, preprocessing_pipeline, grid, label
 
 def main(spark_session: any, cached_state: dict, emit_event: callable):
     """ Run generated code """
 
     try:
-        {%- if builder_params.evaluator.task_type != 'clustering' %}
-        label = '{{builder_params.features.label.name}}'
+        {%- if task_type != 'clustering' %}
+        label_attr = '{{builder_params.features.label.name}}'
         {%- else %}
-        label = None
+        label_attr = None
         {%- endif %}
         df = read_data(spark_session)
         {%- if builder_params.sample and builder_params.sample.type %}
@@ -422,9 +509,19 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
         {{builder_params.features.generate_code_for_missing_data_handling() |
                                                                           indent(width=8, first=False)}}
 
+        original_features_names = [
+            {%- for f in builder_params.features.features -%}
+            '{{ f.name }}'{%- if not loop.last %}, {% endif %}
+            {%- endfor -%}
+        ]
+        final_features_names = [
+            {%- for f in builder_params.features.get_final_features_names() -%}
+            '{{ f }}'{%- if not loop.last %}, {% endif %}
+            {%- endfor -%}
+        ]
         # Pipeline definition
-        pipeline, grid, label = create_pipeline(label)
-
+        pipeline, preprocessing_pipeline, grid, label = create_pipeline(
+            label_attr, features_names=final_features_names)
         emit = emit_metric(emit_event)
 
         # Pipeline evaluator
@@ -433,47 +530,303 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
         {%- endif %}
 
+        if preprocessing_pipeline is not None:
+            # There are some preprocessing transformations that need to be
+            # executed before the spliting part.
+            preprocessing_pipeline_model = preprocessing_pipeline.fit(df)
+            preprocessed_df = preprocessing_pipeline_model.transform(df)
+
         # Train/validation definition
         # It can be a simple train + validation or cross validation
         {%- if builder_params.split %}
         {{builder_params.split.generate_code() | indent(width=8, first=False)}}
         {%- endif %}
 
-        results = executor.fit(df, emit)
+        results = executor.fit(
+            preprocessed_df, emit, original_features_names, label_attr)
         results = sorted(results, key=lambda x: x.metric,
                          reverse=evaluator.isLargerBetter())
 
         if len(results):
-            status, model, params, metric, ex, ctx, fi = results[0]
+            #index, status, model, params, metric, ex, ctx, fi = results[0]
+            winner: TrainingResult = results[0]
+
             metric_name = evaluator.extractParamMap().get(evaluator.metricName)
-            message = {'best': params, 'metric_value': metric,
+
+            if winner.model:
+                ## FIXME REMOVE:
+                # features = winner.model.stages[-2].getInputCols()
+
+                # Contains test dataframe transformed by winner.model
+                test_transformed = winner.test_transformed
+
+                # Test if label was indexed with StringIndexer
+                stage_indexer_label = next(
+                    (s for s in winner.model.stages
+                        if isinstance(s, feature.StringIndexerModel)
+                        and s.getInputCol() == label_attr), None
+                )
+                # Only original columns and relevant information.
+                # Intermediate columns are ignored
+                columns = df.columns
+
+                # Revert the label indexing
+                if stage_indexer_label:
+                    label_reverse = feature.IndexToString(
+                            inputCol="prediction",
+                            outputCol="prediction2",
+                            labels=stage_indexer_label.labels
+                    )
+                    df_final = (
+                        label_reverse
+                            .transform(test_transformed)
+                            .select(
+                                columns +
+                                [functions.col('prediction2').alias('prediction')]
+                            )
+                    )
+                else:
+                    df_final = (test_transformed
+                        .select(columns + ['prediction']))
+
+                # print(df_final.show())
+                # TODO Emit a sample data
+                # If set, save the data
+                # If set, save the model
+                # Generate visualizations
+                # Type: {{builder_params.evaluator.task_type}}
+
+                {%- if task_type in ('binary-classification', 'multiclass-classification') %}
+                # Convert to RDD of (prediction, label)
+                rdd_cm = (test_transformed.select(label, 'prediction')
+                       .rdd
+                       .map(lambda row:
+                            (float(row['prediction']), float(row[label]))
+                        )
+                )
+                multiclass_metrics = MulticlassMetrics(rdd_cm)
+                metric_value = {
+                    'f1': multiclass_metrics.weightedFMeasure(),
+                    'weightedPrecision': multiclass_metrics.weightedPrecision,
+                    'weightedRecall': multiclass_metrics.weightedRecall,
+                    'accuracy': multiclass_metrics.accuracy,
+                }.get(metric_name)
+
+                # Get confusion matrix
+                if stage_indexer_label:
+                    cm = ConfusionMatrixImageReport(
+                        multiclass_metrics.confusionMatrix().toArray(),
+                        classes=stage_indexer_label.labels)
+                else:
+                    classes = (df_final
+                                .select(label_attr)
+                                .distinct()
+                                .rdd
+                                .flatMap(lambda x: x)
+                                .collect()
+                    )
+                    cm = ConfusionMatrixImageReport(
+                        multiclass_metrics.confusionMatrix().toArray(),
+                        classes=classes)
+
+                content = cm.generate()
+
+                emit(status='RUNNING', type='HTML',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title=cm.title,
+                    message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
+
+
+                {%- if task_type == 'binary-classification' %}
+                from pyspark.mllib.evaluation import BinaryClassificationMetrics
+
+                if metric_name == 'areaUnderPR':
+                    method_name = 'pr'
+                else:
+                    method_name = 'roc'
+
+                if 'probability' in test_transformed.columns:
+                    rdd_area = (test_transformed.select(label, 'probability')
+                        .rdd
+                        .map(lambda row:
+                             (float(row['probability'][1]), float(row[label]))
+                        )
+                    )
+                    cm = CurveMetrics(rdd_area)
+                    points = cm.get_curve(method_name)
+                    metric_value = cm.areaUnderROC
+                    x_val, y_val = zip(*points)
+
+                    curve_title = "{{gettext('Area under {} curve (AUC = {:1.4f})')}}".format(
+                        method_name.upper(), metric_value)
+                    content = AreaUnderCurveReport(
+                        x_val, y_val, curve_title, method_name).generate(
+                            submission_lock
+                        )
+
+                    # print('>' * 30 , 'auc', content)
+                    emit(status='RUNNING', type='HTML',
+                        identifier=evaluator.task_id,
+                        operation_id=evaluator.operation_id,
+                        title=curve_title,
+                        message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
+                {%- endif %}
+
+                {%- elif task_type == 'regression' %}
+                 # Contains test dataframe transformed by winner.model
+                test_transformed = winner.test_transformed
+
+                def safe_subtract(a, b):
+                    if isinstance(a, Decimal) or isinstance(b, Decimal):
+                        return Decimal(a) - Decimal(b)
+                    return float(a) - float(b)
+
+                rdd = (test_transformed.select([label_attr, 'prediction'])
+                       .rdd
+                       .map(lambda row: (
+                                row[label_attr], row['prediction'],
+                                safe_subtract(row[label_attr], row['prediction'])
+                            )
+                         ).sortBy(lambda x: x[0])
+                )
+                actual, predicted, residual = zip(*rdd.collect())
+
+                min_value = float(min(min(actual), min(predicted)))
+                max_value = float(max(max(actual), max(predicted)))
+                identiy = np.linspace(min_value, max_value, len(actual))
+
+                report = PlotlyChartReport()
+
+                sorted_pairs = sorted(zip(actual, predicted))
+                sorted_actual, sorted_predicted = (
+                    [x for x, _ in sorted_pairs], [y for _, y in sorted_pairs])
+
+                content = report.plot(
+                    #gettext('Actual versus Prediction'),
+                    '',
+                    "{{gettext('Actual')}}",
+                    "{{gettext('Prediction')}}",
+                    (sorted_actual, sorted_predicted),
+                    (identiy, identiy),
+                    submission_lock=submission_lock,
+                    traces=["{{gettext('Actual versus Prediction')}}",
+                            "{{gettext('Identity')}}"],
+                        mode=['markers', 'lines']
+                )
+                # print('>' * 30 , 'actual vs prediction', content)
+                emit(status='RUNNING', type='VISUALIZATION',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title="{{gettext('Actual versus Prediction')}}",
+                    message=content)
+
+                report = PlotlyChartReport()
+                x_ax = list(range(0, len(actual)))
+                content_a_p = report.plot(
+                    #gettext('Actual and Prediction'),
+                    '',
+                    "{{gettext('Record #')}}",
+                    label_attr,
+                    (x_ax, actual),
+                    (x_ax, predicted),
+                    (x_ax, residual),
+                    submission_lock=submission_lock,
+                    show_legend=True,
+                    traces=["{{gettext('Actual')}}", "{{gettext('Prediction')}}",
+                            "{{gettext('Residual')}}"],
+                    mode=['lines', 'lines', 'lines']
+                )
+                emit(status='RUNNING', type='VISUALIZATION',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title="{{gettext('Actual and Prediction')}}",
+                    message=content_a_p)
+
+                data = [
+                    dict(prediction=x[0], residual=x[1])
+                        for x in zip(predicted, residual)
+                ]
+
+                report_res = PlotlyChartReport()
+                content = report_res.plot_jointplot(
+                    predicted, residual,
+                    width=800,
+                    height=500,
+                    n_bins=40,
+                    point_size=3,
+                    point_color='darkblue',
+                    point_opacity=0.5,
+                    hist_color='royalblue',
+                    hist_opacity=0.8,
+                    x_label="{{gettext('Prediction')}}",
+                    y_label="{{gettext('Residual')}}",
+                    title='' # gettext('Prediction versus Residual')
+                )
+                emit(status='RUNNING', type='VISUALIZATION',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title="{{gettext('Prediction versus Residual')}}",
+                    message=content)
+
+                {# old
+                report2 = SeabornChartReport()
+                content = report2.jointplot(
+                    data, 'prediction', 'residual',
+                    "{{gettext('Prediction versus Residual')}}",
+                    "{{gettext('Prediction'),}}"
+                    "{{gettext('Residual')}}",
+                    submission_lock=submission_lock
+                )
+                #print('>' * 30, 'prediction vs residual', content)
+                emit(status='RUNNING', type='HTML',
+                    identifier=evaluator.task_id,
+                    operation_id=evaluator.operation_id,
+                    title="{{gettext('Prediction versus Residual')}}",
+                    message=f'<img alt="[result]" src="data:image/png;base64,{content}"/>')
+                #}
+                {%- elif task_type == 'clustering' %}
+                # Prepare k-means models
+                km_models = sorted(
+                    filter(
+                        lambda model: isinstance(model[1], clustering.KMeansModel),
+                        map(lambda result: (result.index, result.model.stages[-1]),
+                            results),
+                    ),
+                    key=lambda model: model[1].extractParamMap().get(model[1].k)
+                )
+                print('*' * 20)
+                print([m[1].summary.trainingCost for m in km_models])
+                print('*' * 20)
+                {%- endif%}
+
+
+                # Send a sample of data
+                css_classes = 'table table-sm table-striped mx-3 table-smallest'
+                emit(status='RUNNING', type='HTML',
+                        identifier=evaluator.task_id,
+                        operation_id=evaluator.operation_id,
+                        title="{{gettext('Resulting data (sample)')}}",
+                        message=(df_final.limit(50).toPandas()
+                                 .to_html(index=False, classes=css_classes))
+                )
+
+            # Send information about best result
+            message = {
+                'best': winner.details, 'metric_value': winner.metric,
                 'larger_better': evaluator.isLargerBetter(),
-                'index': ctx.index, 'metric_name': metric_name,
-                'estimator': ctx.name, 'task_name': ctx.task_name,
+                'index': winner.ctx.index, 'metric_name': metric_name,
+                'estimator': winner.ctx.name, 'task_name': winner.ctx.task_name,
                 'train_size': executor.train_size,
                 'test_size': executor.test_size,
+                'data_size': df.count(),
                 'model_count': len(results)
-                }
-
+            }
             emit(status='COMPLETED', type='OTHER',
                 identifier=evaluator.task_id,
                 operation_id=evaluator.operation_id,
                 title='{{ builder_params.evaluator.task_name}}',
                 message=message)
-            # print(message)
-        for status, model, params, metric, ex, ctx, fi in results:
-            pass
-            # print(model.stages[-1], [(p, v) for p, v in params.items()], metric)
-            # ml_model = model.stages[-1]
-            # features = model.stages[-2].getInputCols()
-            # print('#' * 20)
-            # print('Features', features)
-            # importance = get_feature_importance_score(ml_model, features)
-            # print('#' * 20)
-            # print(feature_assembler.metadata)
-            # print(ml_model.metadata["ml_attr"]["attrs"].values())
-
-
     except Exception as e:
         spark_session.sparkContext.cancelAllJobs()
         traceback.print_exc(file=sys.stderr)

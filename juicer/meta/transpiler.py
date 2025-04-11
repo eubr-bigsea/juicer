@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 
+import ast
 import os
 from typing import Callable
 from gettext import gettext
 import juicer.meta.operations as ops
-from collections import namedtuple
+from juicer.service import tahiti_service
 from juicer.transpiler import Transpiler
 
 class SqlWorkflowTemplateParams:
-    def __init__(self, readers=None, sqls=None):
+    def __init__(self, readers=None, cells=None):
         self.readers: list[ops.DataReaderOperation] = sorted(
             readers, key=lambda x: x.task.get('display_order'))
-        self.sqls: list[ops.ExecuteSQLOperation] = sorted(
-            sqls, key=lambda x: x.task.get('display_order'))
+        self.cells: list[ops.ExecuteSQLOperation] = sorted(
+            cells, key=lambda x: x.task.get('display_order'))
 
 
 class ModelBuilderTemplateParams:
@@ -70,6 +71,7 @@ class MetaTranspiler(Transpiler):
     def _assign_operations(self):
         self.operations = {
             'execute-sql': ops.ExecuteSQLOperation,
+            'execute-python': ops.ExecutePythonOperation,
             'add-by-formula': ops.AddByFormulaOperation,
             'cast': ops.CastOperation,
             'clean-missing': ops.CleanMissingOperation,
@@ -213,11 +215,69 @@ class MetaTranspiler(Transpiler):
         Returns:
             _type_: Sql Workflow parameters
         """
-        param_dict = {'readers': [], 'sqls': []}
+        param_dict = {'readers': [], 'cells': []}
         for op in ops:
             slug = op.task.get('operation').get('slug')
             if slug == 'read-data':
                 param_dict['readers'].append(op)
-            elif slug == 'execute-sql':
-                param_dict['sqls'].append(op)
+            #elif slug == 'execute-sql':
+            else:
+                param_dict['cells'].append(op)
         return SqlWorkflowTemplateParams(**param_dict)
+
+    def get_source_code_library_code(self, workflow):
+        """Retrieve the source code stored as a code library"""
+        result = []
+        imports = []
+        ids = workflow.get('forms').get(
+            'code_libraries', {}).get('value', [])
+
+        if ids:
+            libraries = self._get_code_libraries(ids)
+            for library in libraries.get('data'):
+                code:str = library.get("code", "")
+                self._validate_code_library(code)
+                import_: str = library.get("imports", "")
+                self._validate_code_library(import_)
+                result.append(code)
+                imports.append(import_)
+        return ["\n".join(result), "\n".join(imports)]
+
+    def _validate_code_library(self, code):
+        """Validate code library"""
+        try:
+            tree = ast.parse(code)
+            # Test the code is a function definition
+            for node in tree.body:
+                if not isinstance(node,
+                    (ast.FunctionDef, ast.Import, ast.ImportFrom)):
+                    raise ValueError(
+                        gettext(
+                            "Provided Python code is not a function definition "
+                            "nor an import. "
+                            "Code libraries must define Python functions. "
+                            f"Type: {type(node)}"
+                        )
+                    )
+            return True
+        except SyntaxError as se:
+            raise ValueError(
+                gettext(
+                    "Provided Python code has syntax error(s): "
+                    "{text}, line {l}, offset: {o} "
+                ).format(text=se.text, l=se.lineno, o=se.offset)
+            )
+
+    def _get_code_libraries(self, ids):
+        tahiti_config = self.configuration["juicer"]["services"]["tahiti"]
+        url = tahiti_config["url"]
+        token = str(tahiti_config["auth_token"])
+
+        ids = ",".join([str(i) for i in ids])
+        return tahiti_service.query_tahiti(
+            base_url=url,
+            item_path="/source-codes",
+            item_id=None,
+            token=token,
+            qs=f"ids={ids}",
+        )

@@ -14,7 +14,6 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 import simplejson
-from datasketch import MinHash, MinHashLSH
 from nltk import ngrams
 from six import text_type
 from gettext import gettext
@@ -127,8 +126,12 @@ class CustomEncoder(json.JSONEncoder):
             return obj.isoformat()
         elif isinstance(obj, set):
             return default_encoder(list(obj))
-        elif np.isnan(obj):
-            return None
+        else:
+            try:
+                if np.isnan(obj):
+                    return None
+            except Exception:
+                return f'{type(obj)} {str(obj)}'
         return default_encoder(obj)
 
 
@@ -345,12 +348,13 @@ def emit_sample_explorer_polars(task_id, df, emit_event, name, size=50, notebook
                         describe=False, infer=False, use_types=None, page=1):
 
     import polars as pl
+    import polars.selectors as cs
     # Discard last '}' in order to include more information
     try:
-        result = [df.limit(size).write_json(None)[:-1]]
-    except:
-        raise ValueError(gettext(
-            'Internal error'))
+        df_aux = df.with_columns([cs.by_dtype(pl.Date).dt.strftime('%Y-%m-%d')])
+        result = [df_aux.limit(size).write_json(None)[:-1]]
+    except Exception:
+        raise ValueError(gettext('Internal error'))
 
     def get_generic_type(t):
         # Dict does not work because __hash__ implementation is not correct?
@@ -506,6 +510,8 @@ def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, noteboo
                 dtypes[x] = 'array'
             elif col_py_type == decimal.Decimal:
                 value = str(row[col])
+            elif col_py_type == datetime.date:
+                value = row[col].strftime('%Y-%m-%d')
             elif types.is_string_dtype(col_py_type):
                 # truncate column if size is bigger than 200 chars.
                 value = row[col]
@@ -625,6 +631,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             d.append(pandas_df.reindex(d.columns, axis=1).agg(stats))
             result = d.transpose().to_json(orient="split", double_precision=4)
         elif msg.get('cluster'):
+            from datasketch import MinHash, MinHashLSH
             lsh = MinHashLSH(
                 threshold=msg.get('threshold', msg.get('similarity', 0.8)),
                 num_perm=128)
@@ -716,8 +723,8 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 functools.partial(polars_df.quantile, .75),
             ]
             result = pl.concat([_cast(m()) for m in metrics])
-            names = [gettext('mean'), gettext('var'), gettext('std'), 
-                     gettext('min'), gettext('max'), gettext('25%'), 
+            names = [gettext('mean'), gettext('var'), gettext('std'),
+                     gettext('min'), gettext('max'), gettext('25%'),
                      gettext('median'), gettext('75%'), ]
 
             result = result.select(
@@ -749,16 +756,16 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             import polars.selectors as cs
             attr_names = df.select(cs.numeric()).columns
             pairs = list(itertools.product(attr_names, attr_names))
-            correlation = [x if not np.isnan(x) else None 
+            correlation = [x if not np.isnan(x) else None
                 for x in [round(x, 4) for x in df.select([
                 pl.corr(*v, method="spearman").alias(str(v)) for v in pairs])
                 .row(0)
             ] ]
             attr_count = len(attr_names)
-            final_corr = [correlation[i:i + attr_count] for i in 
+            final_corr = [correlation[i:i + attr_count] for i in
                      range(0, attr_count**2, attr_count)]
             numeric = [s.is_numeric() or s.is_boolean() for s in df]
-           
+
             result = json.dumps({
                 'table': obj_result,
                 'correlation': final_corr,
@@ -768,6 +775,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
 
 
         elif msg.get('cluster'):
+            from datasketch import MinHash, MinHashLSH
             lsh=MinHashLSH(
                 threshold = msg.get('threshold', msg.get('similarity', 0.8)),
                 num_perm = 128)
@@ -798,9 +806,9 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                          ['mean', 'var', 'std', 'min', 'max',  '25%', 'median',
                           '75%', 'unique', 'skew', 'kurtosis', 'count', 'nulls']]
                 metrics= [polars_df.mean, polars_df.var, polars_df.std,
-                    polars_df.min, polars_df.max, 
+                    polars_df.min, polars_df.max,
                     functools.partial(polars_df.quantile, .25),
-                    polars_df.median, 
+                    polars_df.median,
                     functools.partial(polars_df.quantile, .75),
                 ]
                 result = pl.concat([_cast(m()) for m in metrics])
@@ -812,7 +820,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                         pl.col(attribute).null_count().alias('nulls'),
                         ]).transpose(column_names=[attribute])
                 result = pl.concat([result, extra], how='vertical')
-                info = {'stats': {n:v for n, v in 
+                info = {'stats': {n:v for n, v in
                                   zip(names, result.get_column(attribute))}}
                 info['histogram'] = [x.tolist() for x in np.histogram(
                      series.drop_nulls(), bins=40)]
@@ -841,7 +849,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 )
 
             else: # Non-numeric attributes
-                names = [gettext(n) for n in 
+                names = [gettext(n) for n in
                          ['count', 'nulls', 'min', 'max', 'mode', 'unique']]
                 metrics = [
                     polars_df.min, polars_df.max
@@ -858,7 +866,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                         pl.col(attribute).n_unique().alias('unique'),
                         ])
                 result = extra
-                info = {'stats': {n:v for n, v in 
+                info = {'stats': {n:v for n, v in
                                   zip(names, extra.to_numpy().tolist()[0] )}}
 
                 info['histogram'] = list(zip(*df.select(attribute)
@@ -1034,6 +1042,12 @@ def handle_spark_exception(e):
             if found:
                 raise ValueError(
                     _('Table or view not found: {}').format(found[0]))
+
+            value_expr = re.compile(r'The table or view `(.+?)` cannot be found')
+            found = value_expr.findall(err_desc)
+            if found:
+                raise ValueError(
+                    _('Table or view not found: {}').format(found[0]))
             found = re.findall(
                 r'Cannot resolve column name "(.+)" among (.+)',
                 err_desc)
@@ -1075,6 +1089,11 @@ def handle_spark_exception(e):
                     _(
                         'Attribute {} not found. Valid attributes: {}').format(
                         used, correct))
+        elif 'requirement failed: A & B Dimension mismatch' in str(e):
+            raise ValueError(
+                gettext(
+                    'Number of features and neurons in input layer do not match')
+            )
         elif 'Binomial family only supports' in str(e):
             value_expr = re.compile(
                 r'outcome classes but found (\d+)',
@@ -1086,7 +1105,7 @@ def handle_spark_exception(e):
                     _('Binomial family only supports 1 or 2 outcome '
                             'classes but found {}').format(total))
         else:
-            raise ValueError(e.desc)
+            raise ValueError(e.desc) from None
     elif hasattr(e, 'java_exception'):
         se = 'org.apache.spark.SparkException'
         cause = e.java_exception.getCause()
@@ -1103,8 +1122,9 @@ def handle_spark_exception(e):
             bme = 'org.apache.hadoop.hdfs.BlockMissingException'
             ace = 'org.apache.hadoop.security.AccessControlException'
             iae = 'java.lang.IllegalArgumentException'
+            rte = 'java.lang.RuntimeException'
 
-            cause_msg = cause.getMessage()
+            cause_msg = cause.getMessage() or ''
             inner_cause = cause.getCause()
             if cause.getClass().getName() == nfe and cause_msg:
                 value_expr = re.compile(r'.+"(.+)"')
@@ -1123,6 +1143,20 @@ def handle_spark_exception(e):
                                 'Please, remove them before applying '
                                 'a data transformation.'))
                 pass
+            elif cause.getClass().getName() == rte:
+                rte_msg = cause_msg
+                if "Labels MUST be in {0, 1}" in cause_msg:
+                    rte_msg = gettext(
+                        "Algorithm (or output layer) supports only 2 classes, "
+                        "but the input data have more that 2."
+                    )
+                elif "Vector values MUST be in {0, 1}" in cause_msg:
+                    rte_msg = gettext(
+                        "The algorithm or parameter is applicable only to "
+                        "binary classification, but the input data have more "
+                        "that 2 classes."
+                    )
+                raise ValueError(rte_msg)
             elif cause.getClass().getName() == bme:
                 raise ValueError(
                     _(

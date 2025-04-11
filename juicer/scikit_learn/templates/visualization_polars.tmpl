@@ -3,9 +3,13 @@
 {% macro prepare_x_axis(x_values) -%}
 # Prepare X-Axis values.
 #df = df.select(float(valor) for valor in '{{x_values[0].attribute}}')
+current_sort = ['{{x_values[0].attribute}}']
 df = df.sort('{{x_values[0].attribute}}')
 {%- for x in x_values %}
 col = pl.col('{{x.attribute}}')
+{%- if x.as_categorical %}
+df = df.with_columns([col.cast(pl.Utf8).cast(pl.Categorical)])
+{%- endif %}
 {%- if x.binning in ('FIXED_SIZE', 'EQUAL_INTERVAL') %}
 def round_str(col, n:int=2):
     """ Format number. See https://stackoverflow.com/a/75893046/1646932"""
@@ -100,7 +104,7 @@ dimensions = [
     {#%- if x.decimal_places %}.round({{x.decimal_places}}){% endif %#},
     {%- endfor %}
 
-    {%- if op.subgraph and op.subgraph != '' %}
+    {%- if op.subgraph and op.subgraph.attribute != '' %}
     pl.col('{{op.subgraph.attribute}}'), # subgraph
     {%- endif %}
 
@@ -124,11 +128,19 @@ df = df.groupby(dimensions).agg(aggregations)
 df = df.select(aggregations)
 {%- endif %}
 {%- else %}
-# Test, not working!
+# Test, not working for all kind of charts!
 dimensions = [
     {%- for x in x_values %}
     pl.col('dim_{{loop.index0}}'),
     {%- endfor %}
+
+    {%- if op.subgraph and op.subgraph.attribute != '' %}
+    pl.col('{{op.subgraph.attribute}}'), # subgraph
+    {%- endif %}
+
+    {%- if op.animation and op.animation != '' %}
+    pl.col('{{op.animation.attribute}}'), # animation
+    {%- endif %}
 
     {%- if op.color_attribute and op.color_attribute.attribute %}
     pl.col('{{op.color_attribute.attribute}}'), # color
@@ -159,6 +171,7 @@ tmp_df = (df.select('dim_0')
         )
 df = df.join(tmp_df, on=['dim_0', 'dim_1'], how='outer').sort(
     ['dim_0', 'dim_1']).fill_null(0)
+current_sort = ['dim_0', 'dim_1']
 {%- endmacro %}
 
 {%- macro fix_zeroes_in_chart(op) %}
@@ -175,7 +188,11 @@ df = df.with_columns([
 labels = {
     'variable': 'Série',
     {%- for y in op.y[:op.y_limit] %}
+    {%- if op.aggregations %}
     'aggr_{{loop.index0}}':
+    {%- else %}
+    '{{y.attribute}}':
+    {%- endif %}
     {%- if y.label -%}
     '{{y.label}}',
     {%- elif op.aggregations -%}
@@ -191,21 +208,29 @@ labels = {
 {%- endmacro %}
 
 {%- macro handle_sort(op, x_values) %}
-df = df.sort(
-    by=[
+current_sort = [
     {%- for x in x_values -%}
     {%- if x.sorting in ('Y_ASC', 'Y_DESC') -%}
+    {%- if op.aggregations %}
     'aggr_0',
+    {%- else %}
+    '{{op.literal[0].attribute}}',
+    {%- endif %}
     {%- elif x.binning in ('FIXED_SIZE', 'QUANTILES', 'EQUAL_INTERVAL') %}
     '_min_{{loop.index0}}',
     {%- else %}
     'dim_{{loop.index0}}',
     {%- endif %}
-    {%- endfor %}],
+    {%- endfor %}
+]
+df = df.sort(
+    by=current_sort,
     descending=[
-    {%- for x in x_values -%}
-    {{ x.sorting == 'Y_DESC'}},
-    {%- endfor %}])
+        {%- for x in x_values -%}
+        {{ x.sorting == 'Y_DESC'}},
+        {%- endfor %}
+    ]
+)
 
 {%- endmacro %}
 
@@ -216,11 +241,12 @@ df = df.sort(
 # Limit the number of items to be displayed
 # Compute the top {{x.max_displayed}} item(s)
 
+current_sort = [{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
+        {%- else %}'{{y.attribute}}'
+        {%- endif %}]
 top_x_{{loop.index0}} = (df.groupby('{{x.attribute}}')
     .agg(pl.{{op.AGGR.get(y.aggregation, y.aggregation.lower()) -}}('{{y.attribute}}'))
-    .sort(by=[{% if x.sorting in ('Y_ASC', 'Y_DESC') %}'{{x.attribute}}'
-        {%- else %}'{{y.attribute}}'
-        {%- endif %}],  descending=[True])
+    .sort(by=current_sort,  descending=[True])
     .unique(subset='{{x.attribute}}', maintain_order=True)
     .limit({{x.max_displayed}})
     .collect().get_column('{{x.attribute}}').to_list())
@@ -243,7 +269,7 @@ df = df
 {#------- End Macros --------------#}
 
 {%- set type = op.type.lower() %}
-{%- set map_family = type in ('scattermapbox', ) %}
+{%- set map_family = type in op.CHART_MAP_TYPES %}
 
 {%- if op.pie_family %}
 {%- set x_values = op.x[:1] %}
@@ -252,6 +278,7 @@ df = df
 {%- endif -%}
 
 df = {{input}}.clone()
+current_sort = []
 {{ prepare_group_others(op, x_values, op.y) }}
 
 colors = {{op.discrete_colors}}
@@ -303,6 +330,12 @@ axis1 = [{% for x in x_values %}'dim_{{loop.index0}}',{% endfor%}]
 axis2 = 'aggr_0'
 {%- elif op.y_limit == 1 and op.literal%}
 axis2 = '{{op.literal[0].attribute}}'
+{%- elif op.literal %}
+axis2 = [
+      {%- for y in op.y[:op.y_limit] -%}
+        '{{y.attribute}}',
+      {%- endfor -%}
+      ]
 {%- else %}
 axis2 = [
       {%- for y in op.y[:op.y_limit] -%}
@@ -310,7 +343,12 @@ axis2 = [
       {%- endfor -%}
       ]
 {%- endif %}
-
+{%- if op.subgraph and op.subgraph.attribute != '' %}
+# Sort data by the subgraph "{{op.subgraph.attribute}}" column
+pandas_df = pandas_df.sort_values(
+    ['{{op.subgraph.attribute}}'] + current_sort, 
+    ascending=[True, True])
+{%- endif %}
 fig = px.
     {%- if type in ('stacked-area-100', 'stacked-area') -%}
     area
@@ -327,6 +365,9 @@ fig = px.
         {%- elif op.treemap_family %}
         path=[{% for x in x_values %}'dim_{{loop.index0}}', {% endfor %}],
         values='aggr_0',
+        {%- elif op.map_family %}
+        lat='{{op.latitude}}', lon='{{op.longitude}}',
+        {%- if op.magnitude %}z='{op.magnitude}',{% endif %}
         {%- else %}
         x=axis1,
         y=axis2,
@@ -374,7 +415,7 @@ fig = px.
         render_mode='svg',
         {%- endif %}
 
-        {%- if op.subgraph and op.subgraph != '' %}
+        {%- if op.subgraph and op.subgraph.attribute != '' %}
         facet_{{'row' if op.subgraph_orientation == 'v' else 'col'}}='{{op.subgraph.attribute}}',
         facet_col_wrap=4,
         {%- endif %}
@@ -383,9 +424,10 @@ fig = px.
         animation_frame='{{op.animation.attribute}}',
         animation_group='{{op.animation.attribute}}',
         {%- endif %}
-        {%- if op.width %}width={{op.width}},{% endif %}
-        {%- if op.height %}height={{op.height}},{% endif %}
-)
+        {%- if op.width %}width={{op.width}},{%elif op.max_width%}width={{op.max_width}},{% endif %}
+        {%- if op.height %}height={{op.height}},{%elif op.max_height%}height={{op.max_height}},{% endif %}
+    )
+
 # Update labels
 update_labels = lambda _labels: (
         lambda t: t.update(name = _labels.get(t.name, t.name),
@@ -396,6 +438,9 @@ update_labels = lambda _labels: (
                     t.name, _labels.get(t.name, t.name))
         ))
 fig.for_each_trace(update_labels(labels))
+{%- if op.type.endswith('bar') and op.y_axis.normalization %}
+fig.update_layout(barnorm='{{op.y_axis.normalization}}')
+{%- endif %}
 
 #fig.update_layout(xaxis_categoryorder='total ascending')
 # fig.for_each_trace(lambda t: t.update(name = labels.get(t.name, t.name)))
@@ -481,7 +526,14 @@ fig = px.imshow(
     text_auto=True, aspect='auto'
 )
 {%- elif op.pie_family %}
-fig = px.pie(pandas_df, values='aggr_0',
+{%- if op.subgraph and op.subgraph.attribute != '' %}
+# Sort data by the subgraph "{{op.subgraph.attribute}}" column
+pandas_df = pandas_df.sort_values('{{op.subgraph.attribute}}', ascending=True)
+{%- endif %}
+# {{op.aggregations}}
+fig = px.pie(
+    pandas_df,
+    values='{% if op.aggregations %}aggr_0{% else %}{{ op.y[0].attribute }}{% endif %}',
     names='dim_0',
     {%- if op.blackWhite %}
     color_discrete_sequence=n_colors(
@@ -494,7 +546,7 @@ fig = px.pie(pandas_df, values='aggr_0',
     {%- endif %}
     {%- if type == 'donut' %}hole={{op.hole * 0.01}},{% endif %}
     labels=labels,
-    {%- if op.subgraph and op.subgraph != '' %}
+    {%- if op.subgraph and op.subgraph.attribute != '' %}
     facet_{{'row' if op.subgraph_orientation == 'v' else 'col'}}='{{op.subgraph.attribute}}',
     facet_col_wrap=4,
     {%- endif %}
@@ -516,7 +568,7 @@ fig.update_traces(
 
 {%- elif type in ('boxplot',) and not op.aggregations %}
 fig = make_subplots(cols=1, rows={{op.y|length}},
-   subplot_titles=[{%for y in op.y %}'{{y.attribte}}',{% endfor %}])
+   subplot_titles=[{%for y in op.y %}'{{y.attribute}}',{% endfor %}])
 
 {%- for y in op.literal %}
 fig.add_trace(
@@ -695,25 +747,101 @@ fig = go.Figure(go.Indicator(
     # domain = {'x': [0, 1], 'y': [0, 1]}
 ))
 {%- elif map_family %}
-fig = px.scatter_mapbox(
-    pandas_df, lat='latitude', lon='longitude',
+{%- if op.type == 'choropleth'%}
+# Load GeoJson file, if it is not in cache
+geo_json_url = '{{op.geo_json_url}}'
+tmp_path = Path(tempfile.gettempdir()) / Path(
+    f'{hashlib.md5(geo_json_url.encode()).hexdigest()}.json')
+if tmp_path.exists():
+    with open(tmp_path) as f:
+        geo_json = json.load(f)
+else:
+    resp = requests.get(geo_json_url)
+    if resp.status_code == 200:
+        geo_json = resp.json()
+        with open(tmp_path, 'w') as f:
+            json.dump(geo_json, f)
+    else:
+        raise ValueError(gettext('GeoJson file could not be downloaded'))
+{%- endif %}
+fig = px.{{op.get_plotly_map_type()}}(
+    pandas_df,
+    {%- if op.type != 'choropleth'%}
+    lat='{{op.latitude}}', lon='{{op.longitude}}',
     mapbox_style='{{op.style or 'open-street-map'}}',
-    {%- if op.height %}height={{op.height}},{% endif %}
-    {%- if op.center_latitude or op.center_longitude %}
-        center={'lat': {{op.center_latitude or 'None'}},
-            'lon': {{op.center_longitude or 'None'}}},
+    {%- if op.magnitude %}z='{{op.magnitude}}',{% endif %}
+    {%- if op.marker_size %}radius={{op.marker_size}},{% endif %}
+    {%- if op.zoom %}
+        zoom={{op.zoom}},{% endif %}
+    {%- if op.text_attribute %}
+        text='{{op.text_attribute}}',{% endif %}
+    {%- if op.size_attribute %}
+        size='{{op.size_attribute}}',{% endif %}
+    {%- else %}
+    geojson=geo_json,
+    featureidkey="properties.{{op.feature_id_key}}",
+    locations="{{op.locations}}",
+    scope=None,
     {%- endif %}
-    {%- if op.zoom %}zoom={{op.zoom}},{% endif %}
-    {%- if op.title %}title='{{op.title}}',{% endif %}
-    {%- if op.text_attribute %}text='{{op.text_attribute}}',{% endif %}
-    {%- if op.color_attribute %}color='{{op.color_attribute}}',{% endif %}
-    {%- if op.size_attribute %}size='{{op.size_attribute}}',{% endif %}
+    {%- if op.center_latitude or op.center_longitude %}
+        center={'lat': {{op.center_latitude or 'None'}}, 'lon': {{op.center_longitude or 'None'}}},
+    {%- endif %}
+    {%- if op.title %}
+        title='{{op.title}}',{% endif %}
+    {%- if op.color_attribute %}
+        color='{{op.color_attribute}}',{% endif %}
+    {%- if op.width %}
+        width={{op.width}},
+    {%elif op.max_width%}
+        width={{op.max_width}},{% endif %}
+    {%- if op.height %}
+        height={{op.height}},{%elif op.max_height%}height={{op.max_height}},{% endif %}
+    {%- if op.hover_name %}
+        hover_name='{{op.hover_name}}',{% endif %}
+    {%- if op.hover_data %}
+        hover_data={%if op.hover_data is string %}['{{op.hover_data}}']{%- else %}{{op.hover_data}}{% endif %},{% endif %}
+    {%- if op.use_color_scale and op.color_scale %}
+        color_continuous_scale={{op.color_scale}},{% endif %}
+    {%- if op.use_discrete_colors and op.discrete_colors %}
+        color_discrete_sequence={{op.discrete_colors}},{% endif %}
 )
+{%- if type == 'scattermapbox' %}
 fig.update_traces(
     {%- if op.marker_size %}marker_sizeref={{op.marker_size}},{% endif %}
     {%- if op.text_info %}mode='{{op.text_info}}',{% endif %}
     {%- if op.tooltip_info %}hoverinfo='{{op.tooltip_info}}',{% endif %}
 )
+{%- elif type == 'choropleth' %}
+fig.update_geos(fitbounds="locations", visible=False)
+# Add borders for polygons not present in the dataframe
+found = set(df.select('{{op.locations}}').collect().get_column('{{op.locations}}').to_list())
+for feature in geo_json['features']:
+    key = feature['properties']['{{op.feature_id_key}}']
+    if key not in found:
+        geom = feature['geometry']
+        if geom['type'] == 'Polygon':
+            lon, lat = zip(*geom['coordinates'][0])
+            fig.add_trace(go.Scattergeo(
+                lon = lon,
+                lat = lat,
+                mode = 'lines',
+                line = dict(width=1, color='black'),
+                showlegend = False,
+                hoverinfo='skip',
+            ))
+        elif geom['type'] == 'MultiPolygon':
+            for polygon in geom['coordinates']:
+                lon, lat = zip(*polygon[0])
+                fig.add_trace(go.Scattergeo(
+                    lon = lon,
+                    lat = lat,
+                    mode = 'lines',
+                    line = dict(width=1, color='black'),
+                    showlegend = False,
+                    hoverinfo='skip',
+                ))
+fig.data = fig.data[1:] + (fig.data[0], )
+{%- endif %}
 ###fig.update_layout(autosize=True, showlegend=True)
 
 {%- endif %}
