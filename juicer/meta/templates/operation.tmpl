@@ -598,7 +598,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
 
                 {%- if task_type in ('binary-classification', 'multiclass-classification') %}
                 # Convert to RDD of (prediction, label)
-                rdd_cm = (df_final.select(label, 'prediction')
+                rdd_cm = (test_transformed.select(label, 'prediction')
                        .rdd
                        .map(lambda row:
                             (float(row['prediction']), float(row[label]))
