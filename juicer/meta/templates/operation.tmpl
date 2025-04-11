@@ -677,11 +677,16 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
                  # Contains test dataframe transformed by winner.model
                 test_transformed = winner.test_transformed
 
+                def safe_subtract(a, b):
+                    if isinstance(a, Decimal) or isinstance(b, Decimal):
+                        return Decimal(a) - Decimal(b)
+                    return float(a) - float(b)
+
                 rdd = (test_transformed.select([label_attr, 'prediction'])
                        .rdd
                        .map(lambda row: (
                                 row[label_attr], row['prediction'],
-                                row[label_attr] - Decimal(str(row['prediction']))
+                                safe_subtract(row[label_attr], row['prediction'])
                             )
                          ).sortBy(lambda x: x[0])
                 )
