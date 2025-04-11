@@ -135,13 +135,14 @@ class DataReaderOperation(sk.DataReaderOperation):
         # Open data source
         {%- if protect %}
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
-        {%- elif parsed.scheme == 'hdfs'  %}
+        {%- elif parsed.scheme == 'hdfs' or meta['storage']['type'] == 'S3' %}
+        {%- if parsed.scheme == 'hdfs' %}
         str_uri = 'hdfs://{{parsed.hostname}}'
         file_system = fs.HadoopFileSystem(
             str_uri, #@HIDE_INFO@
             port={{parsed.port}}, #@HIDE_INFO@
             extra_conf={'dfs.client.use.datanode.hostname': 'true'}) #@HIDE_INFO@
-        file_name = '{{parsed.path}}'
+        file_name = '{{parsed.path}}' #@HIDE_INFO@
         {%- elif meta['storage']['type'] == 'S3' %}
         file_system = fs.S3FileSystem(
             endpoint_override='{{meta['storage']['url']}}',  #@HIDE_INFO@
@@ -149,9 +150,10 @@ class DataReaderOperation(sk.DataReaderOperation):
             secret_key='{{extra_params.secret_key}}',  #@HIDE_INFO@
             scheme='{{parsed.scheme}}'
         )
-        file_name = '{{meta['url'].strip('/')}}'
+        file_name = '{{meta['url'].strip('/')}}' #@HIDE_INFO@
+        {%- endif %}
         {%- if format == 'PARQUET' %}
-        ds = pq.ParquetDataset(file_name, filesystem=hdfs)
+        ds = pq.ParquetDataset(file_name, filesystem=file_system)
         {%- else %}
         f = file_system.open_input_stream(file_name)
         {%- endif %}
