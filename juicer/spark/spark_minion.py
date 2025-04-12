@@ -2,14 +2,13 @@
 from __future__ import unicode_literals, absolute_import
 
 import gc
-import gettext
+from gettext import translation
 import importlib
 import json
 import logging.config
 import multiprocessing
 import signal
 import sys
-import time
 import traceback
 
 # noinspection PyUnresolvedReferences
@@ -32,6 +31,7 @@ from juicer.runner import protocol as juicer_protocol
 from juicer.runner.minion_base import Minion
 from juicer.spark.transpiler import SparkTranspiler
 from juicer.util import dataframe_util, listener_util
+from juicer.util.i18n import gettext
 from juicer.workflow.workflow import Workflow
 from juicer.util.template_util import strip_accents
 
@@ -247,7 +247,7 @@ class SparkMinion(Minion):
     def _process_message_nb(self):
         # Get next message
 
-        msg = self.state_control.pop_app_queue(self.app_id,
+        msg = self.state_control.pop_app_queue(self.app_id, self.workflow_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
@@ -350,19 +350,19 @@ class SparkMinion(Minion):
             self.last_cluster_id = cluster_info['id']
 
             self.active_messages += 1
-            log.info('Execute message received')
+            log.info(gettext('Execute message received'))
             self.last_job_id = job_id
             workflow = msg_info['workflow']
 
             lang = workflow.get('locale', self.current_lang)
 
-            t = gettext.translation('messages', locales_path, [lang],
+            t = translation('messages', locales_path, [lang],
                                     fallback=True)
             t.install()
 
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job',
-                message=_('Running job with lang {}/{}').format(
+                message=gettext('Running job with lang {}/{}').format(
                     lang, self.current_lang),
                 status='RUNNING', identifier=job_id)
 
@@ -389,17 +389,18 @@ class SparkMinion(Minion):
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs,
                                                    msg_info.get('code'))
-            log.info(_('Execute message finished'))
 
         elif msg_type == juicer_protocol.TERMINATE:
-            job_id = msg_info.get('job_id', None)
+            job_id = msg_info.get("job_id", None)
             if job_id:
-                log.info(_('Terminate message received (job_id=%s)'),
-                         job_id)
+                log.info(
+                    gettext("Terminate message received (job_id=%s)"), job_id
+                )
                 self.cancel_job(job_id)
             else:
-                log.info(_('Terminate message received (app=%s)'),
-                         self.app_id)
+                log.info(
+                    gettext("Terminate message received (app=%s)"), self.app_id
+                )
                 self.terminate()
 
         elif msg_type == SparkMinion.MSG_PROCESSED:
@@ -429,7 +430,7 @@ class SparkMinion(Minion):
                             ])
                 if gp.get('lemonade.spark.dir'):
                     self.spark_dir = gp.get('lemonade.spark.dir')
-                    log.info(gettext.gettext('Setting SPARK_HOME={}').format(
+                    log.info(gettext('Setting SPARK_HOME={}').format(
                         self.spark_dir))
                     os.environ['SPARK_HOME'] = self.spark_dir
                             # Find the Py4J version
@@ -473,7 +474,7 @@ class SparkMinion(Minion):
     def perform_execute(self, job_id, workflow, app_configs, code=None):
 
         # Sleeps 1s in order to wait for client join notification room
-        time.sleep(1)
+        ####time.sleep(1)
         workflow_name = workflow.get('name', '')
         if code is None:
             loader = Workflow(workflow, self.config)
@@ -549,7 +550,7 @@ class SparkMinion(Minion):
                     self._state,
                     self._emit_event(room=job_id, namespace='/stand'))
             except Exception as ex:
-                if self.is_spark_session_available():
+                if self.is_spark_session_available() and self.spark_session:
                     self.spark_session.sparkContext.cancelAllJobs()
                 raise ex from None
 
@@ -557,13 +558,14 @@ class SparkMinion(Minion):
             # Mark job as completed
             self._emit_event(room=job_id, namespace='/stand')(
                 name='update job',
-                message=_('Job finished in {0:.2f}s').format(end - start),
+                message=gettext('Job finished in {0:.2f}s').format(end - start),
                 status='COMPLETED', identifier=job_id)
 
             # We update the state incrementally, i.e., new task results can be
             # overwritten but never lost.
             if new_state:
                 self._state.update(new_state)
+            log.info(gettext('Execute message finished'))
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
@@ -918,7 +920,7 @@ class SparkMinion(Minion):
             'workflow': workflow
         }
         self.state_control.push_app_queue(
-                self.app_id,
+                self.app_id, self.workflow_id,
                 json.dumps(msg_processed,
                     cls=dataframe_util.CustomEncoder))
 
@@ -956,10 +958,10 @@ class SparkMinion(Minion):
         message = self.MNN008[1].format(self.app_id)
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN008[0])
-        self.state_control.unset_minion_status(self.app_id)
+        self.state_control.unset_minion_status(self.app_id, self.workflow_id)
 
         self.self_terminate = False
-        log.info('Minion finished')
+        log.info(gettext('Minion finished'))
 
         # Kill remaining processes
         ## Removed. It is killing server as well

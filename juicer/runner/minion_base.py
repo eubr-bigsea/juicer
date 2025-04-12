@@ -11,7 +11,7 @@ from juicer.runner.control import StateControlRedis
 from juicer.util.i18n import gettext
 
 # noinspection PyUnresolvedReferences
-from six.moves import reload_module
+from six.moves import reload_module # type: ignore
 
 logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.spark.spark_minion')
@@ -37,7 +37,7 @@ class EventHandler(pyinotify.ProcessEvent):
             module = importlib.import_module(
                 event.pathname.replace(_watch_dir, '')[1:-3].replace('/', '.'))
             reload_module(module)
-            log.warn(_('Reloading {}'.format(module)))
+            log.warning(_('Reloading {}'.format(module)))# type: ignore # noqa: F821
 
     def process_IN_MODIFY(self, event):
         self._reload(event)
@@ -59,27 +59,40 @@ class Minion:
         self._state = {}
 
         # Errors and messages
-        self.MNN000 = ('MNN000', _('Success.'))
-        self.MNN001 = ('MNN001', _('Port output format not supported.'))
-        self.MNN002 = ('MNN002', _('Success getting data from task.'))
-        self.MNN003 = ('MNN003', _('State does not exists, processing app.'))
-        self.MNN004 = ('MNN004', _('Invalid port.'))
-        self.MNN005 = ('MNN005',
-                       _('Unable to retrieve data because a previous error.'))
-        self.MNN006 = ('MNN006',
-                       _('Invalid Python code or incorrect encoding: {}'))
-        self.MNN007 = ('MNN007', _('Job {} was canceled'))
-        self.MNN008 = ('MNN008', _('App {} was terminated'))
-        self.MNN009 = ('MNN009', _('Workflow specification is missing'))
-        self.MNN010 = ('MNN010', _(
-            'Task completed, but not executed (not used in the workflow).'))
+        self.MNN000 = ("MNN000", _("Success."))  # type: ignore  # noqa: F821
+        self.MNN001 = ("MNN001", _("Port output format not supported."))  # type: ignore # noqa: F821
+        self.MNN002 = ("MNN002", _("Success getting data from task."))  # type: ignore # noqa: F821
+        self.MNN003 = ("MNN003", _("State does not exists, processing app."))  # type: ignore # noqa: F821
+        self.MNN004 = ("MNN004", _("Invalid port."))  # type: ignore # noqa: F821
+        self.MNN005 = (
+            "MNN005",
+            _("Unable to retrieve data because a previous error."),# type: ignore # noqa: F821
+        )  # type: ignore # noqa: F821
+        self.MNN006 = (
+            "MNN006",
+            _("Invalid Python code or incorrect encoding: {}"),# type: ignore # noqa: F821
+        )  # type: ignore # noqa: F821
+        self.MNN007 = ("MNN007", _("Job {} was canceled"))  # type: ignore # noqa: F821
+        self.MNN008 = ("MNN008", _("App {} was terminated"))  # type: ignore # noqa: F821
+        self.MNN009 = ("MNN009", _("Workflow specification is missing"))  # type: ignore # noqa: F821
+        self.MNN010 = (
+            "MNN010",
+            _(  # type: ignore # noqa: F821
+                "Task completed, but not executed (not used in the workflow)."
+            ),
+        )
 
-        self.MNN011 = ('MNN011', _(
-            'Error accessing data. Probably attribute "{}" does not exist.'))
+        self.MNN011 = (
+            "MNN011",
+            _(  # type: ignore # noqa: F821
+                'Error accessing data. Probably attribute "{}" does not exist.'
+            ),
+        )
         # Used in the template file, declared here to gettext detect them
         self.msgs = [
-            _('Task running'), _('Task completed'),
-            _('Task running (cached data)')
+            _("Task running"),# type: ignore # noqa: F821
+            _("Task completed"),  # type: ignore # noqa: F821
+            _("Task running (cached data)"),  # type: ignore # noqa: F821
         ]
         self.pid = os.getpid()
 
@@ -99,14 +112,19 @@ class Minion:
                'status': status if status is not None else 'OK'}
 
         m = json.dumps(obj)
-        self.state_control.push_app_output_queue(self.app_id, m)
+        self.state_control.push_app_output_queue(
+            self.app_id, self.workflow_id, m
+        )
 
     def _perform_ping(self):
         status = {
             'status': 'READY', 'pid': self.pid,
+            'workflow_id': self.workflow_id,
+            'app_id': self.app_id, 'type': 'minion',
+
         }
         self.state_control.set_minion_status(
-            self.app_id, json.dumps(status), ex=10, nx=False)
+            self.app_id, self.workflow_id, json.dumps(status), ex=10, nx=False)
 
     @staticmethod
     def reload_code(q):

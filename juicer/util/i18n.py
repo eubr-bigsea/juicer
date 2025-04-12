@@ -26,7 +26,7 @@ def set_language(language_code: str = DEFAULT_LANGUAGE) -> None:
 
 
 def gettext(message):
-    return translator.gettext(message)
+    return _(message) # type: ignore #translator.gettext(message)  # noqa: F821
 
 
 # Initialize the default language

@@ -2,7 +2,6 @@
 
 
 import argparse
-import gettext
 import json
 import logging.config
 import multiprocessing
@@ -11,18 +10,21 @@ import signal
 import subprocess
 import sys
 import time
-from typing import Callable
+import typing
+from gettext import translation
 from urllib.parse import urlparse
 
 import redis
 import socketio
 import yaml
+from redis.exceptions import ConnectionError
+
 from juicer.exceptions import JuicerException
 from juicer.kb8s import delete_kb8s_job
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
 from juicer.runner.control import StateControlRedis
-from redis.exceptions import ConnectionError
+from juicer.util.i18n import gettext
 
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
@@ -31,7 +33,7 @@ logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger('juicer.runner.server')
 
 # https://github.com/microsoft/pylance-release/issues/140#issuecomment-661487878
-_: Callable[[str], str]
+__all__ = ['_']
 
 class JuicerServer:
     """
@@ -61,7 +63,6 @@ class JuicerServer:
         self.new_minion_watch_process = None
         self.start_process = None
         self.minion_status_process = None
-        self.state_control = None
         self.minion_watch_process = None
 
         self.config = config
@@ -104,6 +105,9 @@ class JuicerServer:
         # Used to kill minions
         self.sub_processes = {}
 
+        self.state_control = StateControlRedis(self.redis_conn)
+
+
     def _emit_event(self, room, name, namespace, message, status, identifier,
                     **kwargs):
         data = {'message': message, 'status': status, 'id': identifier}
@@ -115,16 +119,19 @@ class JuicerServer:
 
     def start(self):
         signal.signal(signal.SIGTERM, self._terminate_minions)
-        log.info(_('Starting master process. Reading "start" queue'))
+        log.info(gettext('Starting master process. Reading "start" queue.'))
 
         redis_conn = self.redis_conn
         # Start pending minions
-        apps = [q.split('_')[-1] for q in redis_conn.keys('queue_app_*')]
-        self.state_control = StateControlRedis(redis_conn)
 
+        app_list = redis_conn.keys('queue_app_*')
+        # See https://github.com/redis/redis-py/issues/2399
+        assert not isinstance(app_list, typing.Awaitable)
+        apps = [q.split('_')[-1] for q in app_list]
         for app_id in apps:
             pending_list = redis_conn.lrange('queue_app_{}'.format(app_id), 0, 0)
             if pending_list:
+                assert not isinstance(pending_list, typing.Awaitable)
                 for pending in pending_list:
                     pending = json.loads(pending)
                     if pending.get('type') != 'terminate' and pending:
@@ -148,20 +155,22 @@ class JuicerServer:
     # noinspection PyMethodMayBeStatic
     def read_start_queue(self, redis_conn):
         app_id = None
+        workflow_id = None
         try:
             self.state_control = StateControlRedis(redis_conn)
             # Process next message
             log.info(_('Reading "start" queue.'))
             msg = self.state_control.pop_start_queue()
-            log.info(_('Forwarding message to minion.'))
             msg_info = json.loads(msg)
 
             # Extract message type and common parameters
             msg_type = msg_info['type']
             workflow_id = str(msg_info['workflow_id'])
             app_id = str(msg_info['app_id'])
+            workflow_id = str(msg_info['workflow_id'])
             job_id = str(msg_info.get('job_id', 0))
             job_type = str(msg_info.get('job_type', 'NORMAL'))
+            log.info(gettext('Forwarding message to minion {}').format(app_id))
 
             if msg_type in [juicer_protocol.EXECUTE, juicer_protocol.EXPORT]:
                 platform = msg_info['workflow'].get('platform', {}).get(
@@ -184,7 +193,7 @@ class JuicerServer:
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                                         msg, None, None)
             else:
-                log.warn(_('Unknown message type "%s"'), msg_type)
+                log.warning(_('Unknown message type "%s"'), msg_type)
 
         except ConnectionError as cx:
             log.exception(cx)
@@ -193,20 +202,26 @@ class JuicerServer:
         except JuicerException as je:
             log.exception(je)
             if app_id:
-                self.state_control.push_app_output_queue(app_id, json.dumps(
-                    {'code': je.code, 'message': str(je)}))
+                self.state_control.push_app_output_queue(
+                    app_id,
+                    workflow_id,
+                    json.dumps({"code": je.code, "message": str(je)}),
+                )
         except KeyboardInterrupt:
             pass
         except Exception as ex:
             log.exception(ex)
             if app_id:
                 self.state_control.push_app_output_queue(
-                    app_id, json.dumps({'code': 500, 'message': str(ex)}))
+                    app_id,
+                    workflow_id,
+                    json.dumps({"code": 500, "message": str(ex)}),
+                )
 
     def _forward_to_minion(self, msg_type, workflow_id, app_id, job_id, msg,
                            platform, cluster, job_type='NORMAL'):
         # Get minion status, if it exists
-        minion_info = self.state_control.get_minion_status(app_id)
+        minion_info = self.state_control.get_minion_status(app_id, workflow_id)
         log.info(_('Minion status for (workflow_id=%s,app_id=%s): %s'),
                  workflow_id, app_id, minion_info)
 
@@ -220,17 +235,18 @@ class JuicerServer:
             # This is a special case when the minion timed out.
             # In this case we kill it before starting a new one
             active_minions = self.redis_conn.hgetall('active_minions')
-            if (workflow_id, app_id) in active_minions and job_type != 'BATCH':
+            assert not isinstance(active_minions, typing.Awaitable)
+            if app_id in active_minions and job_type != 'BATCH':
                 self._terminate_minion(workflow_id)
 
             log.info('Start a new minion')
-            minion_process = self._start_minion(
+            self._start_minion(
                 workflow_id, app_id, job_id, self.state_control, platform,
                 cluster=cluster)
 
         # Forward the message to the minion, which can be an execute or a
         # deliver command
-        self.state_control.push_app_queue(app_id, msg)
+        self.state_control.push_app_queue(app_id, workflow_id, msg)
         if job_type != 'BATCH':
             self.state_control.set_workflow_status(workflow_id, self.STARTED)
 
@@ -238,9 +254,16 @@ class JuicerServer:
                  msg_type, workflow_id, app_id)
         # log.info(_('Message content (workflow_id=%s,app_id=%s): %s'),
         #          workflow_id, app_id, msg)
-        self.state_control.push_app_output_queue(app_id, json.dumps(
-            {'code': 0,
-             'message': 'Minion is processing message %s' % msg_type}))
+        self.state_control.push_app_output_queue(
+            app_id,
+            workflow_id,
+            json.dumps(
+                {
+                    "code": 0,
+                    "message": "Minion is processing message %s" % msg_type,
+                }
+            ),
+        )
 
     def _start_minion(self, workflow_id, app_id, job_id, state_control,
                       platform, restart=False, cluster=None):
@@ -333,8 +356,12 @@ class JuicerServer:
         # Expires in 30 seconds and sets only if it doesn't exist
         proc_id = int(proc.pid)
         state_control.set_minion_status(
-            app_id, json.dumps({'pid': proc_id, 'port': port}), ex=30,
-            nx=False)
+            app_id,
+            workflow_id,
+            json.dumps({"pid": proc_id, "port": port}),
+            ex=30,
+            nx=False,
+        )
         self.sub_processes[workflow_id] = proc
         return proc
 
@@ -357,6 +384,7 @@ class JuicerServer:
                 delete_kb8s_job(workflow_id, cluster)
 
             elif workflow_id in active_minions:
+                assert not isinstance(active_minions, typing.Awaitable)
                 minion_pid = int(active_minions[workflow_id])
                 if minion_pid > 1:
                     # os.system('kill - {}'.format(active_minions[workflow_id]))
@@ -414,12 +442,14 @@ class JuicerServer:
             pub_sub.psubscribe('__keyspace*__:key_minion_app*')
             for msg in pub_sub.listen():
                 # print('|{}|'.format(msg.get('channel')))
-                app_id = msg.get('channel', '').decode('utf8').split('_')[-1]
-                if app_id.isdigit():
-                    app_id = int(app_id)
+                queue_name = msg.get("channel", "").decode("utf8").split("_")[-1]
+                if ':' in queue_name:
+                    (app_id, workflow_id) = queue_name.split(':')
+                    #if app_id.isdigit() or True:
                     key = (app_id, app_id)
                     data = msg.get('data', '')
                     active_minions = self.redis_conn.hgetall('active_minions')
+                    assert not isinstance(active_minions, typing.Awaitable)
                     if str(key[0]) in active_minions:
                         if data == b'del' or data == b'expired':
                             self.redis_conn.hdel('active_minions', key[0])
@@ -451,17 +481,24 @@ class JuicerServer:
 
                     elif data == b'set':
                         # Externally launched minion
-                        minion_info = json.loads(redis_conn.get(
-                            'key_minion_app_{}'.format(app_id)).decode('utf8'))
+                        info = redis_conn.get(
+                            f'key_minion_app_{app_id}:{workflow_id}')
+                        assert not isinstance(info, typing.Awaitable)
+                        minion_info = json.loads(info.decode('utf8'))
+                        #workflow_id = minion_info.get('workflow_id')
                         port = self._get_next_available_port()
                         self.redis_conn.hset('active_minions', key[0],
                                 minion_info.get('pid'))
 
-                        #self.active_minions[key] = {
+                        # self.active_minions[key] = {
                         #    'pid': minion_info.get('pid'), 'port': port}
                         log.info(
-                            _('Minion {} joined (pid: {}, port: {}).').format(
-                                app_id, minion_info.get('pid'), port))
+                            _("Minion {} joined (pid: {}, port: {}).").format(
+                                f'{app_id}:{workflow_id}',
+                                minion_info.get("pid"),
+                                port,
+                            )
+                        )
         except KeyboardInterrupt:
             pass
         except ConnectionError as cx:
@@ -497,6 +534,7 @@ class JuicerServer:
     def _terminate_minions(self, _signal, _frame):
         try:
             active_minions = self.redis_conn.hgetall('active_minions')
+            assert not isinstance(active_minions, typing.Awaitable)
             log.info(_('Terminating %s active minions'), len(active_minions))
             minions = [m for m in active_minions]
             for wid in minions:
@@ -512,15 +550,15 @@ class JuicerServer:
         """
         log.info(_('Killing juicer server subprocesses and terminating'))
         try:
-            if self.start_process:
+            if self.start_process and self.start_process.pid:
                 os.kill(self.start_process.pid, signal.SIGTERM)
-            if self.minion_support_process:
+            if self.minion_support_process and self.minion_support_process.pid:
                 os.kill(self.minion_support_process.pid, signal.SIGKILL)
             # if self.minion_watch_process:
             #     os.kill(self.minion_watch_process.pid, signal.SIGKILL)
-            if self.new_minion_watch_process:
+            if self.new_minion_watch_process and self.new_minion_watch_process.pid:
                 os.kill(self.new_minion_watch_process.pid, signal.SIGKILL)
-        except:
+        except Exception:
             pass
 
 
@@ -531,9 +569,10 @@ if __name__ == '__main__':
                         required=False, default="en")
     args = parser.parse_args()
 
-    t = gettext.translation('messages', locales_path, [args.lang],
+    t = translation('messages', locales_path, [args.lang],
                             fallback=True)
     t.install()
+    _ = t.gettext
 
     with open(args.config) as config_file:
         juicer_config = yaml.load(config_file.read(), Loader=yaml.FullLoader)

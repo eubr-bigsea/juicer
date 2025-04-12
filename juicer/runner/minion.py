@@ -1,5 +1,5 @@
 import argparse
-from gettext import gettext, translation
+from gettext import translation
 import logging.config
 import os
 import sys
@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import matplotlib
 import redis
 import yaml
-from juicer.util.i18n import set_language
+from juicer.util.i18n import gettext, set_language
 
 # Important!
 # See https://stackoverflow.com/a/29172195/1646932

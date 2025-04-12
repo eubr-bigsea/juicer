@@ -149,6 +149,7 @@ class KerasMinion(Minion):
         # Get next message
         log.info("State 1 %s", self.app_id)
         msg = self.state_control.pop_app_queue(self.app_id,
+                                               self.workflow_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
         log.info("State 2")
@@ -433,7 +434,7 @@ class KerasMinion(Minion):
             'type': KerasMinion.MSG_PROCESSED,
             'msg_type': msg_type
         }
-        self.state_control.push_app_queue(self.app_id,
+        self.state_control.push_app_queue(self.app_id, self.workflow_id,
                                           json.dumps(msg_processed))
         log.info('Sending message processed message: %s' % msg_processed)
 
@@ -456,10 +457,10 @@ class KerasMinion(Minion):
         message = self.MNN008[1].format(self.app_id)
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN008[0])
-        self.state_control.unset_minion_status(self.app_id)
+        self.state_control.unset_minion_status(self.app_id, self.workflow_id)
 
         self.self_terminate = False
-        log.info('Minion finished')
+        log.info(gettext('Minion finished'))
 
     def process(self):
         log.info(_(

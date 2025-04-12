@@ -1,4 +1,3 @@
-# coding=utf-8
 import functools
 import json
 import logging.config
@@ -28,11 +27,11 @@ log = logging.getLogger('juicer.meta.meta_minion')
 locales_path = os.path.join(os.path.dirname(__file__), '..', 'i18n', 'locales')
 
 class DateTimeEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime):
+    def default(self, o):
+        if isinstance(o, datetime):
             # Convert datetime to ISO 8601 format string
-            return obj.isoformat()
-        return super().default(obj)
+            return o.isoformat()
+        return super().default(o)
 
 class MetaMinion(Minion):
     """
@@ -86,6 +85,7 @@ class MetaMinion(Minion):
             # print('+' * 20)
             # print(name, data, room, namespace)
             # print('+' * 20)
+            assert self.mgr is not None
             self.mgr.emit(name, data=data, room=str(room), namespace=namespace)
 
         return emit_event
@@ -110,6 +110,7 @@ class MetaMinion(Minion):
     def _process_message_nb(self):
         # Get next message
         msg = self.state_control.pop_app_queue(self.app_id,
+                                               self.workflow_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
         # No new message, end the minion
@@ -176,7 +177,7 @@ class MetaMinion(Minion):
                     message=str(e),
                     name='update job',
                     status='ERROR', identifier=job_id)
-            except Exception as e:
+            except Exception:
                 import traceback
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(gettext('Unhandled error'))
@@ -210,8 +211,9 @@ class MetaMinion(Minion):
             if not self.target_minion:
                 return
             # Meta adds -0 as a suffix
-            df = self.target_minion._state.get(
-                task_id + '-0')[0].get('__first__')
+            all_dfs = self.target_minion._state.get(task_id + '-0')
+            assert all_dfs is not None
+            df = all_dfs[0].get('__first__')
             dataframe_util.analyse_attribute(
                 task_id, df, emit,
                 attribute=msg_info.get('attribute'), msg=msg_info)
@@ -227,8 +229,9 @@ class MetaMinion(Minion):
                 return
             # Meta adds -0 as a suffix
             # Meta adds -0 as a suffix
-            df = self.target_minion._state.get(
-                task_id + '-0')[0].get('__first__')
+            all_dfs =self.target_minion._state.get(task_id + '-0')
+            assert all_dfs is not None
+            df = all_dfs[0].get('__first__')
             dataframe_util.emit_sample_sklearn_explorer(
                 task_id,
                 df, emit, '', size=msg_info.get('size', 100),
@@ -354,7 +357,9 @@ class MetaMinion(Minion):
             'type': juicer_protocol.EXECUTE,
             'cluster': cluster_info
         }, cls=DateTimeEncoder)
-        self.target_minion.state_control.push_app_queue(self.app_id, msg)
+        self.target_minion.state_control.push_app_queue(
+            self.app_id, self.workflow_id, msg
+        )
 
         self.target_minion.transpiler.transpiler_utils.imports.update(
             self.transpiler.transpiler_utils.imports)
@@ -395,7 +400,9 @@ class MetaMinion(Minion):
         }
         msg = json.dumps(payload, cls=DateTimeEncoder)
 
-        self.target_minion.state_control.push_app_queue(self.app_id, msg)
+        self.target_minion.state_control.push_app_queue(
+            self.app_id, self.workflow_id, msg
+        )
         self.target_minion._process_message()
 
     def _execute_target_workflow(self, job_id, workflow, app_configs,
@@ -474,7 +481,7 @@ class MetaMinion(Minion):
             'msg_type': msg_type,
 
         }
-        self.state_control.push_app_queue(self.app_id,
+        self.state_control.push_app_queue(self.app_id, self.workflow_id,
                                           json.dumps(msg_processed))
 
     # noinspection PyUnusedLocal
@@ -494,7 +501,7 @@ class MetaMinion(Minion):
         message = self.MNN008[1].format(self.app_id)
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN008[0])
-        self.state_control.unset_minion_status(self.app_id)
+        self.state_control.unset_minion_status(self.app_id, self.workflow_id)
 
         self.self_terminate = False
         log.info('Minion finished, pid = %s (%s)',

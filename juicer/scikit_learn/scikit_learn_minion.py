@@ -115,6 +115,7 @@ class ScikitLearnMinion(Minion):
     def _process_message_nb(self):
         # Get next message
         msg = self.state_control.pop_app_queue(self.app_id,
+                                               self.workflow_id,
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
@@ -476,7 +477,8 @@ class ScikitLearnMinion(Minion):
 
         }
         self.state_control.push_app_queue(
-            self.app_id, json.dumps(msg_processed, cls=CustomEncoder))
+            self.app_id, self.workflow_id,
+            json.dumps(msg_processed, cls=CustomEncoder))
         log.info('Sending message processed message. Workflow: %s', workflow['id'])
 
     # noinspection PyUnusedLocal
@@ -496,7 +498,7 @@ class ScikitLearnMinion(Minion):
         message = self.MNN008[1].format(self.app_id)
         log.info(message)
         self._generate_output(message, 'SUCCESS', self.MNN008[0])
-        self.state_control.unset_minion_status(self.app_id)
+        self.state_control.unset_minion_status(self.app_id, self.workflow_id)
 
         self.self_terminate = False
         log.info('Minion finished, pid = %s (%s)',

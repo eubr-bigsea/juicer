@@ -148,7 +148,7 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             df_{{loop.index0}} = result
             print(colored('Using cache', 'green'))
         else:
-            result = read_data_{{name}}(spark_session, context)
+            result = read_data_{{name.lower()}}(spark_session, context)
             cached_state['{{reader.task.id}}'] = (
                 '{{reader.parameters.hash}}', result)
             df_{{loop.index0}} = result
