@@ -229,7 +229,7 @@ class VisualizationOperation(Operation):
         lower_y = (
             self.y_axis.get("lowerBound", 'None') or 'None'
         )
-        upper_y = self.y_axis.get("upperBound", 'None' or 'None')
+        upper_y = self.y_axis.get("upperBound", 'None') or 'None'
         self.y_range = f"[{lower_y}, {upper_y}]"
 
         # Families
