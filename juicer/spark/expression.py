@@ -464,6 +464,8 @@ class Expression(object):
             "physical_or_legal_person": self.get_expr_function,
             "strip_accents": self.get_expr_function,
             "complete_cpf_cnpj": self.get_expr_function,
+            "normaliza_descricoes": self.get_expr_function,
+            "normaliza_nomes": self.get_expr_function,
         }
 
         column_functions = {
@@ -516,4 +518,6 @@ class Expression(object):
             "physical_or_legal_person": 'spark_session.udf.registerJavaFunction("physical_or_legal_person", "br.ufmg.dcc.lemonade.udfs.PhysicalOrLegalPersonUDF", types.StringType())',
             "strip_accents": 'spark_session.udf.registerJavaFunction("strip_accents", "br.ufmg.dcc.lemonade.udfs.StripAccentsUDF", types.StringType())',
             "complete_cpf_cnpj": 'spark_session.udf.registerJavaFunction("complete_cpf_cnpj", "br.ufmg.dcc.lemonade.udfs.CompleteCpfCnpjUDF", types.StringType())',
+            "normaliza_descricoes": 'spark_session.udf.registerJavaFunction("normaliza_descricoes", "br.ufmg.dcc.lemonade.udfs.NormalizaDescricoesUDF", types.StringType())',
+            "normaliza_nomes": 'spark_session.udf.registerJavaFunction("normaliza_nomes", "br.ufmg.dcc.lemonade.udfs.NormalizaNomesUDF", types.StringType())',
         }
