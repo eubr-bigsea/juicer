@@ -127,6 +127,14 @@ def main(spark_session: any, cached_state: dict, emit_event: callable):
             "complete_cpf_cnpj",
             "br.ufmg.dcc.lemonade.udfs.CompleteCpfCnpjUDF",
             types.StringType())
+        spark_session.udf.registerJavaFunction(
+            "normaliza_descricoes", 
+            "br.ufmg.dcc.lemonade.udfs.NormalizaDescricoesUDF", 
+            types.StringType())
+        spark_session.udf.registerJavaFunction(
+            "normaliza_nomes", 
+            "br.ufmg.dcc.lemonade.udfs.NormalizaNomesUDF", 
+            types.StringType())
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
 
