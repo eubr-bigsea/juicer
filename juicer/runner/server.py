@@ -387,7 +387,34 @@ class JuicerServer:
         #         if cluster is not None and cluster.get('type') == 'KUBERNETES'
         #             eval_and_kill_pending_jobs(cluster)
         #     time.sleep(10)
-        pass
+
+        CHECK_INTERVAL = 60
+        IDLE_LIMIT = 15 * 60
+
+        while True:
+            try:
+                active_minions = self.redis_conn.hgetall('active_minions')
+                now = time.time()
+                for minion_key, minion_pid in active_minions.items():
+                    if ':' in minion_key:
+                        workflow_id, job_id = minion_key.split(':', 1)
+                    else:
+                        workflow_id = minion_key
+                        job_id = ''
+                    last_activity_key = f"minion_last_activity_{workflow_id}:{job_id}"
+                    last_activity = self.redis_conn.get(last_activity_key)
+                    if last_activity:
+                        last_activity = float(last_activity)
+                        idle_time = now - last_activity
+                        if idle_time > IDLE_LIMIT:
+                            log.info(f"Minion {workflow_id}:{job_id} está idle há {idle_time/60:.1f} min. Matando...")
+                            self._terminate_minion(workflow_id)
+                            self.redis_conn.hdel('active_minions', minion_key)
+                            self.redis_conn.delete(last_activity_key)
+                time.sleep(CHECK_INTERVAL)
+            except Exception as ex:
+                log.warning(f"Erro ao monitorar minions idle: {ex}")
+                time.sleep(CHECK_INTERVAL)
 
 
     def _get_next_available_port(self):
