@@ -238,6 +238,9 @@ class SparkMinion(Minion):
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(_('Unhandled error (%s) \n>%s'),
                               str(ee), '>\n'.join(tb))
+                log.error('Killing SparkMinion due a fatal error.')
+                self.terminate()
+                break
 
     def _process_message(self):
         self._process_message_nb()

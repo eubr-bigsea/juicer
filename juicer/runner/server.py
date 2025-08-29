@@ -13,7 +13,7 @@ import sys
 import time
 from typing import Callable
 from urllib.parse import urlparse
-
+import psutil
 import redis
 import socketio
 import yaml
@@ -387,33 +387,50 @@ class JuicerServer:
         #         if cluster is not None and cluster.get('type') == 'KUBERNETES'
         #             eval_and_kill_pending_jobs(cluster)
         #     time.sleep(10)
+        self.killing_minion_by_timeout()
+        
 
+    def killing_minion_by_timeout(self):
         CHECK_INTERVAL = 60
-        IDLE_LIMIT = 15 * 60
+        MAX_LIFETIME = 30 * 60
+
+        def get_process_lifetime(pid):
+            """Returns the time of process life in seconds"""
+            try:
+                process = psutil.Process(pid)
+                create_time = process.create_time()
+                current_time = time.time()
+                lifetime_seconds = current_time - create_time
+                return lifetime_seconds
+            except psutil.NoSuchProcess:
+                print(f"PID {pid} not found")
+                return None
+
 
         while True:
             try:
                 active_minions = self.redis_conn.hgetall('active_minions')
                 now = time.time()
-                for minion_key, minion_pid in active_minions.items():
-                    if ':' in minion_key:
-                        workflow_id, job_id = minion_key.split(':', 1)
-                    else:
-                        workflow_id = minion_key
-                        job_id = ''
-                    last_activity_key = f"minion_last_activity_{workflow_id}:{job_id}"
-                    last_activity = self.redis_conn.get(last_activity_key)
-                    if last_activity:
-                        last_activity = float(last_activity)
-                        idle_time = now - last_activity
-                        if idle_time > IDLE_LIMIT:
-                            log.info(f"Minion {workflow_id}:{job_id} está idle há {idle_time/60:.1f} min. Matando...")
-                            self._terminate_minion(workflow_id)
-                            self.redis_conn.hdel('active_minions', minion_key)
-                            self.redis_conn.delete(last_activity_key)
+                for workflow_id, pid_str in active_minions.items():
+                    try:
+                        pid = int(pid_str)
+                        proc_lifetime = get_process_lifetime(pid)
+                        if proc_lifetime:
+                            if proc_lifetime > MAX_LIFETIME:
+                                log.info(f"Minion workflow_id={workflow_id} pid={pid} is alive for {proc_lifetime/60:.1f} min. Killing...")
+                                try:
+                                    os.kill(pid, signal.SIGKILL)
+                                except Exception as e:
+                                    log.warning(f"Error while killing minion pid={pid}: {e}")
+                                self.redis_conn.hdel('active_minions', workflow_id)
+                        else:
+                            # Process not found, removing from Redis
+                            self.redis_conn.hdel('active_minions', workflow_id)
+                    except Exception as ex:
+                        log.warning(f"Error while killing minion workflow_id={workflow_id}: {ex}")
                 time.sleep(CHECK_INTERVAL)
             except Exception as ex:
-                log.warning(f"Erro ao monitorar minions idle: {ex}")
+                log.warning(f"Error to evaluate minions: {ex}")
                 time.sleep(CHECK_INTERVAL)
 
 
