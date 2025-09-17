@@ -78,7 +78,7 @@ class SparkMinion(Minion):
         #    sys.path.append(os.path.join(spark_home, 'python'))
         #    log.info(_('SPARK_HOME set to %s'), spark_home)
         #else:
-        #    log.warn(_('SPARK_HOME environment variable is not defined'))
+        #    log.warning(_('SPARK_HOME environment variable is not defined'))
 
         # spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
         #if not spark_dist_classpath:
@@ -132,7 +132,7 @@ class SparkMinion(Minion):
         self.default_sys_path = [p for p in sys.path]
 
     def _cleanup(self, pid, flag):
-        log.warn(_('Finishing minion'))
+        log.warning(_('Finishing minion'))
         msg = _('Pressed CTRL+C / SIGINT. Minion canceled the job.')
         #self._emit_event(room=self.last_job_id, namespace='/stand')(
         #    name='update job', message=msg,
@@ -280,7 +280,9 @@ class SparkMinion(Minion):
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
 
-            log.info('Starting execution of workflow %s', self.app_id)
+            job_type = msg_info.get('job_type', 'NORMAL')
+            log.info('Starting execution of workflow %s with job type=%s',
+                self.app_id, job_type)
             # Checks if it's a valid cluster
             job_id = msg_info['job_id']
             cluster_info = msg_info.get('cluster', {})
@@ -323,7 +325,7 @@ class SparkMinion(Minion):
                     name='update job',
                     message=msg,
                     status='CANCELED', identifier=job_id)
-                log.warn(msg)
+                log.warning(msg)
                 return
 
                 # Spark mapping for cluster properties
@@ -390,6 +392,10 @@ class SparkMinion(Minion):
                                                    app_configs,
                                                    msg_info.get('code'))
             log.info(_('Execute message finished'))
+            if job_type == 'BATCH':
+                log.info(_('Job (id=%s) is finishing (type=BATCH)'), job_id)
+                self.terminate()
+
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -406,7 +412,7 @@ class SparkMinion(Minion):
             self.active_messages -= 1
 
         else:
-            log.warn(_('Unknown message type %s'), msg_type)
+            log.warning(_('Unknown message type %s'), msg_type)
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def define_cluster_parameters(self, cluster_info):
@@ -502,7 +508,7 @@ class SparkMinion(Minion):
                 # stoping the minion every time you change the
                 # code generation. Can be used in conjunction
                 # with code_gen.py tool
-                log.warn(_('Minion is using the module name {}'.format(freeze)))
+                log.warning(_('Minion is using the module name {}'.format(freeze)))
                 module_name = freeze
             else:
                 module_name = \
@@ -616,7 +622,7 @@ class SparkMinion(Minion):
             'terminate_after_run', False)
 
         if stop:
-            log.warn(
+            log.warning(
                 _('Minion is configured to stop Spark after each execution'))
             self._state = {}
             self.spark_session.stop()

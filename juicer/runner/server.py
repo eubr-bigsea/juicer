@@ -45,6 +45,7 @@ class JuicerServer:
     TERMINATED = 'TERMINATED'
     HELP_UNHANDLED_EXCEPTION = 1
     HELP_STATE_LOST = 2
+    BATCH_APP_ID_OFFSET = 80000000
     BANNER = """
      ██╗██╗   ██╗██╗ ██████╗███████╗██████╗
      ██║██║   ██║██║██╔════╝██╔════╝██╔══██╗
@@ -162,6 +163,10 @@ class JuicerServer:
             app_id = str(msg_info['app_id'])
             job_id = str(msg_info.get('job_id', 0))
             job_type = str(msg_info.get('job_type', 'NORMAL'))
+
+            # If job type is BATCH, then app_id is the same as job_id plus a constant
+            if job_type == 'BATCH':
+                app_id = str(int(job_id) + self.BATCH_APP_ID_OFFSET)
 
             if msg_type in [juicer_protocol.EXECUTE, juicer_protocol.EXPORT]:
                 platform = msg_info['workflow'].get('platform', {}).get(

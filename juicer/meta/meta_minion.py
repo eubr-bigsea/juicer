@@ -125,9 +125,9 @@ class MetaMinion(Minion):
             'Expected workflow_id=%s, got workflow_id=%s' % (
                 self.workflow_id, msg_info['workflow_id'])
 
-        assert str(msg_info['app_id']) == self.app_id, \
-            'Expected app_id=%s, got app_id=%s' % (
-                self.workflow_id, msg_info['app_id'])
+        #assert str(msg_info['app_id']) == self.app_id, \
+        #    'Expected app_id=%s, got app_id=%s' % (
+        #        self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
         msg_type = msg_info['type']
