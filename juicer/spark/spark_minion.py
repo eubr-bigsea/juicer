@@ -390,12 +390,9 @@ class SparkMinion(Minion):
 
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs,
-                                                   msg_info.get('code'))
+                                                   msg_info.get('code'),
+                                                   job_type)
             log.info(_('Execute message finished'))
-            if job_type == 'BATCH':
-                log.info(_('Job (id=%s) is finishing (type=BATCH)'), job_id)
-                self.terminate()
-
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -472,11 +469,11 @@ class SparkMinion(Minion):
             print(py4j_dir, files)
             print('*' * 20)
 
-    def _execute_future(self, job_id, workflow, app_configs, code=None):
+    def _execute_future(self, job_id, workflow, app_configs, code=None, job_type='NORMAL'):
         return self.executor.submit(self.perform_execute,
-                                    job_id, workflow, app_configs, code)
+                                    job_id, workflow, app_configs, code, job_type)
 
-    def perform_execute(self, job_id, workflow, app_configs, code=None):
+    def perform_execute(self, job_id, workflow, app_configs, code=None, job_type='NORMAL'):
 
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
@@ -570,6 +567,12 @@ class SparkMinion(Minion):
             # overwritten but never lost.
             if new_state:
                 self._state.update(new_state)
+            
+            if job_type == 'BATCH':
+                log.info(_('Job (id=%s) is finishing (type=BATCH)'), job_id)
+                self.terminate()
+
+               
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
