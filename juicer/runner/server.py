@@ -45,7 +45,7 @@ class JuicerServer:
     TERMINATED = 'TERMINATED'
     HELP_UNHANDLED_EXCEPTION = 1
     HELP_STATE_LOST = 2
-    BATCH_APP_ID_OFFSET = 80000000
+    BATCH_APP_ID_OFFSET = 90000000
     BANNER = """
      ██╗██╗   ██╗██╗ ██████╗███████╗██████╗
      ██║██║   ██║██║██╔════╝██╔════╝██╔══██╗
@@ -129,6 +129,7 @@ class JuicerServer:
                 for pending in pending_list:
                     pending = json.loads(pending)
                     if pending.get('type') != 'terminate' and pending:
+                        workflow_id = pending.get('workflow_id')
                         try:
                             msg = pending
                             log.warning(_('Starting pending app_id {}').format(app_id))
@@ -136,8 +137,8 @@ class JuicerServer:
                             platform = msg['workflow']['platform']['slug']
                             job_id = msg['job_id']
 
-                            self._start_minion(app_id, app_id, job_id, self.state_control,
-                                           platform)
+                            self._start_minion(workflow_id, app_id, job_id,
+                                self.state_control, platform)
                         except Exception as e:
                             log.exception(e)
             else:

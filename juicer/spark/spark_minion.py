@@ -554,7 +554,7 @@ class SparkMinion(Minion):
             except Exception as ex:
                 if self.is_spark_session_available():
                     self.spark_session.sparkContext.cancelAllJobs()
-                raise ex from None
+                raise ex
 
             end = timer()
             # Mark job as completed
@@ -567,12 +567,12 @@ class SparkMinion(Minion):
             # overwritten but never lost.
             if new_state:
                 self._state.update(new_state)
-            
+
             if job_type == 'BATCH':
                 log.info(_('Job (id=%s) is finishing (type=BATCH)'), job_id)
                 self.terminate()
 
-               
+
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
@@ -621,8 +621,9 @@ class SparkMinion(Minion):
 
         self.message_processed('execute', workflow['id'], job_id, workflow)
 
-        stop = self.config['juicer'].get('minion', {}).get(
-            'terminate_after_run', False)
+        stop = (job_type == 'BATCH' or
+            self.config['juicer'].get('minion', {}).get(
+                'terminate_after_run', False))
 
         if stop:
             log.warning(
@@ -630,6 +631,7 @@ class SparkMinion(Minion):
             self._state = {}
             self.spark_session.stop()
             self.spark_session = None
+            self.terminate()
 
         return result
 
@@ -973,8 +975,8 @@ class SparkMinion(Minion):
         # Kill remaining processes
         ## Removed. It is killing server as well
         ###parent_pid = os.getppid()
-        ###process_group_id = os.getpgid(os.getpid())
-        ###os.killpg(process_group_id, signal.SIGKILL)
+        process_group_id = os.getpgid(os.getpid())
+        os.killpg(process_group_id, signal.SIGKILL)
 
     def process(self):
         log.info(_(
