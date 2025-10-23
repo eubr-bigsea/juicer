@@ -292,6 +292,8 @@ class DataReaderOperation(Operation):
                 self._generate_code_for_parquet(
                     code, infer_from_data, infer_from_limonero, read_options,
                     use_s3=self.metadata['storage']['type'] == 'S3')
+            elif self.metadata['format'] == 'ICEBERG':
+                self._generate_code_for_iceberg(code)
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
                 # parsed = urlparse(self.metadata['url'])
@@ -375,6 +377,42 @@ class DataReaderOperation(Operation):
                       dbtable=query)
             )""")
         code.append(code_jdbc)
+
+    def _generate_code_for_iceberg(self, code):
+
+        extra_params = json.loads(self.metadata["storage"]["extra_params"])
+        catalog_name = extra_params['catalog_name']
+        type_ = extra_params['type']
+        uri = extra_params['uri']
+        warehouse = self.metadata["storage"]['url']
+
+        if type_ == 'sql':
+            table_name = ".".join([f'`{p}`' for p  in self.metadata['url'].split(".")])
+            parsed = urlparse(uri)
+            user = parsed.username
+            password = parsed.password
+            new_uri = 'jdbc:' + parsed.scheme + "://" + parsed.hostname + ":" + str(parsed.port) + parsed.path
+
+            code_parquet = f"""
+                url = '{catalog_name}.{table_name}'
+                user = '{user}' #@HIDE_INFO@
+                password = '{password}'  #@HIDE_INFO@
+                
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}", "org.apache.iceberg.spark.SparkCatalog")    
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.catalog-impl", "org.apache.iceberg.jdbc.JdbcCatalog")
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.uri", '{new_uri}')
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.warehouse", "{warehouse}")
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.jdbc.user", user)
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.jdbc.password", password)
+                spark_session.conf.set("spark.sql.defaultCatalog", "{catalog_name}")
+                
+                {self.output} = spark_session.sql('SELECT * FROM ' + url)
+                """
+            code.append(dedent(code_parquet))
+
+        else:
+            raise ValueError(
+                gettext('Only type SQL is currently supported in Iceberg catalog'))
 
     def _generate_code_for_parquet(self, code, infer_from_data,
                                    infer_from_limonero,
@@ -526,6 +564,7 @@ class SaveOperation(Operation):
     FORMAT_PARQUET = 'PARQUET'
     FORMAT_CSV = 'CSV'
     FORMAT_JSON = 'JSON'
+    FORMAT_ICEBERG = "ICEBERG"
     WORKFLOW_JSON_PARAM = 'workflow_json'
     USER_PARAM = 'user'
     WORKFLOW_ID_PARAM = 'workflow_id'
@@ -542,7 +581,7 @@ class SaveOperation(Operation):
                 'You must specify a name for new data source.'))
 
         self.format = parameters.get(self.FORMAT_PARAM, '') or ''
-        valid_formats = (self.FORMAT_PARQUET, self.FORMAT_CSV, self.FORMAT_JSON)
+        valid_formats = (self.FORMAT_PARQUET, self.FORMAT_CSV, self.FORMAT_JSON, self.FORMAT_ICEBERG)
         if not self.format.strip() or self.format not in valid_formats:
             raise ValueError(gettext('You must specify a valid format.'))
 
@@ -645,6 +684,15 @@ class SaveOperation(Operation):
             ))
             register_in_limonero = False
 
+        elif storage['type'] == "ICEBERG_CATALOG":
+            warehouse = storage['url']
+
+            if "." in self.name:
+                raise Exception("Database must be informed in path field.")
+
+            table_name  = f"{self.path}.{self.name}"
+            code_save = self._generate_code_for_iceberg(extra_params, warehouse, hdfs_user, table_name)
+
         elif storage['type'] == 'KAFKA':
             topic = self.path
             self.format = 'KAFKA'
@@ -674,16 +722,17 @@ class SaveOperation(Operation):
 
             {input} = {input}.select(*cols)
             mode = '{mode}'
+            
+            conf = spark_session._jsc.hadoopConfiguration()
+            jvm = spark_session._jvm
+            jvm.java.lang.System.setProperty("HADOOP_USER_NAME", "{hdfs_user}")
 
             # Write in a temporary directory
             # Header configuration will be handled by LemonadeFileUtil class
             {input}.write.csv('{url}{uuid}',
                          header=False, mode=mode)
-            # Merge files using Hadoop HDFS API
-            conf = spark_session._jsc.hadoopConfiguration()
-            jvm = spark_session._jvm
-            jvm.java.lang.System.setProperty("HADOOP_USER_NAME", "{hdfs_user}")
 
+            # Merge files using Hadoop HDFS API
             fs = jvm.org.apache.hadoop.fs.FileSystem.get(
                 jvm.java.net.URI('{storage_url}'), conf)
 
@@ -743,6 +792,10 @@ class SaveOperation(Operation):
 
         code = dedent(code_save)
         if register_in_limonero and self.save_to_limonero:
+
+            if storage['type'] == "ICEBERG_CATALOG":
+                final_url = table_name
+
             code_api = dedent("""
             # Code to update Limonero metadata information
             types_names = {data_types}
@@ -829,6 +882,43 @@ class SaveOperation(Operation):
             code += '{} = None'.format(self.output)
 
         # return dedent(self.render_template(ctx))
+        return code
+
+    def _generate_code_for_iceberg(self, extra_params, warehouse, hdfs_user, table_name):
+
+        catalog_name = extra_params['catalog_name']
+        type_ = extra_params['type']
+        uri = extra_params['uri']
+
+        code = ""
+        if type_ == 'sql':
+            parsed = urlparse(uri)
+            user = parsed.username
+            password = parsed.password
+            new_uri = 'jdbc:' + parsed.scheme + "://" + parsed.hostname + ":" + str(parsed.port) + parsed.path
+            input = self.named_inputs['input data']
+            code = f"""
+                write_header = False
+                user = '{user}' #@HIDE_INFO@
+                password = '{password}'  #@HIDE_INFO@
+
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}", "org.apache.iceberg.spark.SparkCatalog")    
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.catalog-impl", "org.apache.iceberg.jdbc.JdbcCatalog")
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.uri", '{new_uri}')
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.warehouse", "{warehouse}")
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.jdbc.user", user)
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.jdbc.password", password)
+                spark_session.conf.set("spark.sql.defaultCatalog", "{catalog_name}")
+                
+                jvm = spark_session._jvm
+                jvm.java.lang.System.setProperty("HADOOP_USER_NAME", "{hdfs_user}")
+                spark_session.sparkContext._jsc.hadoopConfiguration().set("HADOOP_USER_NAME", "{hdfs_user}")
+
+                {input}.write.mode("{self.mode}").saveAsTable('{catalog_name}.{table_name}')
+                """
+        else:
+            raise ValueError(
+                gettext('Only type SQL is currently supported in Iceberg catalog'))
         return code
 
 

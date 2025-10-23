@@ -231,21 +231,20 @@ class DataReaderOperation(Operation):
 
         # if self.metadata.get('privacy_aware', False):
         #    raise ValueError(_('Not supported'))
+        if data_format not in ( "ICEBERG" ):
+            if parsed.scheme not in ("hdfs", "file", "mysql", "http", "https"):
+                raise ValueError(
+                    gettext("Scheme {} not supported").format(parsed.scheme)
+                )
 
-        if parsed.scheme not in ("hdfs", "file", "mysql", "http", "https"):
-            raise ValueError(
-                gettext("Scheme {} not supported").format(parsed.scheme)
-            )
-
-        if data_format not in (
-            "CSV",
-            "TEXT",
-            "PARQUET",
-            "JDBC",
-            "JSON",
-            "ICEBERG",
-        ):
-            raise ValueError(gettext("Not supported"))
+            if data_format not in (
+                "CSV",
+                "TEXT",
+                "PARQUET",
+                "JDBC",
+                "JSON"
+            ):
+                raise ValueError(gettext("Not supported"))
 
         if data_format == "JDBC":
             qs_parsed = parse_qs(parsed.query)
@@ -303,6 +302,14 @@ class DataReaderOperation(Operation):
         # Open data source
         {%- if protect %}
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
+        {%- elif format == 'ICEBERG'  %}
+        os.environ["HADOOP_USER_NAME"] = '{{extra_params.get('user', parsed.username) or 'hadoop'}}'  #@HIDE_INFO@
+        from pyiceberg.catalog import load_catalog
+        config = {{extra_params}}
+        config['warehouse'] = '{{meta['storage']['url']}}'
+        catalog = load_catalog(config['catalog_name'], **config) 
+        table = catalog.load_table('{{meta['url']}}')
+        {{output}} = table.scan().to_arrow().to_pandas()
         {%- elif parsed.scheme == 'hdfs'  %}
         file_system = fs.HadoopFileSystem(
             host='{{parsed.hostname}}', #@HIDE_INFO@
@@ -323,7 +330,7 @@ class DataReaderOperation(Operation):
         {%- endif %}
         {%- if parsed.path.endswith('.gz') %}
         compression = 'gzip'
-        {%- else %}
+        {%- elif data_format != "ICEBERG" %}
         compression = 'infer'
         {%- endif %}
 
@@ -419,6 +426,7 @@ class SaveOperation(Operation):
     FORMAT_CSV = "CSV"
     FORMAT_JSON = "JSON"
     FORMAT_PARQUET = "PARQUET"
+    FORMAT_ICEBERG = "ICEBERG"
 
     USER_PARAM = "user"
     WORKFLOW_ID_PARAM = "workflow_id"
@@ -484,7 +492,7 @@ class SaveOperation(Operation):
 
         storage = limonero_service.get_storage_info(url, token, self.storage_id)
 
-        if storage["type"] != "HDFS":
+        if storage['type'] not in ("ICEBERG_CATALOG", "HDFS"):
             raise ValueError(
                 gettext("Storage type not supported: {}").format(storage["type"])
             )
@@ -511,6 +519,8 @@ class SaveOperation(Operation):
             ".parquet"
         ):
             final_url += ".parquet"
+        elif self.format == self.FORMAT_ICEBERG:
+            final_url = f"{self.path}.{self.name}"
 
         parsed = urlparse(final_url)
 
@@ -524,18 +534,29 @@ class SaveOperation(Operation):
 
         hdfs_user: str = extra_params.get("user", parsed.username) or "hadoop"
         self.template = """
+            {%- if format == 'ICEBERG'  %}
+            os.environ["HADOOP_USER_NAME"] = '{{hdfs_user}}'  #@HIDE_INFO@
+            iceberg_path = "{{final_url}}"
+            from pyiceberg.catalog import load_catalog
+            config = {{extra_params}}
+            config['warehouse'] = '{{storage_url}}'
+            catalog = load_catalog(config['catalog_name'], **config) 
+            exists = catalog.table_exists(iceberg_path)
+            {%- elif scheme == 'hdfs' and not protect %}
             path = '{{path}}'
-            {%- if scheme == 'hdfs' and not protect %}
-            fs = pa.hdfs.connect(host='{{hdfs_server}}',
+            from pyarrow import fs as hdfs
+            fs = hdfs.HadoopFileSystem(host='{{hdfs_server}}',
                                  port={{hdfs_port}},
                                  user='{{hdfs_user}}')
-            exists = fs.exists(path)
+            file_info = fs.get_file_info(path)
+            exists = file_info.type != hdfs.FileType.NotFound
             {%- elif scheme == 'file' or protect %}
+            path = '{{path}}'
             exists = os.path.exists(path)
             {%- endif %}
 
             mode = '{{mode}}'
-            if mode not in ('error', 'ignore', 'overwrite'):
+            if mode not in ('error', 'ignore', 'overwrite', 'append'):
                 raise ValueError('{{error_invalid_mode}}')
             if exists:
                 if mode == 'error':
@@ -545,19 +566,27 @@ class SaveOperation(Operation):
                         message='{{warn_ignored}}',
                         status='COMPLETED',
                         identifier='{{task_id}}')
+                elif mode == 'append':
+                    {%- if format != FORMAT_ICEBERG %}    
+                    raise ValueError('{{error_invalid_mode}}')
+                    {%- else %}
+                    pass
+                    {%- endif %}
+                {%- if format != FORMAT_ICEBERG %}
                 else:
                     {%- if scheme == 'hdfs' and not protect %}
-                        fs.delete(path, False)
+                        fs.delete_dir(path, False)
                     {%- elif scheme == 'file' or protect %}
                         os.remove(path)
                         parent_dir = os.path.dirname(path)
                         if not os.path.exists(parent_dir):
                             os.makedirs(parent_dir)
+                    {%- else %}
+                    pass
                     {%- endif %}
+                {%- endif %}
             else:
-                {%-if scheme == 'hdfs' and not protect %}
-                fs.mkdir(os.path.dirname(path))
-                {%- elif scheme == 'file' %}
+                {%-if scheme == 'file' and not protect and format != 'ICEBERG' %}
                 parent_dir = os.path.dirname(path)
                 os.makedirs(parent_dir, exist_ok=True)
                 {%- else %}
@@ -567,7 +596,7 @@ class SaveOperation(Operation):
             {%- if format == FORMAT_CSV %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
-            with fs.open(path, 'wb') as f:
+            with fs.open_output_stream(path) as f:
                 s = StringIO()
                 {{input}}.to_csv(s, sep=str(','), mode='w',
                 header={{header}}, index=False, encoding='utf-8')
@@ -580,7 +609,7 @@ class SaveOperation(Operation):
             {%- elif format == FORMAT_PARQUET %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import BytesIO
-            with fs.open(path, 'wb') as f:
+            with fs.open_output_stream(path, 'wb') as f:
                 s = BytesIO()
                 {{input}}.to_parquet(s, engine='pyarrow')
                 f.write(s.getvalue())
@@ -591,13 +620,51 @@ class SaveOperation(Operation):
             {%- elif format == FORMAT_JSON %}
             {%- if scheme == 'hdfs' and not protect %}
             from io import StringIO
-            with fs.open(path, 'wb') as f:
+            with fs.open_output_stream(path, 'wb') as f:
                 s = StringIO()
                 {{input}}.to_json(s, orient='records')
                 f.write(s.getvalue().encode())
             {%- elif scheme == 'file' or protect %}
             {{input}}.to_json(path, orient='records')
             {%- endif %}
+                        
+            {%- elif format == FORMAT_ICEBERG %}
+            import pyiceberg.schema as ice_structs
+            import pyiceberg.types as icetypes
+            
+            def iceberg_type_from_pd(dtype):
+                if pd.api.types.is_integer_dtype(dtype):
+                    return icetypes.LongType()
+                elif pd.api.types.is_float_dtype(dtype):
+                    return icetypes.DoubleType()
+                elif pd.api.types.is_bool_dtype(dtype):
+                    return icetypes.BooleanType()
+                elif pd.api.types.is_datetime64_any_dtype(dtype):
+                    return icetypes.TimestampType()
+                elif pd.api.types.is_string_dtype(dtype) or pd.api.types.is_object_dtype(dtype):
+                    return icetypes.StringType()
+                elif pd.api.types.is_datetime64_dtype(dtype):
+                    return icetypes.TimestampType()
+                elif pd.api.types.is_date_dtype(dtype):
+                    return icetypes.DateType()
+                else:
+                    raise ValueError(f"Pandas dtype is not supported {dtype}")
+            
+            def create_iceberg_schema_from_pandas(df: pd.DataFrame) -> ice_structs.Schema:
+                fields = []
+                for i, (col, dtype) in enumerate(df.dtypes.items(), start=1):
+                    iceberg_type = iceberg_type_from_pd(dtype)
+                    fields.append(ice_structs.NestedField(i, col, iceberg_type, False))
+                return ice_structs.Schema(*fields)
+                
+            schema = create_iceberg_schema_from_pandas({{input}})
+
+            try:
+                table = catalog.create_table(iceberg_path, schema)
+            except Exception:
+                table = catalog.load_table(iceberg_path)
+                
+            table.{{mode}}(pa.Table.from_pandas({{input}}))
             {%- endif %}
 
             {%-if not protect %}
@@ -669,6 +736,7 @@ class SaveOperation(Operation):
             FORMAT_PICKLE=self.FORMAT_PICKLE,
             FORMAT_JSON=self.FORMAT_JSON,
             FORMAT_PARQUET=self.FORMAT_PARQUET,
+            FORMAT_ICEBERG=self.FORMAT_ICEBERG,
             data_types=json.dumps(self.PANDAS_TO_LIMONERO_DATA_TYPES),
             final_url=final_url,
             input=df_input,
@@ -680,6 +748,7 @@ class SaveOperation(Operation):
             uuid=uuid.uuid4().hex,
             storage_url=storage["url"],
             task_id=self.parameters["task_id"],
+            extra_params=extra_params
         )
 
         return dedent(self.render_template(ctx))
