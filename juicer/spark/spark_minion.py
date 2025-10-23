@@ -654,6 +654,8 @@ class SparkMinion(Minion):
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
+            spark_builder = spark_builder.config("spark.sql.extensions",
+                                                 "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
             if self.transpiler.requires_hive:
                 log.info(_('Enabling HIVE Support'))
                 spark_builder = spark_builder.enableHiveSupport()

@@ -231,21 +231,20 @@ class DataReaderOperation(Operation):
 
         # if self.metadata.get('privacy_aware', False):
         #    raise ValueError(_('Not supported'))
+        if data_format not in ( "ICEBERG" ):
+            if parsed.scheme not in ("hdfs", "file", "mysql", "http", "https"):
+                raise ValueError(
+                    gettext("Scheme {} not supported").format(parsed.scheme)
+                )
 
-        if parsed.scheme not in ("hdfs", "file", "mysql", "http", "https"):
-            raise ValueError(
-                gettext("Scheme {} not supported").format(parsed.scheme)
-            )
-
-        if data_format not in (
-            "CSV",
-            "TEXT",
-            "PARQUET",
-            "JDBC",
-            "JSON",
-            "ICEBERG",
-        ):
-            raise ValueError(gettext("Not supported"))
+            if data_format not in (
+                "CSV",
+                "TEXT",
+                "PARQUET",
+                "JDBC",
+                "JSON"
+            ):
+                raise ValueError(gettext("Not supported"))
 
         if data_format == "JDBC":
             qs_parsed = parse_qs(parsed.query)
@@ -303,6 +302,13 @@ class DataReaderOperation(Operation):
         # Open data source
         {%- if protect %}
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
+        {%- elif format == 'ICEBERG'  %}
+        from pyiceberg.catalog import load_catalog
+        config = {{extra_params}}
+        config['warehouse'] = '{{meta['storage']['url']}}'
+        catalog = load_catalog(config['catalog_name'], **config) 
+        table = catalog.load_table('{{meta['url']}}')
+        {{output}} = table.scan().to_arrow().to_pandas()
         {%- elif parsed.scheme == 'hdfs'  %}
         file_system = fs.HadoopFileSystem(
             host='{{parsed.hostname}}', #@HIDE_INFO@
@@ -323,7 +329,7 @@ class DataReaderOperation(Operation):
         {%- endif %}
         {%- if parsed.path.endswith('.gz') %}
         compression = 'gzip'
-        {%- else %}
+        {%- elif data_format != "ICEBERG" %}
         compression = 'infer'
         {%- endif %}
 

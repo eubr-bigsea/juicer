@@ -292,6 +292,8 @@ class DataReaderOperation(Operation):
                 self._generate_code_for_parquet(
                     code, infer_from_data, infer_from_limonero, read_options,
                     use_s3=self.metadata['storage']['type'] == 'S3')
+            elif self.metadata['format'] == 'ICEBERG':
+                self._generate_code_for_iceberg(code)
             elif self.metadata['format'] == 'HIVE':
                 # import pdb; pdb.set_trace()
                 # parsed = urlparse(self.metadata['url'])
@@ -375,6 +377,42 @@ class DataReaderOperation(Operation):
                       dbtable=query)
             )""")
         code.append(code_jdbc)
+
+    def _generate_code_for_iceberg(self, code):
+
+        extra_params = json.loads(self.metadata["storage"]["extra_params"])
+        catalog_name = extra_params['catalog_name']
+        type_ = extra_params['type']
+        uri = extra_params['uri']
+        warehouse = self.metadata["storage"]['url']
+
+        if type_ == 'sql':
+            code.append(f"url = '{catalog_name}.{self.metadata['url']}'")
+
+            parsed = urlparse(uri)
+            user = parsed.username
+            password = parsed.password
+            new_uri = 'jdbc:' + parsed.scheme + "://" + parsed.hostname + ":" + str(parsed.port) + parsed.path
+
+            code_parquet = f"""
+                user = '{user}' #@HIDE_INFO@
+                password = '{password}'  #@HIDE_INFO@
+                
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}", "org.apache.iceberg.spark.SparkCatalog")    
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.catalog-impl", "org.apache.iceberg.jdbc.JdbcCatalog")
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.uri", '{new_uri}')
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.warehouse", "{warehouse}")
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.jdbc.user", user)
+                spark_session.conf.set("spark.sql.catalog.{catalog_name}.jdbc.password", password)
+                spark_session.conf.set("spark.sql.defaultCatalog", "{catalog_name}")
+                
+                {self.output} = spark_session.sql('SELECT * FROM ' + url)
+                """
+            code.append(dedent(code_parquet))
+
+        else:
+            raise ValueError(
+                gettext('Only type SQL is currently supported in Iceberg catalog'))
 
     def _generate_code_for_parquet(self, code, infer_from_data,
                                    infer_from_limonero,
