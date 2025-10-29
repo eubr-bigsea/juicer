@@ -34,11 +34,13 @@ def emit(*a, **kwargs):
         print(json.dumps(kwargs))
 
 
-def run(spark, w_id, j_id, cache=None):
+def run(spark, w_id, j_id, cache=None, app_id=None) -> None:
     importlib.reload(du)
+    if app_id is None:
+        app_id = w_id
     if cache is None:
         cache = {}
-    m = importlib.import_module(f'juicer_app_{w_id}_{w_id}_{j_id}')
+    m = importlib.import_module(f'juicer_app_{w_id}_{app_id}_{j_id}')
 
     t = gettext.translation('messages', locales_path, ['en'],
                             fallback=True)

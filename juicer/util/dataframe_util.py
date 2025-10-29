@@ -1006,12 +1006,16 @@ def merge_dicts(x, y):
 
 
 def handle_spark_exception(e):
-    from pyspark.sql.utils import AnalysisException, IllegalArgumentException
+    from pyspark.sql.utils import IllegalArgumentException
     result = False
 
-    if isinstance(e, AnalysisException):
+    if e.__class__.__name__.endswith('AnalysisException'):
         value_expr = re.compile(r'[`"](.+)[`"].+columns:\s(.+)$')
         found = value_expr.findall(e.desc.split('\n')[0])
+        if not found:
+            value_expr = re.compile(
+                r'with name `(.+)` cannot be resolved. .+following\? \[(.+)\]')
+            found = value_expr.findall(e.desc.split('\n')[0])
         if found:
             field, fields = found[0]
             raise ValueError(

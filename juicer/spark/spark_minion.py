@@ -78,7 +78,7 @@ class SparkMinion(Minion):
         #    sys.path.append(os.path.join(spark_home, 'python'))
         #    log.info(_('SPARK_HOME set to %s'), spark_home)
         #else:
-        #    log.warn(_('SPARK_HOME environment variable is not defined'))
+        #    log.warning(_('SPARK_HOME environment variable is not defined'))
 
         # spark_dist_classpath = os.environ.get('SPARK_DIST_CLASSPATH')
         #if not spark_dist_classpath:
@@ -132,7 +132,7 @@ class SparkMinion(Minion):
         self.default_sys_path = [p for p in sys.path]
 
     def _cleanup(self, pid, flag):
-        log.warn(_('Finishing minion'))
+        log.warning(_('Finishing minion'))
         msg = _('Pressed CTRL+C / SIGINT. Minion canceled the job.')
         #self._emit_event(room=self.last_job_id, namespace='/stand')(
         #    name='update job', message=msg,
@@ -268,9 +268,9 @@ class SparkMinion(Minion):
             'Expected workflow_id=%s, got workflow_id=%s' % (
                 self.workflow_id, msg_info['workflow_id'])
 
-        assert str(msg_info['app_id']) == self.app_id, \
-            'Expected app_id=%s, got app_id=%s' % (
-                self.workflow_id, msg_info['app_id'])
+        #assert str(msg_info['app_id']) == self.app_id, \
+        #    'Expected app_id=%s, got app_id=%s' % (
+        #        self.workflow_id, msg_info['app_id'])
 
         # Extract the message type
         msg_type = msg_info['type']
@@ -280,7 +280,9 @@ class SparkMinion(Minion):
         # Forward the message according to its purpose
         if msg_type == juicer_protocol.EXECUTE:
 
-            log.info('Starting execution of workflow %s', self.app_id)
+            job_type = msg_info.get('job_type', 'NORMAL')
+            log.info('Starting execution of workflow %s with job type=%s',
+                self.app_id, job_type)
             # Checks if it's a valid cluster
             job_id = msg_info['job_id']
             cluster_info = msg_info.get('cluster', {})
@@ -323,7 +325,7 @@ class SparkMinion(Minion):
                     name='update job',
                     message=msg,
                     status='CANCELED', identifier=job_id)
-                log.warn(msg)
+                log.warning(msg)
                 return
 
                 # Spark mapping for cluster properties
@@ -388,7 +390,8 @@ class SparkMinion(Minion):
 
             self.job_future = self._execute_future(job_id, workflow,
                                                    app_configs,
-                                                   msg_info.get('code'))
+                                                   msg_info.get('code'),
+                                                   job_type)
             log.info(_('Execute message finished'))
 
         elif msg_type == juicer_protocol.TERMINATE:
@@ -406,7 +409,7 @@ class SparkMinion(Minion):
             self.active_messages -= 1
 
         else:
-            log.warn(_('Unknown message type %s'), msg_type)
+            log.warning(_('Unknown message type %s'), msg_type)
             self._generate_output(_('Unknown message type %s') % msg_type)
 
     def define_cluster_parameters(self, cluster_info):
@@ -466,11 +469,11 @@ class SparkMinion(Minion):
             print(py4j_dir, files)
             print('*' * 20)
 
-    def _execute_future(self, job_id, workflow, app_configs, code=None):
+    def _execute_future(self, job_id, workflow, app_configs, code=None, job_type='NORMAL'):
         return self.executor.submit(self.perform_execute,
-                                    job_id, workflow, app_configs, code)
+                                    job_id, workflow, app_configs, code, job_type)
 
-    def perform_execute(self, job_id, workflow, app_configs, code=None):
+    def perform_execute(self, job_id, workflow, app_configs, code=None, job_type='NORMAL'):
 
         # Sleeps 1s in order to wait for client join notification room
         time.sleep(1)
@@ -502,7 +505,7 @@ class SparkMinion(Minion):
                 # stoping the minion every time you change the
                 # code generation. Can be used in conjunction
                 # with code_gen.py tool
-                log.warn(_('Minion is using the module name {}'.format(freeze)))
+                log.warning(_('Minion is using the module name {}'.format(freeze)))
                 module_name = freeze
             else:
                 module_name = \
@@ -551,7 +554,7 @@ class SparkMinion(Minion):
             except Exception as ex:
                 if self.is_spark_session_available():
                     self.spark_session.sparkContext.cancelAllJobs()
-                raise ex from None
+                raise ex
 
             end = timer()
             # Mark job as completed
@@ -564,6 +567,12 @@ class SparkMinion(Minion):
             # overwritten but never lost.
             if new_state:
                 self._state.update(new_state)
+
+            if job_type == 'BATCH':
+                log.info(_('Job (id=%s) is finishing (type=BATCH)'), job_id)
+                self.terminate()
+
+
 
         except UnicodeEncodeError as ude:
             message = self.MNN006[1].format(ude)
@@ -612,15 +621,17 @@ class SparkMinion(Minion):
 
         self.message_processed('execute', workflow['id'], job_id, workflow)
 
-        stop = self.config['juicer'].get('minion', {}).get(
-            'terminate_after_run', False)
+        stop = (job_type == 'BATCH' or
+            self.config['juicer'].get('minion', {}).get(
+                'terminate_after_run', False))
 
         if stop:
-            log.warn(
+            log.warning(
                 _('Minion is configured to stop Spark after each execution'))
             self._state = {}
             self.spark_session.stop()
             self.spark_session = None
+            self.terminate()
 
         return result
 
@@ -964,8 +975,8 @@ class SparkMinion(Minion):
         # Kill remaining processes
         ## Removed. It is killing server as well
         ###parent_pid = os.getppid()
-        ###process_group_id = os.getpgid(os.getpid())
-        ###os.killpg(process_group_id, signal.SIGKILL)
+        process_group_id = os.getpgid(os.getpid())
+        os.killpg(process_group_id, signal.SIGKILL)
 
     def process(self):
         log.info(_(
