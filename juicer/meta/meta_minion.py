@@ -101,6 +101,9 @@ class MetaMinion(Minion):
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(gettext('Unhandled error (%s) \n>%s'),
                               str(ee), '>\n'.join(tb))
+                # kill minion in case of unhandled error
+                log.info('Killing minion due to unhandled error')
+                self.terminate()
 
     def _process_message(self):
         self._process_message_nb()
