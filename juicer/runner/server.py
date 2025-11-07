@@ -312,9 +312,12 @@ class JuicerServer:
         # created as part of an active minion.
         # spark.driver.port and spark.driver.blockManager.port are required
         # when running the driver inside a docker container.
-
-        python_cmd = self.config['juicer'].get('minion', {}).get(
-                'python') or sys.executable
+        
+        python_cmd = json.loads(cluster.get('general_parameters', '{}')).get('lemonade.python.path') # when starting juicer, cluster can be empty
+        
+        if not python_cmd:
+            python_cmd = self.config['juicer'].get('minion', {}).get('python') or sys.executabe
+        
         minion_cmd = ['nohup', python_cmd, self.minion_executable,
                       '-w', str(workflow_id), '-a', str(app_id), '-t', platform,
                       '-c',

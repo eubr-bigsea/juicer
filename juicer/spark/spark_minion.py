@@ -425,6 +425,8 @@ class SparkMinion(Minion):
                     self.cluster_options[
                                     'spark.submit.pyFiles'] = ','.join(
                                             gp.get('python'))
+                if gp.get("lemonade.spark.user"):
+                    self.cluster_options['lemonade.spark.user'] = gp.get("lemonade.spark.user")
                 if gp.get('lemonade.spark.version'):
                     self.transpiler.spark_version = tuple([
                                 int(v) for v in
@@ -659,12 +661,22 @@ class SparkMinion(Minion):
         if not self.is_spark_session_available():
 
             log.info(_("Creating a new Spark session"))
+            os.environ['HADOOP_USER_NAME'] = self.cluster_options.get("lemonade.spark.user", "hadoop")
+
             app_name = '{name} (workflow_id={wf})'.format(
                 name=strip_accents(workflow_name),
                 wf=self.workflow_id)
             app_name = ''.join([i if ord(i) < 128 else ' ' for i in app_name])
             spark_builder = SparkSession.builder.appName(
                 app_name)
+
+            if int(self.transpiler.spark_version[0]) >= 3:
+                log.info(_(f"Setting spark configuration spark.sql.extensions (Spark {self.transpiler.spark_version}) detected)"))
+                spark_builder = spark_builder.config("spark.sql.extensions",
+                                                     "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+            else:
+                log.info(_(f"Spark {self.transpiler.spark_version} detected"))
+
             if self.transpiler.requires_hive:
                 log.info(_('Enabling HIVE Support'))
                 spark_builder = spark_builder.enableHiveSupport()
@@ -734,8 +746,13 @@ class SparkMinion(Minion):
             if 'spark.driver.extraClassPath' in app_configs:
                 all_jars.append(app_configs['spark.driver.extraClassPath'])
 
-            app_configs['spark.driver.extraClassPath'] = os.path.pathsep.join(
-                [jar for jar in all_jars if jar])
+            all_jars = os.path.pathsep.join([jar for jar in all_jars if jar])
+
+            if int(self.transpiler.spark_version[0]) < 3:
+                all_jars = [jar for jar in all_jars.split(":") if 'iceberg' not in jar]
+                all_jars = os.path.pathsep.join(all_jars)
+
+            app_configs['spark.driver.extraClassPath'] = all_jars
 
             log.info('JAVA CLASSPATH: %s',
                      app_configs['spark.driver.extraClassPath'])
