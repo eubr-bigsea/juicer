@@ -466,6 +466,7 @@ class Expression(object):
             "complete_cpf_cnpj": self.get_expr_function,
             "normaliza_descricoes": self.get_expr_function,
             "normaliza_nomes": self.get_expr_function,
+            "normaliza_nomes_pf": self.get_expr_function,
         }
 
         column_functions = {
@@ -520,4 +521,5 @@ class Expression(object):
             "complete_cpf_cnpj": 'spark_session.udf.registerJavaFunction("complete_cpf_cnpj", "br.ufmg.dcc.lemonade.udfs.CompleteCpfCnpjUDF", types.StringType())',
             "normaliza_descricoes": 'spark_session.udf.registerJavaFunction("normaliza_descricoes", "br.ufmg.dcc.lemonade.udfs.NormalizaDescricoesUDF", types.StringType())',
             "normaliza_nomes": 'spark_session.udf.registerJavaFunction("normaliza_nomes", "br.ufmg.dcc.lemonade.udfs.NormalizaNomesUDF", types.StringType())',
+            "normaliza_nomes_pf": 'spark_session.udf.registerJavaFunction("normaliza_nomes_pf", "br.ufmg.dcc.lemonade.udfs.NormalizaNomesPfUDF", types.StringType())',
         }
