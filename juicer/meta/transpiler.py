@@ -72,6 +72,7 @@ class MetaTranspiler(Transpiler):
         self.operations = {
             'execute-sql': ops.ExecuteSQLOperation,
             'execute-python': ops.ExecutePythonOperation,
+            'execute-script': ops.ExecuteScriptOperation,
             'add-by-formula': ops.AddByFormulaOperation,
             'cast': ops.CastOperation,
             'clean-missing': ops.CleanMissingOperation,

@@ -572,8 +572,8 @@ class TransformationOperation(Operation):
                 expression.parsed_expression, expr['alias']))
 
             if expression.add_import_udf:
-                register_udf += expression.add_import_udf + "\n"   
-            
+                register_udf += expression.add_import_udf + "\n"
+
         code = dedent("""
             from juicer.spark.ext import CustomExpressionTransformer
             {imports}
@@ -921,7 +921,7 @@ class FilterOperation(Operation):
             {out} = {in1}.filter(
                 {f})
             """.format(
-                    imports=register_udf, out=self.output, 
+                    imports=register_udf, out=self.output,
                     in1=input_data, f=indentation.join(filters))
 
         return dedent(code)
@@ -1340,7 +1340,7 @@ class ExecutePythonOperation(Operation):
             raise ValueError(_('Command import is not supported'))
         """.format(in1=in1, in2=in2, code=self.code.encode(
             'unicode_escape').decode('utf8'),
-                   name="execute_python", order=self.order,
+                   order=self.order,
                    msg1=_('Invalid name: {}. '
                           'Many Python commands are not available in Lemonade'),
                    id=self.parameters['task']['id']))
@@ -1352,6 +1352,22 @@ class ExecutePythonOperation(Operation):
         {out2} = out2
         """.format(out1=self.out1, out2=self.out2))
         return dedent(code)
+
+class ExecuteScriptOperation(ExecutePythonOperation):
+    """
+    Execute a script in Python. The script must assign the output data frames
+    to variables with the name 'out1' and 'out2' (if needed).
+    """
+    SCRIPT_PARAM = 'script'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        ExecutePythonOperation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if not all([self.SCRIPT_PARAM in parameters]):
+            msg = _("Required parameter {} must be informed for task {}")
+            raise ValueError(msg.format(self.SCRIPT_PARAM, self.__class__))
+
+        parameters[self.PYTHON_CODE_PARAM] = parameters.get(self.SCRIPT_PARAM)
 
 
 class ExecuteSQLOperation(Operation):

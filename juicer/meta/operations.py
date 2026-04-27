@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import os
 import re
 import ast
 from collections import namedtuple
@@ -474,6 +475,40 @@ class ExecutePythonOperation(MetaPlatformOperation):
                     text=se.text, l=se.lineno, o=se.offset
                 ))
 
+
+class ExecuteScriptOperation(ExecutePythonOperation):
+    TARGET_OP = 146
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        self.script = self.get_required_parameter(
+            parameters, 'script')
+        self.input_port_name = 'input data 1'
+
+        # Test if file exists in file system
+        if os.path.isfile(self.script):
+            # Read script file
+            with open(self.script, 'r') as f:
+                parameters['code'] = f.read()
+        else:
+            raise ValueError(
+                gettext('Script file not found: {script}')
+                    .format(script=self.script))
+
+        ExecutePythonOperation.__init__(
+            self, parameters,  named_inputs,  named_outputs)
+
+    # def generate_code(self):
+    #     task_obj = self._get_task_obj()
+    #     task_obj['forms'].update({
+    #         "script": {"value": self.script},
+    #     })
+    #     task_obj['operation'] = {"id": self.TARGET_OP}
+    #     return json.dumps(task_obj)
+
+    # def sql_code(self):
+    #     """ Code for SQL Builder """
+    #     code = [self.script]
+    #     #code.append(indent(dedent(self.code), ' '*15, _not_first()))
+    #     return '\n'.join(code)
 
 @dataclasses.dataclass
 class TransformParam:

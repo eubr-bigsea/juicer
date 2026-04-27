@@ -214,7 +214,7 @@ msgstr ""
 #: juicer/spark/spark_minion.py:277
 #, python-format
 msgid "Processing message %s for app %s"
-msgstr "Processando a mesangem %s para a aplicação %s"
+msgstr "Processando a mensagem %s para a aplicação %s"
 
 #: juicer/compss/compss_minion.py:150 juicer/jobs/script_minion.py:279
 #: juicer/keras/keras_minion.py:242 juicer/meta/meta_minion.py:155
@@ -1160,7 +1160,7 @@ msgstr ""
 #: juicer/runner/server.py:237
 #, python-format
 msgid "Message %s forwarded to minion (workflow_id=%s,app_id=%s)"
-msgstr "Mesangem %s encaminhada para o minion (workflow_id=%s, app_id=%s)"
+msgstr "Mensagem %s encaminhada para o minion (workflow_id=%s, app_id=%s)"
 
 #: juicer/runner/server.py:269
 msgid "Creating a JOB in Kubernetes."
@@ -1179,7 +1179,7 @@ msgstr "Comando do minion: %s"
 #: juicer/runner/server.py:301
 #, python-format
 msgid "Forking minion %s."
-msgstr "Dividingo minion %s."
+msgstr "Dividindo minion %s."
 
 #: juicer/runner/server.py:350
 #, python-format

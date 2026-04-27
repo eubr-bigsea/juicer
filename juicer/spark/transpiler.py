@@ -44,7 +44,7 @@ class SparkTranspiler(Transpiler):
 
     # noinspection SpellCheckingInspection
     def _assign_operations(self):
-        
+
         advanced_ops = {
             'user-filter': advanced_operation.UserFilterOperation,
         }
@@ -59,6 +59,7 @@ class SparkTranspiler(Transpiler):
             'drop': etl_operation.DropOperation,
             'execute-python': etl_operation.ExecutePythonOperation,
             'execute-sql': etl_operation.ExecuteSQLOperation,
+            'execute-script': etl_operation.ExecuteScriptOperation,
             'filter': etl_operation.FilterOperation,
             # Alias for filter
             'filter-selection': etl_operation.FilterOperation,
@@ -256,8 +257,8 @@ class SparkTranspiler(Transpiler):
             'validation-report': validation.ValidationReportOperation,
         }
         self.operations = {}
-        for ops in [advanced_ops, data_ops, etl_ops, geo_ops, ml_ops, other_ops, 
-                    text_ops, statistics_ops, ws_ops, vis_ops, dm_ops, 
-                    data_quality_ops, feature_ops, trustworthy_operations, 
+        for ops in [advanced_ops, data_ops, etl_ops, geo_ops, ml_ops, other_ops,
+                    text_ops, statistics_ops, ws_ops, vis_ops, dm_ops,
+                    data_quality_ops, feature_ops, trustworthy_operations,
                     ml_model_operations2, validation_ops]:
             self.operations.update(ops)
