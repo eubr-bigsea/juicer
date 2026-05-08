@@ -55,7 +55,7 @@ class MetaMinion(Minion):
 
         self.config = config
 
-        self.transpiler = MetaTranspiler(config)
+        self.transpiler = MetaTranspiler(None, config)
         configuration.set_config(self.config)
 
         self.tmp_dir = self.config.get('config', {}).get('tmp_dir', '/tmp')
@@ -281,6 +281,7 @@ class MetaMinion(Minion):
         # print('-' * 20)
 
         self.transpiler.target_platform = target_platform
+        self.transpiler.workflow_loader = loader
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
                                   state=self._state,
@@ -312,6 +313,7 @@ class MetaMinion(Minion):
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
 
+        self.transpiler.workflow_loader = loader
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
                                   persist=app_configs.get('persist'))
@@ -331,6 +333,7 @@ class MetaMinion(Minion):
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
 
+        self.transpiler.workflow_loader = loader
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
                                   persist=app_configs.get('persist'))
@@ -371,6 +374,7 @@ class MetaMinion(Minion):
         loader.handle_variables({'job_id': job_id})
         out = StringIO()
         self.transpiler.configuration['app_configs'] = app_configs
+        self.transpiler.workflow_loader = loader
         self.transpiler.transpile(loader.workflow, loader.graph,
                                   self.config, out, job_id,
                                   persist=app_configs.get('persist'))

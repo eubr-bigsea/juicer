@@ -38,10 +38,10 @@ class ScikitLearnTranspiler(Transpiler):
     Scikit-Learn.
     """
 
-    def __init__(self, configuration, slug_to_op_id=None, port_id_to_port=None):
-        self.variant = configuration.get('variant', 
+    def __init__(self, workflow_loader, configuration, slug_to_op_id=None, port_id_to_port=None):
+        self.variant = configuration.get('variant',
             configuration.get('app_configs', {}).get('variant', 'pandas'))
-        super().__init__(
+        super().__init__(workflow_loader,
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
         if self.variant == 'polars':

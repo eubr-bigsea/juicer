@@ -104,17 +104,17 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
         if loader.platform['slug'] == "spark":
             from juicer.spark.transpiler import SparkTranspiler
 
-            transpiler = SparkTranspiler(configuration.get_config(),
+            transpiler = SparkTranspiler(loader, configuration.get_config(),
                                          slug_to_op_id, port_id_to_port)
         elif loader.platform['slug'] == "compss":
             from juicer.compss.transpiler import COMPSsTranspiler
-            transpiler = COMPSsTranspiler(configuration.get_config())
+            transpiler = COMPSsTranspiler(loader, configuration.get_config())
         elif loader.platform['slug'] == "scikit-learn":
             from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
-            transpiler = ScikitLearnTranspiler(configuration.get_config())
+            transpiler = ScikitLearnTranspiler(loader, configuration.get_config())
         elif loader.platform['slug'] == 'keras':
             from juicer.keras.transpiler import KerasTranspiler
-            transpiler = KerasTranspiler(configuration.get_config())
+            transpiler = KerasTranspiler(loader, configuration.get_config())
         elif loader.platform.get('plugin'):
             plugin_factories = plugin_util.prepare_and_get_plugin_factory(
                 configuration.get_config(), loader.platform.get('id'))
@@ -122,7 +122,7 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
             transpiler = factory.get_transpiler(configuration.get_config())
         elif loader.platform['slug'] == 'meta':
             from juicer.meta.transpiler import MetaTranspiler
-            transpiler = MetaTranspiler(configuration.get_config())
+            transpiler = MetaTranspiler(loader,configuration.get_config())
         else:
             raise ValueError(
                 gettext('Invalid platform value: {}').format(loader.platform))
@@ -140,12 +140,14 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
                 loader.workflow, loader.graph, params=params, deploy=deploy,
                 export_notebook=export_notebook, plain=plain, job_id=job_id,
                 out=out1)
+            transpiler.workflow_loader = loader
             out1.seek(0)
 
-            if loader.workflow.get('type') == 'MODEL_BUILDER':
+            if loader.workflow.get('type') in ('MODEL_BUILDER', 'SQL'):
                 out.write(out1.read())
             else:
-                resp = json.loads(out1.read())
+                generated = out1.read()
+                resp = json.loads(generated)
                 target_loader = Workflow(resp, config, lang=lang)
                 target_loader.handle_variables(custom_vars)
 
@@ -154,13 +156,13 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
 
                 if transpiler.target_meta.get('slug') == 'spark':
                     from juicer.spark.transpiler import SparkTranspiler
-                    final_transpiler = SparkTranspiler(
+                    final_transpiler = SparkTranspiler(target_loader,
                         configuration.get_config())
                 elif transpiler.target_meta.get('slug') == 'scikit-learn':
                     from juicer.scikit_learn.transpiler import (
                         ScikitLearnTranspiler)
                     final_transpiler = ScikitLearnTranspiler(
-                        configuration.get_config())
+                        target_loader, configuration.get_config())
                 else:
                     raise ValueError('Invalid target platform')
                 final_transpiler.sample_style = 'DATA_EXPLORER'

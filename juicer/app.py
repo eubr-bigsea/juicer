@@ -23,9 +23,9 @@ logging.config.fileConfig('logging_config.ini')
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-  
 
-def main(workflow_id, execute_main, params, config, deploy, export_notebook, 
+
+def main(workflow_id, execute_main, params, config, deploy, export_notebook,
          custom_vars=None):
     log.debug(_('Processing workflow queue %s'), workflow_id)
     tahiti_conf = config['juicer']['services']['tahiti']
@@ -44,19 +44,19 @@ def main(workflow_id, execute_main, params, config, deploy, export_notebook,
     ops = query_tahiti(
         base_url=tahiti_conf['url'], item_path='/operations',
         token=str(tahiti_conf['auth_token']), item_id='',
-        qs='code_gen=1&fields=id,slug,ports.id,ports.slug,ports.interfaces&platform={}&workflow={}'.format( 
+        qs='code_gen=1&fields=id,slug,ports.id,ports.slug,ports.interfaces&platform={}&workflow={}'.format(
             resp['platform']['id'], workflow_id))
     slug_to_op_id = dict([(op['slug'], op['id']) for op in ops])
     port_id_to_port = dict([(p['id'], p) for op in ops for p in op['ports']])
 
     try:
         if loader.platform['slug'] == "spark":
-            transpiler = SparkTranspiler(configuration.get_config(),
+            transpiler = SparkTranspiler(loader, configuration.get_config(),
                                          slug_to_op_id, port_id_to_port)
         elif loader.platform['slug'] == "compss":
             transpiler = COMPSsTranspiler(configuration.get_config())
         elif loader.platform['slug'] == "scikit-learn":
-            transpiler = ScikitLearnTranspiler(configuration.get_config())
+            transpiler = ScikitLearnTranspiler(loader, configuration.get_config())
         elif loader.platform['slug']  == 'keras':
             transpiler = KerasTranspiler(configuration.get_config())
         elif loader.platform.get('plugin'):

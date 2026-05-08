@@ -18,6 +18,7 @@ from juicer.spark.etl_operation import AggregationOperation, SampleOrPartitionOp
 from juicer.spark.etl_operation import FilterOperation as SparkFilterOperation
 from juicer.util.template_util import strip_accents
 from juicer.util.variable import handle_variables
+from juicer.workflow.workflow import Workflow
 
 FeatureInfo = namedtuple('FeatureInfo', ['value', 'props', 'type'])
 
@@ -483,11 +484,15 @@ class ExecuteScriptOperation(ExecutePythonOperation):
             parameters, 'script')
         self.input_port_name = 'input data 1'
 
+        workflow_loader: Workflow = parameters.get('transpiler').workflow_loader
+        all_vars = workflow_loader.prepair_variables(None)
+
         # Test if file exists in file system
         if os.path.isfile(self.script):
             # Read script file
             with open(self.script, 'r') as f:
-                parameters['code'] = f.read()
+                parameters['code'] = workflow_loader.replace_variables(
+                    f.read(), all_vars, self)
         else:
             raise ValueError(
                 gettext('Script file not found: {script}')

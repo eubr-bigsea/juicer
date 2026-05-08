@@ -27,8 +27,8 @@ class SparkTranspiler(Transpiler):
     Apache Spark.
     """
 
-    def __init__(self, configuration, slug_to_op_id=None, port_id_to_port=None):
-        super(SparkTranspiler, self).__init__(
+    def __init__(self, workflow_loader, configuration, slug_to_op_id=None, port_id_to_port=None):
+        super(SparkTranspiler, self).__init__(workflow_loader,
             configuration, os.path.abspath(os.path.dirname(__file__)),
             slug_to_op_id, port_id_to_port)
         self.requires_hive = False

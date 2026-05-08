@@ -49,7 +49,8 @@ class Operation(object):
                  'named_outputs', 'multiple_inputs', 'has_code',
                  'expected_output_ports', 'out_degree', 'order',
                  'supports_cache', 'config', 'deployable', 'plain',
-                 'transpiler_utils', 'sample_configuration', 'template')
+                 'transpiler_utils', 'sample_configuration', 'template',
+                 'workflow')
 
     def __init__(self, parameters, named_inputs, named_outputs):
         self.parameters = parameters
@@ -105,6 +106,8 @@ class Operation(object):
             page=int(parameters.get('sample_page', 1)),
             describe=parameters.get('describe_sample') in [1, '1', 'true', True],
             use_types=parameters.get('use_types_in_sample'))
+
+        self.workflow = parameters.pop('workflow_obj', {})
 
     def generate_code(self):
         raise NotImplementedError(
