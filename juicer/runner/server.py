@@ -316,7 +316,7 @@ class JuicerServer:
         python_cmd = json.loads(cluster.get('general_parameters', '{}')).get('lemonade.python.path') # when starting juicer, cluster can be empty
         
         if not python_cmd:
-            python_cmd = self.config['juicer'].get('minion', {}).get('python') or sys.executabe
+            python_cmd = self.config['juicer'].get('minion', {}).get('python') or sys.executable
         
         minion_cmd = ['nohup', python_cmd, self.minion_executable,
                       '-w', str(workflow_id), '-a', str(app_id), '-t', platform,
