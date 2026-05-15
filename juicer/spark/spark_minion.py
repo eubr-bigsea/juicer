@@ -64,7 +64,7 @@ class SparkMinion(Minion):
         self.module = None
 
         self._state = {}
-        self.transpiler = SparkTranspiler(config)
+        self.transpiler = SparkTranspiler(None, config)
         self.config = config
         configuration.set_config(self.config)
         self.juicer_listener_enabled = False
@@ -519,6 +519,7 @@ class SparkMinion(Minion):
             if not freeze and code is None:
 
                 with codecs.open(generated_code_path, 'w', 'utf8') as out:
+                    self.transpiler.workflow_loader = loader
                     self.transpiler.transpile(
                         loader.workflow, loader.graph, {}, out, job_id,
                         self._state, persist=app_configs.get('persist', True))

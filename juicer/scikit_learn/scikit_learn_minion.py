@@ -58,7 +58,7 @@ class ScikitLearnMinion(Minion):
         self._state = {}
         self.config = config
 
-        self.transpiler = ScikitLearnTranspiler(config)
+        self.transpiler = ScikitLearnTranspiler(None, config)
         # FIXME Unused
         # configuration.set_config(self.config)
 
@@ -281,6 +281,7 @@ class ScikitLearnMinion(Minion):
             generated_code_path = os.path.join(
                 self.tmp_dir, '{}.py'.format(module_name))
 
+            self.transpiler.workflow_loader = loader
             with codecs.open(generated_code_path, 'w', 'utf8') as out:
                 self.transpiler.transpile(
                     loader.workflow, loader.graph, {}, out, job_id,

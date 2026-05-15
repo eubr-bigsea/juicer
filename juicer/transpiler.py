@@ -78,11 +78,11 @@ class Transpiler(object):
     __slots__ = (
         'configuration', 'current_task_id', 'operations', 'port_id_to_port',
         'slug_to_op_id', 'template_dir', 'sample_size', 'verbosity', 'target_meta',
-        'sample_style'
+        'sample_style', 'workflow_loader'
     )
 
-    def __init__(self, configuration, template_dir, slug_to_op_id=None,
-                 port_id_to_port=None):
+    def __init__(self, workflow_loader, configuration, template_dir, slug_to_op_id=None,
+                port_id_to_port=None):
         if slug_to_op_id is None:
             self.slug_to_op_id = {}
         else:
@@ -102,6 +102,7 @@ class Transpiler(object):
         self.target_meta = {}
         self.sample_style = 'ORIGINAL'
         self.transpiler_utils = TranspilerUtils(self)
+        self.workflow_loader = workflow_loader
 
     def _assign_operations(self):
         raise NotImplementedError()
@@ -173,7 +174,6 @@ class Transpiler(object):
     def get_instances(self, opt: GenerateCodeParams):
         instances = OrderedDict()
         graph = opt.graph
-
         audit_events = []
         for i, task_id in enumerate(opt.tasks_ids):
             if task_id not in graph.nodes:

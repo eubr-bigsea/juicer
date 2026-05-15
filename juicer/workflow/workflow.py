@@ -47,6 +47,7 @@ class Workflow(object):
     WORKFLOW_GRAPH_TARGET_ID_PARAM = 'target_id'
 
     log = logging.getLogger(__name__)
+    variable_regex = re.compile(r'\$\{([_A-Za-z][_A-Za-z0-9]*)(?:\|(.+?))?\}')
 
     def __init__(self, workflow_data, config, query_operations=None,
                  query_data_sources=None, lang='en',
@@ -557,11 +558,11 @@ class Workflow(object):
         #     if self.query_operations:
         #         return self.query_operations()
 
-    def _replace(self, data, all_vars, var_re, task):
+    def replace_variables(self, data, all_vars, task):
         if isinstance(data, dict):
-            return {k: self._replace(v, all_vars, var_re, task) for k, v in data.items()}
+            return {k: self.replace_variables(v, all_vars, task) for k, v in data.items()}
         elif isinstance(data, list):
-            return [self._replace(i, all_vars, var_re, task) for i in data]
+            return [self.replace_variables(i, all_vars, task) for i in data]
         else:
             if isinstance(data, (int, float)):
                 return data
@@ -577,7 +578,7 @@ class Workflow(object):
                     else:
                         return str(all_vars.get(variable))
 
-                return var_re.sub(replacer, data)
+                return self.variable_regex.sub(replacer, data)
 
             elif data is None:
                 ...
@@ -593,6 +594,38 @@ class Workflow(object):
         """
         Handles variable substitution
         """
+        all_vars = self.prepair_variables(custom_vars)
+
+        for task in self.workflow['tasks']:
+            if 'forms' in task and (task['enabled'] or self.include_disabled):
+                task['forms'] = self.replace_variables(
+                    task['forms'], all_vars, task)
+
+                # Handle properties associated to variables
+                for prop, value in task['forms'].items():
+                    if value.get('publishing_enabled') and value.get('variable'):
+                        var_name = value.get('variable')
+                        if var_name in all_vars:
+                            v = all_vars[var_name]
+                            # print(f'>>> Setting {prop} to {v}
+                            # (was {value["value"]}) {type(value["value"])}')
+                            if isinstance(value['value'], list):
+                                value['value'] = [f"{v}"]
+                            elif isinstance(value['value'], (str,)):
+                                if v[0] == '[' and v[-1] == ']':
+                                    value['value'] = f"['{v}']"
+                                else:
+                                    value['value'] = f"{v}"
+                            else:
+                                value['value'] = f'{v}'
+                        else:
+                            raise ValueError(
+                                 gettext(
+                                     'Undefined variable "{}" used in task "{}"'
+                                     ).format(var_name, task['name']))
+        self.workflow['expanded_variables'] = all_vars
+
+    def prepair_variables(self, custom_vars):
         now = datetime.datetime.now()
         # date_at_min = datetime.datetime.combine(datetime.datetime.now(),
         #                                         datetime.time.min)
@@ -639,33 +672,4 @@ class Workflow(object):
                     var_value = str(int(var_value))
 
                 all_vars[variable['name']] = var_value
-
-        variable_re = re.compile(r'\$\{([_A-Za-z][_A-Za-z0-9]*)(?:\|(.+?))?\}')
-        for task in self.workflow['tasks']:
-            if 'forms' in task and (task['enabled'] or self.include_disabled):
-                task['forms'] = self._replace(
-                    task['forms'], all_vars, variable_re, task)
-
-                # Handle properties associated to variables
-                for prop, value in task['forms'].items():
-                    if value.get('publishing_enabled') and value.get('variable'):
-                        var_name = value.get('variable')
-                        if var_name in all_vars:
-                            v = all_vars[var_name]
-                            # print(f'>>> Setting {prop} to {v}
-                            # (was {value["value"]}) {type(value["value"])}')
-                            if isinstance(value['value'], list):
-                                value['value'] = [f"{v}"]
-                            elif isinstance(value['value'], (str,)):
-                                if v[0] == '[' and v[-1] == ']':
-                                    value['value'] = f"['{v}']"
-                                else:
-                                    value['value'] = f"{v}"
-                            else:
-                                value['value'] = f'{v}'
-                        else:
-                            raise ValueError(
-                                 gettext(
-                                     'Undefined variable "{}" used in task "{}"'
-                                     ).format(var_name, task['name']))
-        self.workflow['expanded_variables'] = all_vars
+        return all_vars
