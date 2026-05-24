@@ -40,7 +40,7 @@ pyinotify==0.9.6
 pyparsing==3.0.9
 pytest-cov==4.0.0
 pytest-html==3.2.0
-pytest==7.2.0
+pytest==9.0.3
 python-socketio==5.7.2
 pytz==2022.7
 redis==4.4.0
