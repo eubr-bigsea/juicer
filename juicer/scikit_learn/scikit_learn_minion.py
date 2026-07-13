@@ -464,6 +464,8 @@ class ScikitLearnMinion(Minion):
         log.info('Requesting termination (workflow_id=%s,app_id=%s) %s %s',
                  self.workflow_id, self.app_id,
                  ' due idleness timeout. Msg: ', termination_msg)
+        self.state_control.push_app_queue(self.app_id,
+                                          json.dumps(termination_msg))
         self.state_control.push_start_queue(json.dumps(termination_msg))
 
     def message_processed(self, msg_type, wid, job_id, workflow):
