@@ -117,7 +117,7 @@ class MetaMinion(Minion):
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
         # No new message, end the minion
-        if msg is None and self.active_messages == 0:
+        if msg is None and self.active_messages <= 0:
             self._timeout_termination()
             return
         if msg is None:

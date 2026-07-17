@@ -255,7 +255,7 @@ class SparkMinion(Minion):
                                                timeout=self.IDLENESS_TIMEOUT)
 
         if msg is None:
-            if self.active_messages == 0:
+            if self.active_messages <= 0:
                 self._timeout_termination()
             return
 
