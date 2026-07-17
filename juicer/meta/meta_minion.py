@@ -108,7 +108,8 @@ class MetaMinion(Minion):
     def _process_message(self):
         self._process_message_nb()
         if self.job_future:
-            self.job_future.result()
+            return self.job_future.result()
+        return True
 
     def _process_message_nb(self):
         # Get next message
@@ -179,6 +180,7 @@ class MetaMinion(Minion):
                     message=str(e),
                     name='update job',
                     status='ERROR', identifier=job_id)
+                self.terminate()
             except Exception as e:
                 import traceback
                 tb = traceback.format_exception(*sys.exc_info())
@@ -188,6 +190,7 @@ class MetaMinion(Minion):
                     message=gettext('Unhandled error'),
                     name='update job',
                     status='ERROR', identifier=job_id)
+                self.terminate()
 
         elif msg_type == juicer_protocol.TERMINATE:
             job_id = msg_info.get('job_id', None)
@@ -293,20 +296,26 @@ class MetaMinion(Minion):
         return target_workflow
 
     def perform_execute(self, job_id, workflow, app_configs, cluster_info):
+        result = True
         if workflow.get('type') == 'MODEL_BUILDER':
-            self._execute_model_builder(job_id, workflow, app_configs,
-                                        cluster_info)
+            result = self._execute_model_builder(job_id, workflow, app_configs,
+                                                cluster_info)
         elif workflow.get('type') == 'SQL':
-            self._execute_sql_workflow(job_id, workflow, app_configs,
-                                        cluster_info)
+            result = self._execute_sql_workflow(job_id, workflow, app_configs,
+                                                cluster_info)
         elif workflow.get('type') == 'BATCH':
-            self._execute_batch(job_id, workflow, app_configs, cluster_info)
+            result = self._execute_batch(job_id, workflow, app_configs, cluster_info)
         else:
-            self._execute_target_workflow(job_id, workflow, app_configs,
-                                          cluster_info)
+            result = self._execute_target_workflow(job_id, workflow, app_configs,
+                                                  cluster_info)
+        if not result:
+            log.warning('Execution failed. Terminating minion.')
+            self.terminate()
+
         if app_configs.get('job_type') == 'BATCH':
             log.info('Job type is BATCH => Finishing.')
             self.terminate()
+        return result
 
     def _execute_batch(self, job_id, workflow, app_configs, cluster_info=None):
         loader = Workflow(workflow, self.config, lang=self.current_lang)
@@ -325,7 +334,7 @@ class MetaMinion(Minion):
             self.target_minion = SparkMinion(
                 self.redis_conn, self.workflow_id,
                 self.app_id, self.config, self.current_lang)
-        self.target_minion.perform_execute(job_id, workflow, app_configs, code)
+        return self.target_minion.perform_execute(job_id, workflow, app_configs, code)
 
     def _execute_model_builder(self, job_id, workflow, app_configs,
                                cluster_info=None):
@@ -364,8 +373,7 @@ class MetaMinion(Minion):
 
         self.target_minion.transpiler.transpiler_utils.imports.update(
             self.transpiler.transpiler_utils.imports)
-        self.target_minion._process_message()
-        #self.target_minion.perform_execute(job_id, workflow, app_configs, code)
+        return self.target_minion._process_message()
 
     def _execute_sql_workflow(self, job_id, workflow, app_configs,
                               cluster_info=None):
@@ -403,7 +411,7 @@ class MetaMinion(Minion):
         msg = json.dumps(payload, cls=DateTimeEncoder)
 
         self.target_minion.state_control.push_app_queue(self.app_id, msg)
-        self.target_minion._process_message()
+        return self.target_minion._process_message()
 
     def _execute_target_workflow(self, job_id, workflow, app_configs,
                                  cluster_info=None):
