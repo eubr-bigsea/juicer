@@ -106,11 +106,14 @@ class ScikitLearnMinion(Minion):
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(_('Unhandled error (%s) \n>%s'),
                               str(ee), '>\n'.join(tb))
+                self.terminate()
+                break
 
     def _process_message(self):
         self._process_message_nb()
         if self.job_future:
-            self.job_future.result()
+            return self.job_future.result()
+        return True
 
     def _process_message_nb(self):
         # Get next message
@@ -118,7 +121,7 @@ class ScikitLearnMinion(Minion):
                                                block=True,
                                                timeout=self.IDLENESS_TIMEOUT)
 
-        if msg is None and self.active_messages == 0:
+        if msg is None and self.active_messages <= 0:
             self._timeout_termination()
             return
         if msg is None:
@@ -387,8 +390,12 @@ class ScikitLearnMinion(Minion):
             self._generate_output(str(ee), 'ERROR', code=1000)
             result = False
 
-        # Deprecated: not used
-        # self.message_processed('execute', workflow['id'], job_id, workflow)
+        self.message_processed('execute', workflow['id'], job_id, workflow)
+
+        if not result:
+            log.warning(_('Execution failed. Terminating minion.'))
+            self._state = {}
+            self.terminate()
 
         return result
 
