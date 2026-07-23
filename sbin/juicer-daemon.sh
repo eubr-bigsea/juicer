@@ -30,7 +30,7 @@ export JUICER_LOG_DIR=${JUICER_LOG_DIR:-${JUICER_HOME}/logs}
 # get pid directory
 export JUICER_PID_DIR=${JUICER_PID_DIR:-/var/run/}
 
-export PYTHONPATH=${JUICER_HOME}:/usr/lib/python2.7/site-packages:/usr/local/python2.7/site-packages/:${PYTHONPATH}
+export PYTHONPATH=${JUICER_HOME}:${PYTHONPATH}
 export PATH=$PATH:$HADOOP_HOME/bin
 export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
 export CLASSPATH="$(hadoop classpath --glob):$CLASSPATH"
