@@ -238,11 +238,14 @@ class SparkMinion(Minion):
                 tb = traceback.format_exception(*sys.exc_info())
                 log.exception(_('Unhandled error (%s) \n>%s'),
                               str(ee), '>\n'.join(tb))
+                self.terminate()
+                break
 
     def _process_message(self):
         self._process_message_nb()
         if self.job_future:
-            self.job_future.result()
+            return self.job_future.result()
+        return True
 
     def _process_message_nb(self):
         # Get next message
@@ -252,7 +255,7 @@ class SparkMinion(Minion):
                                                timeout=self.IDLENESS_TIMEOUT)
 
         if msg is None:
-            if self.active_messages == 0:
+            if self.active_messages <= 0:
                 self._timeout_termination()
             return
 
@@ -628,7 +631,14 @@ class SparkMinion(Minion):
             self.config['juicer'].get('minion', {}).get(
                 'terminate_after_run', False))
 
-        if stop:
+        if not result:
+            log.warning(_('Execution failed. Terminating minion.'))
+            self._state = {}
+            if self.is_spark_session_available():
+                self.spark_session.stop()
+                self.spark_session = None
+            self.terminate()
+        elif stop:
             log.warning(
                 _('Minion is configured to stop Spark after each execution'))
             self._state = {}
@@ -935,6 +945,8 @@ class SparkMinion(Minion):
         log.info('Requesting termination (workflow_id=%s,app_id=%s) %s %s',
                  self.workflow_id, self.app_id,
                  ' due idleness timeout. Msg: ', termination_msg)
+        self.state_control.push_app_queue(self.app_id,
+                                          json.dumps(termination_msg))
         self.state_control.push_start_queue(json.dumps(termination_msg))
 
     def message_processed(self, msg_type, wid, job_id, workflow):

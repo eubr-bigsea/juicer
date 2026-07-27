@@ -184,7 +184,7 @@ class JuicerServer:
                 cluster = msg_info.get('cluster')
                 #self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
                 #                        msg, platform, cluster)
-                self._terminate_minion(workflow_id, cluster)
+                self._terminate_minion(workflow_id, cluster, app_id)
             elif msg_type in (juicer_protocol.MORE_DATA,
                     juicer_protocol.ANALYSE_ATTRIBUTE):
                 self._forward_to_minion(msg_type, workflow_id, app_id, job_id,
@@ -347,16 +347,17 @@ class JuicerServer:
         self.sub_processes[workflow_id] = proc
         return proc
 
-    def _terminate_minion(self, workflow_id, cluster=None):
+    def _terminate_minion(self, workflow_id, cluster=None, app_id=None):
         # In this case we got a request for terminating this workflow
         # execution instance (app). Thus, we are going to explicitly
         # terminate the workflow, clear any remaining metadata and return
         try:
             active_minions = self.redis_conn.hgetall('active_minions')
+            minion_key = str(app_id or workflow_id)
             #if workflow_id not in active_minions:
             #    log.warning('(%s, %s) not in active minions ', workflow_id, workflow_id)
             log.info(_("Terminating (workflow_id=%s,app_id=%s)"),
-                    workflow_id, workflow_id)
+                    workflow_id, minion_key)
 
             log.info('*' * 40)
             log.info("Terminating workflow %s in cluster %s", workflow_id, cluster)
@@ -365,11 +366,11 @@ class JuicerServer:
                 # try to kill Job in KB8s
                 delete_kb8s_job(workflow_id, cluster)
 
-            elif workflow_id in active_minions:
-                minion_pid = int(active_minions[workflow_id])
+            elif minion_key in active_minions:
+                minion_pid = int(active_minions[minion_key])
                 if minion_pid > 1:
                     # os.system('kill - {}'.format(active_minions[workflow_id]))
-                    log.info('SIGKILL %s', active_minions[workflow_id])
+                    log.info('SIGKILL %s', active_minions[minion_key])
                     my_pgid = os.getpgid(os.getpid())
                     minion_pgid = os.getpgid(minion_pid)
                     log.info("Minion in same process group as server? %s. Pid %s",
