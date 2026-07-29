@@ -594,7 +594,7 @@ class Workflow(object):
         """
         Handles variable substitution
         """
-        all_vars = self.prepair_variables(custom_vars)
+        all_vars = self.prepare_variables(custom_vars)
 
         for task in self.workflow['tasks']:
             if 'forms' in task and (task['enabled'] or self.include_disabled):
@@ -625,7 +625,10 @@ class Workflow(object):
                                      ).format(var_name, task['name']))
         self.workflow['expanded_variables'] = all_vars
 
-    def prepair_variables(self, custom_vars):
+    def prepare_variables(self, custom_vars):
+        print('*' * 20)
+        print(self.workflow)
+        print('*' * 20)
         now = datetime.datetime.now()
         # date_at_min = datetime.datetime.combine(datetime.datetime.now(),
         #                                         datetime.time.min)
@@ -672,4 +675,6 @@ class Workflow(object):
                     var_value = str(int(var_value))
 
                 all_vars[variable['name']] = var_value
+        for variable in self.workflow.get('global_variables', []):
+            all_vars[variable['name']] = variable.get('value')
         return all_vars

@@ -41,6 +41,8 @@ def save_job_source_code(base_url, token, job_id, source):
 def set_pipeline_run_variable_data(
     base_url: str, token: str, pipeline_run_id: int, name: str, value: typing.Any
 ):
+    if pipeline_run_id is None:
+        return
     headers = {"X-Auth-Token": str(token), "Content-Type": "application/json"}
     url = f"{base_url}/pipeline-runs/context"
 
