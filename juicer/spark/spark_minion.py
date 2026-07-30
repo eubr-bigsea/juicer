@@ -431,10 +431,17 @@ class SparkMinion(Minion):
                 if gp.get("lemonade.spark.user"):
                     self.cluster_options['lemonade.spark.user'] = gp.get("lemonade.spark.user")
                 if gp.get('lemonade.spark.version'):
+                    spark_ver = str(gp.get('lemonade.spark.version')).strip()
                     self.transpiler.spark_version = tuple([
                                 int(v) for v in
-                                gp.get('lemonade.spark.version').split('.')
+                                spark_ver.split('.')
                             ])
+                    if spark_ver == '2.3.2':
+                        os.environ['JAVA_HOME'] = '/usr/lib/jvm/java-8-openjdk-amd64'
+                    else:
+                        os.environ['JAVA_HOME'] = '/usr/lib/jvm/java-17-openjdk-amd64'
+                    log.info(gettext.gettext('Setting JAVA_HOME={}').format(
+                        os.environ['JAVA_HOME']))
                 if gp.get('lemonade.spark.dir'):
                     self.spark_dir = gp.get('lemonade.spark.dir')
                     log.info(gettext.gettext('Setting SPARK_HOME={}').format(
