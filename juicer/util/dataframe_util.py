@@ -966,7 +966,7 @@ class SparkObjectProxy(object):
                         target = r
 
                 method_to_call = getattr(target, name)
-                if isinstance(method_to_call, collections.Callable):
+                if callable(method_to_call):
                     result = method_to_call(*args, **kwargs)
                 else:
                     result = method_to_call
@@ -985,12 +985,12 @@ class SparkObjectProxy(object):
                 return result
             else:
                 method_to_call = getattr(self.wrapped_obj, name)
-                if isinstance(method_to_call, collections.Callable):
+                if callable(method_to_call):
                     return method_to_call(*args, **kwargs)
                 else:
                     return method_to_call
 
-        return (wrapper if isinstance(member_to_call, collections.Callable)
+        return (wrapper if callable(member_to_call)
                 else member_to_call)
 
 
@@ -1062,6 +1062,8 @@ def handle_spark_exception(e):
             found = re.findall(r'Invalid view name: (.+);', err_desc)
             if found:
                 raise ValueError(f'Nome inválido para view: {found[0]}.')
+    elif ("DIVIDE_BY_ZERO" in str(e)) or ("division by zero" in str(e)):
+        raise ValueError(_('Division by zero. Use `try_divide` to tolerate divisor being 0 and return NULL instead.'))
     elif isinstance(e, KeyError):
         value_expr = re.compile(r'No StructField named (.+)\'$')
         found = value_expr.findall(str(e))
