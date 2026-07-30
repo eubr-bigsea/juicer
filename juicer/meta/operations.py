@@ -485,7 +485,7 @@ class ExecuteScriptOperation(ExecutePythonOperation):
         self.input_port_name = 'input data 1'
 
         workflow_loader: Workflow = parameters.get('transpiler').workflow_loader
-        all_vars = workflow_loader.prepair_variables(None)
+        all_vars = workflow_loader.prepare_variables(None)
 
         # Test if file exists in file system
         if os.path.isfile(self.script):
