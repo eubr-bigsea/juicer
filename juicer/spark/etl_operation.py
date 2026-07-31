@@ -1420,16 +1420,13 @@ class ExecuteSQLOperation(Operation):
 
     def generate_code(self):
         code = dedent("""
-        from pyspark.sql import SQLContext
-
         # Input data
-        sql_context = SQLContext(spark_session.sparkContext)
         if {in1} is not None:
-            sql_context.registerDataFrameAsTable({in1}, 'ds1')
+            {in1}.createOrReplaceTempView('ds1')
         if {in2} is not None:
-            sql_context.registerDataFrameAsTable({in2}, 'ds2')
+            {in2}.createOrReplaceTempView('ds2')
         query = {query}
-        {out} = sql_context.sql(query)
+        {out} = spark_session.sql(query)
         names = {names}
         if names is not None and len(names) > 0:
             old_names = {out}.schema.names
