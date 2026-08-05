@@ -25,7 +25,7 @@ class HdfsUtil(object):
 
         parsed_url = urlparse(self.hdfs_url)
         self._server = parsed_url.hostname
-        self._port = parsed_url.port
+        self._port = parsed_url.port or 0
 
     def copy_from_local(self, local_path, hdfs_path):
         fs = pa.hdfs.connect(self._server, self._port)

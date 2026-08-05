@@ -145,7 +145,7 @@ class LoadModel(Operation):
             port = 0
         else:
             hostname = parsed.hostname
-            port = parsed.port
+            port = parsed.port or 0
 
         code = """
         path = '{path}'        
@@ -255,7 +255,7 @@ class SaveModel(Operation):
             port = 0
         else:
             hostname = parsed.hostname
-            port = parsed.port
+            port = parsed.port or 0
         models = self.named_inputs['models']
         if not isinstance(models, list):
             models = [models]

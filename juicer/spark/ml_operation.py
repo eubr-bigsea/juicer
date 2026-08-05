@@ -3493,7 +3493,7 @@ class SaveModelOperation(Operation):
                         # Copy model to HDFS
                         fs = pa.hdfs.connect(
                             host=parsed.hostname,
-                            port=parsed.port,
+                            port=parsed.port or 0,
                             user=parsed.username)
                         overwrite = '{write_mode}' != ''
                         if fs.exists(final_model_path):

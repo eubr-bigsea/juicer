@@ -114,7 +114,7 @@ class DataReaderOperation(sk.DataReaderOperation):
         f = open('{{parsed.path.split('/')[-1]}}', 'rb')
         {%- elif parsed.scheme == 'hdfs'  %}
         fs = pa.hdfs.connect(host='{{parsed.hostname}}', 
-            port={{parsed.port}},
+            port={{parsed.port or 0}},
             user='{{extra_params.get('user', parsed.username) or 'hadoop'}}')
         f = fs.open('{{parsed.path}}', 'rb')
         {%- elif parsed.scheme == 'file' %}
@@ -280,7 +280,7 @@ class SaveOperation(sk.SaveOperation):
             path = '{{path}}'
             {%- if scheme == 'hdfs' and not protect %}
             fs = pa.hdfs.connect(host='{{hdfs_server}}', 
-                                 port={{hdfs_port}},
+                                 port={{hdfs_port or 0}},
                                  user='{{hdfs_user}}')
             exists = fs.exists(path)
             {%- elif scheme == 'file' or protect %}
@@ -399,7 +399,7 @@ class SaveOperation(sk.SaveOperation):
         ctx = dict(protect=protect,
                    path=path if not protect else os.path.basename(path),
                    hdfs_server=parsed.hostname,
-                   hdfs_port=parsed.port,
+                   hdfs_port=parsed.port or 0,
                    hdfs_user=hdfs_user,
                    scheme=parsed.scheme,
                    name=self.name,

@@ -313,7 +313,7 @@ class DataReaderOperation(Operation):
         {%- elif parsed.scheme == 'hdfs'  %}
         file_system = fs.HadoopFileSystem(
             host='{{parsed.hostname}}', #@HIDE_INFO@
-            port={{parsed.port}}, #@HIDE_INFO@
+            port={{parsed.port or 0}}, #@HIDE_INFO@
             user='{{extra_params.get('user', parsed.username) or 'hadoop'}}'  #@HIDE_INFO@
         )
         f = file_system.open_input_file('{{parsed.path}}')
@@ -546,7 +546,7 @@ class SaveOperation(Operation):
             path = '{{path}}'
             from pyarrow import fs as hdfs
             fs = hdfs.HadoopFileSystem(host='{{hdfs_server}}',
-                                 port={{hdfs_port}},
+                                 port={{hdfs_port or 0}},
                                  user='{{hdfs_user}}')
             file_info = fs.get_file_info(path)
             exists = file_info.type != hdfs.FileType.NotFound
@@ -715,7 +715,7 @@ class SaveOperation(Operation):
             protect=protect,
             path=path if not protect else os.path.basename(path),
             hdfs_server=parsed.hostname,
-            hdfs_port=parsed.port,
+            hdfs_port=parsed.port or 0,
             hdfs_user=hdfs_user,
             scheme=parsed.scheme,
             name=self.name,
