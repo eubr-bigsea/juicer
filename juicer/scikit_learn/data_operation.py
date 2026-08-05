@@ -210,7 +210,7 @@ class DataReaderOperation(Operation):
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
-        mode_failfast = self.mode == self.OPT_MODE_FAILFAST
+        mode_failfast = "error" if self.mode == self.OPT_MODE_FAILFAST else "skip"
         protect = (
             self.parameters.get("export_notebook", False)
             or self.parameters.get("plain", False)
@@ -350,7 +350,7 @@ class DataReaderOperation(Operation):
                                  dtype='str',
                                  {%-   endif %}
                                  na_values={{na_values}},
-                                 error_bad_lines={{mode_failfast}})
+                                 on_bad_lines='{{mode_failfast}}')
         f.close()
         {%-   if header == 'infer' %}
         {{output}}.columns = ['attr{{i}}'.format(i=i)
@@ -362,7 +362,7 @@ class DataReaderOperation(Operation):
             encoding='{{encoding}}',
             compression='infer',
             names = ['value'],
-            error_bad_lines={{mode_failfast}})
+            on_bad_lines='{{mode_failfast}}')
         f.close()
         {%- elif format == 'PARQUET' %}
         {{output}} = pd.read_parquet(f, engine='pyarrow')
