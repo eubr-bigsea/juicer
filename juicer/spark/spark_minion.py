@@ -975,6 +975,19 @@ class SparkMinion(Minion):
         self.terminate()
 
     # noinspection PyProtectedMember
+    def _stop_spark_session(self):
+        """
+        Stops and releases the current spark_session, if any, ignoring
+        errors (it may already have been destroyed by another process).
+        """
+        if self.spark_session and multiprocessing.current_process().name == 'main':
+            try:
+                self.spark_session.stop()
+                # self.spark_session.sparkContext.stop()
+                self.spark_session = None
+            except:
+                pass # Ignore, maybe destroyed by other process
+
     def terminate(self):
         """
         This is a handler that reacts to a sigkill signal. The most feasible
@@ -982,16 +995,7 @@ class SparkMinion(Minion):
         minion. In this case, we stop and release any allocated resource
         (spark_session) and kill the subprocess managed in here.
         """
-        if self.spark_session and multiprocessing.current_process().name == 'main':
-            try:
-                # sc = self.spark_session.sparkContext
-
-                self.spark_session.stop()
-                # self.spark_session.sparkContext.stop()
-                self.spark_session = None
-                sc._gateway.shutdown_callback_server()
-            except:
-                pass # Ignore, maybe destroyed by other process
+        self._stop_spark_session()
 
         log.info('Post terminate message in queue')
         self.terminate_proc_queue.put({'terminate': True})

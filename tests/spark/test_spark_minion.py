@@ -818,6 +818,36 @@ def test_minion_terminate():
             assert not minion.is_spark_session_available()
 
 
+# noinspection PyProtectedMember
+def test_minion_stop_spark_session_clears_session_success():
+    """
+    Demo 3 regression test. terminate() used to reference an undefined
+    `sc` right after stopping/clearing the spark session -- always a
+    NameError, always silently swallowed by a bare `except: pass`. The
+    dead line was removed; this proves the session is still properly
+    stopped and cleared, with no exception involved at all.
+    """
+    workflow_id = '6666'
+    app_id = '897447'
+
+    with mock.patch('redis.StrictRedis',
+                    mock_strict_redis_client) as mocked_redis:
+        redis_conn = mocked_redis()
+        minion = SparkMinion(redis_conn=redis_conn,
+                             workflow_id=workflow_id, app_id=app_id,
+                             config=config)
+        fake_session = mock.MagicMock()
+        minion.spark_session = fake_session
+
+        with mock.patch('juicer.spark.spark_minion.multiprocessing.'
+                        'current_process') as mocked_current_process:
+            mocked_current_process.return_value.name = 'main'
+            minion._stop_spark_session()
+
+        fake_session.stop.assert_called_once()
+        assert minion.spark_session is None
+
+
 def test_minion_global_configuration():
     workflow_id = '6666'
     app_id = '897447'

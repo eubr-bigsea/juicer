@@ -537,74 +537,10 @@ class IntersectionOperation(sk.IntersectionOperation):
         return dedent(code)
 
 
-class JoinOperation(sk.JoinOperation):
-    """
-    Joins with another DataFrame, using the given join expression.
-    The expression must be defined as a string parameter.
-    """
-
-    def __init__(self, parameters, named_inputs, named_outputs):
-        super().__init__(parameters, named_inputs, named_outputs)
-
-    def generate_code(self):
-        if not self.has_code:
-            return None
-
-        self.template = """
-
-        """
-        code = """
-        cols1 = [ c + '{suf_l}' for c in {in1}.columns]
-        cols2 = [ c + '{suf_r}' for c in {in2}.columns]
-
-        {in1}.columns = cols1
-        {in2}.columns = cols2
-
-        keys1 = [c + '{suf_l}' for c in {keys1}]
-        keys2 = [c + '{suf_r}' for c in {keys2}]
-        """.format(in1=self.named_inputs['input data 1'],
-                   in2=self.named_inputs['input data 2'],
-                   suf_l=self.suffixes[0], suf_r=self.suffixes[1],
-                   keys1=self.left_attributes, keys2=self.right_attributes)
-
-        # Should be positive boolean logic? ---> '''if self.match_case:'''
-        if not self.match_case:
-            code += """
-        data1_tmp = {in1}[keys1].applymap(lambda col: str(col).lower()).copy()
-        data1_tmp.columns = [c + "_lower" for c in data1_tmp.columns]
-        col1 = list(data1_tmp.columns)
-        data1_tmp = pd.concat([{in1}, data1_tmp], axis=1, sort=False)
-
-        data2_tmp = {in2}[keys2].applymap(lambda col: str(col).lower()).copy()
-        data2_tmp.columns = [c + "_lower" for c in data2_tmp.columns]
-        col2 = list(data2_tmp.columns)
-        data2_tmp = pd.concat([{in2}, data2_tmp], axis=1, sort=False)
-
-        {out} = pd.merge(data1_tmp, data2_tmp, left_on=col1, right_on=col2,
-            copy=False, suffixes={suffixes}, how='{type}')
-        # Why drop col_lower?
-        {out}.drop(col1+col2, axis=1, inplace=True)
-                """.format(out=self.output, type=self.join_type,
-                           in1=self.named_inputs['input data 1'],
-                           in2=self.named_inputs['input data 2'],
-                           suffixes=self.suffixes)
-        else:
-            code += """
-        {out} = pd.merge({in1}, {in2}, how='{type}',
-                suffixes={suffixes},
-                left_on=keys1, right_on=keys2).copy()
-                """.format(out=self.output, type=self.join_type,
-                           in1=self.named_inputs['input data 1'],
-                           in2=self.named_inputs['input data 2'],
-                           suffixes=self.suffixes)
-
-        if self.not_keep_right_keys:
-            code += """
-        cols_to_remove = keys2
-        {out}.drop(cols_to_remove, axis=1, inplace=True)
-            """.format(out=self.output)
-
-        return dedent(code)
+# JoinOperation adds nothing over the scikit-learn base implementation
+# (same pd.merge-based generate_code()); delegate directly instead of
+# duplicating it.
+JoinOperation = sk.JoinOperation
 
 
 class RenameAttrOperation(sk.RenameAttrOperation):
