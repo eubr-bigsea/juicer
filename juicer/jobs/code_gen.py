@@ -106,15 +106,9 @@ def _generate(workflow_id, job_id, execute_main, params, config, out=sys.stdout,
 
             transpiler = SparkTranspiler(loader, configuration.get_config(),
                                          slug_to_op_id, port_id_to_port)
-        elif loader.platform['slug'] == "compss":
-            from juicer.compss.transpiler import COMPSsTranspiler
-            transpiler = COMPSsTranspiler(loader, configuration.get_config())
         elif loader.platform['slug'] == "scikit-learn":
             from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
             transpiler = ScikitLearnTranspiler(loader, configuration.get_config())
-        elif loader.platform['slug'] == 'keras':
-            from juicer.keras.transpiler import KerasTranspiler
-            transpiler = KerasTranspiler(loader, configuration.get_config())
         elif loader.platform.get('plugin'):
             plugin_factories = plugin_util.prepare_and_get_plugin_factory(
                 configuration.get_config(), loader.platform.get('id'))
