@@ -1726,7 +1726,6 @@ class GBTClassifierOperation(ClassifierOperation):
                         'treeWeights']
 
         param_grid = parameters.get('paramgrid', {})
-        ctor_params = {}
         params_name = [
             ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
              lambda x: x in ('1', 1, 'true', True)],
@@ -1740,9 +1739,7 @@ class GBTClassifierOperation(ClassifierOperation):
             ['subsamplingRate', self.SUBSAMPLING_RATE_PARAM, float],
 
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        ctor_params = build_ctor_params(param_grid, params_name)
         self.name = 'classification.GBTClassifier(**{kwargs})'.format(
             kwargs=ctor_params)
 
@@ -1761,7 +1758,6 @@ class NaiveBayesClassifierOperation(ClassifierOperation):
 
         # param_grid = parameters.get('paramgrid', {})
         param_grid = parameters
-        ctor_params = {}
         params_name = [
             ['smoothing', self.SMOOTHING_PARAM, float],
             ['modelType', self.MODEL_TYPE_PARAM, str],
@@ -1769,9 +1765,7 @@ class NaiveBayesClassifierOperation(ClassifierOperation):
              lambda x: [float(y) for y in x.split(',')]],
             ['weightCol', self.WEIGHT_ATTR_PARAM, str],
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        ctor_params = build_ctor_params(param_grid, params_name)
 
         self.name = 'classification.NaiveBayes(**{kwargs})'.format(
             kwargs=ctor_params)
@@ -1797,7 +1791,6 @@ class RandomForestClassifierOperation(ClassifierOperation):
 
         # param_grid = parameters.get('paramgrid', {})
         param_grid = parameters
-        ctor_params = {}
         params_name = [
             ['impurity', self.IMPURITY_PARAM, str],
             ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
@@ -1810,9 +1803,7 @@ class RandomForestClassifierOperation(ClassifierOperation):
             ['numTrees', self.NUM_TREES_PARAM, int],
             ['subsamplingRate', self.SUBSAMPLING_RATE_PARAM, float],
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        ctor_params = build_ctor_params(param_grid, params_name)
 
         self.name = 'classification.RandomForestClassifier(**{kwargs})'.format(
             kwargs=ctor_params)
@@ -1830,7 +1821,6 @@ class PerceptronClassifier(ClassifierOperation):
         ClassifierOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.metrics = ['layers', 'numFeatures', 'weights']
-        ctor_params = {}
         params_name = [
             ['blockSize', self.BLOCK_SIZE_PARAM, int],
             ['maxIter', self.MAX_ITER_PARAM, int],
@@ -1839,9 +1829,7 @@ class PerceptronClassifier(ClassifierOperation):
             ['layers', self.LAYERS_PARAM,
              lambda x: [int(v) for v in x.split(',') if v]]
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in parameters and parameters.get(lemonade_name):
-                ctor_params[spark_name] = f(parameters.get(lemonade_name))
+        ctor_params = build_ctor_params(parameters, params_name)
         self.name = 'classification.MultilayerPerceptronClassifier(**{k})' \
             .format(k=ctor_params)
 
