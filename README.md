@@ -15,8 +15,8 @@ runnable in Apache Spark.
 Such data sets can not be used as input to other workflows, except if explicitly specified.
 They are used to enable Citron to show intermediate processed data to the user.
 
-Under the hood, Lemonade generates code targeting a distributed processing platform,
-such as COMPSs or Spark. Current version supports only Spark and it is executed in batch mode.
+Under the hood, Lemonade generates code targeting a distributed processing platform.
+Current version supports only Spark and it is executed in batch mode.
 Future versions may implement support to interactive execution.
 This kind of execution has advantages because keeping Spark context loaded cuts
 out any overhead when starting the processing environment and data loading.

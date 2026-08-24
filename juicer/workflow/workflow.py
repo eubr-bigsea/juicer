@@ -83,7 +83,7 @@ class Workflow(object):
         # Topological sorted tasks according to their dependencies
         self.sorted_tasks = []
 
-        # Spark or COMPSs
+        # e.g. 'spark'
         self.platform = workflow_data.get('platform', {})
 
         if self.platform['slug'] == 'spark':
