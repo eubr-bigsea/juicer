@@ -6,7 +6,3 @@ class JuicerException(Exception):
         else:
             self.code = 501
         Exception.__init__(self, *args, **kwargs)
-
-
-class InvalidGeneratedCode(JuicerException):
-    pass
