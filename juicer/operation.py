@@ -289,3 +289,99 @@ class TransformModelOperation(Operation):
         # by filling missing alias with the attribute name suffixed by _indexed.
         return [x[1] or '{}_{}'.format(x[0], suffix) for x in
                 zip_longest(attributes, aliases[:len(attributes)])]
+
+
+# ---------------------------------------------------------------------------
+# Shared __init__ parameter-parsing helpers.
+#
+# These are used by both juicer/spark/etl_operation.py and
+# juicer/scikit_learn/etl_operation.py for the few operation classes whose
+# parameter parsing (as opposed to generate_code(), which legitimately
+# differs per backend) is genuinely identical between the two backends.
+# ---------------------------------------------------------------------------
+
+def parse_execute_python_params(parameters, named_outputs, order, cls,
+                                 python_code_param):
+    """ Shared __init__ parsing for ExecutePythonOperation: validates the
+    required code parameter and computes the two default output names.
+    Identical in the spark and scikit_learn backends.
+    """
+    if python_code_param not in parameters:
+        msg = _("Required parameter {} must be informed for task {}")
+        raise ValueError(msg.format(python_code_param, cls))
+
+    code = parameters.get(python_code_param)
+    out1 = named_outputs.get('output data 1', 'out_1_{}'.format(order))
+    out2 = named_outputs.get('output data 2', 'out_2_{}'.format(order))
+    return code, out1, out2
+
+
+def parse_filter_params(parameters, named_outputs, order, cls,
+                         filter_param, advanced_filter_param):
+    """ Shared __init__ parsing for FilterOperation: validates that at least
+    one of the filter/advanced-filter parameters is informed and extracts
+    filter, advanced_filter and output. Identical in the spark and
+    scikit_learn backends (has_code is computed differently by each backend,
+    so it is left for each __init__ to set).
+    """
+    if filter_param not in parameters and advanced_filter_param \
+            not in parameters:
+        raise ValueError(
+            _("Parameter '{}' must be informed for task {}".format(
+                filter_param, cls)))
+
+    advanced_filter = parameters.get(advanced_filter_param) or []
+    filter_ = parameters.get(filter_param) or []
+    output = named_outputs.get('output data', 'out_{}'.format(order))
+    return filter_, advanced_filter, output
+
+
+def parse_transformation_expression(parameters, named_outputs, order, cls,
+                                     expression_param):
+    """ Shared __init__ parsing for TransformationOperation: validates the
+    required expression parameter and computes the default output name.
+    Identical in the spark and scikit_learn backends. Caller must only
+    invoke this when has_code is True (matches original behavior, where
+    expressions/output are never set otherwise).
+    """
+    if expression_param not in parameters:
+        msg = _("Parameter must be informed for task {}.")
+        raise ValueError(msg.format(expression_param, cls))
+
+    expressions = parameters[expression_param]
+    output = named_outputs.get('output data', 'sampled_data_{}'.format(order))
+    return expressions, output
+
+
+def parse_cast_params(parameters, named_inputs, named_outputs, order,
+                       contains_results, cls, attributes_param, error_param,
+                       invalid_values_param, parse_date_format):
+    """ Shared __init__ parsing for CastOperation: has_code, output, input,
+    errors/panda_errors/invalid_values and the cast attributes (with date
+    formats translated via parse_date_format) are computed identically in
+    the spark and scikit_learn backends.
+    """
+    has_code = len(named_inputs) == 1 and any(
+        [len(named_outputs) >= 1, contains_results])
+    output = named_outputs.get('output data', 'output_data_{}'.format(order))
+    input_ = named_inputs.get('input data')
+
+    errors = parameters.get(error_param, 'coerce') or 'coerce'
+    panda_errors = 'coerce' if errors == 'move' else errors
+    invalid_values = parameters.get(
+        invalid_values_param, '_invalid') or '_invalid'
+
+    attributes = None
+    if has_code:
+        if attributes_param in parameters:
+            attributes = parameters[attributes_param]
+            for attr in attributes:
+                if 'formats' in attr:
+                    attr['formats'] = parse_date_format(attr['formats'])
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    'attributes', cls))
+
+    return (has_code, output, input_, errors, panda_errors, invalid_values,
+            attributes)
