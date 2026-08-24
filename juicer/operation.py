@@ -24,6 +24,17 @@ TraceabilityData = namedtuple(
     'input, attribute, derived_from, was_value')
 
 
+def build_ctor_params(param_grid, params_name):
+    """Build target-language constructor kwargs from a
+    (target_name, lemonade_name, cast_fn) table and a resolved param grid."""
+    ctor_params = {}
+    for target_name, lemonade_name, cast in params_name:
+        value = param_grid.get(lemonade_name)
+        if lemonade_name in param_grid and value:
+            ctor_params[target_name] = cast(value)
+    return ctor_params
+
+
 # noinspection PyClassHasNoInit
 class ResultType:
     VISUALIZATION = 'VISUALIZATION'

@@ -15,7 +15,7 @@ except ImportError:
 from textwrap import dedent
 
 from juicer.deploy import Deployment, DeploymentTask, DeploymentFlow
-from juicer.operation import Operation, ReportOperation
+from juicer.operation import Operation, ReportOperation, build_ctor_params
 from juicer.service import limonero_service
 from juicer.service.limonero_service import query_limonero
 
@@ -1614,7 +1614,6 @@ class SvmClassifierOperation(ClassifierOperation):
                         'numFeatures']
 
         param_grid = parameters.get('paramgrid', {})
-        ctor_params = {}
         params_name = [
             ['maxIter', self.MAX_ITER_PARAM, int],
             ['standardization', self.STANDARDIZATION_PARAM,
@@ -1624,9 +1623,7 @@ class SvmClassifierOperation(ClassifierOperation):
             ['weightCol', self.WEIGHT_ATTR_PARAM, str],
 
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        ctor_params = build_ctor_params(param_grid, params_name)
 
         self.name = 'classification.LinearSVC(**{kwargs})'.format(
             kwargs=ctor_params)
@@ -1657,7 +1654,6 @@ class LogisticRegressionClassifierOperation(ClassifierOperation):
 
         # param_grid = parameters.get('paramgrid', {})
         param_grid = parameters
-        ctor_params = {}
         params_name = [
             ['weightCol', self.WEIGHT_COL_PARAM, str],
             ['family', self.FAMILY_PARAM, str],
@@ -1671,9 +1667,7 @@ class LogisticRegressionClassifierOperation(ClassifierOperation):
             ['thresholds', self.THRESHOLDS_PARAM,
              lambda x: [float(y) for y in x.split(',')]],
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        ctor_params = build_ctor_params(param_grid, params_name)
 
         self.name = 'classification.LogisticRegression(**{kwargs})'.format(
             kwargs=ctor_params)
@@ -1697,7 +1691,6 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
 
         # param_grid = parameters.get('paramgrid', {})
         param_grid = parameters
-        ctor_params = {}
         params_name = [
             ['maxBins', self.MAX_BINS_PARAM, int],
             ['cacheNodeIds', self.CACHE_NODE_IDS_PARAM,
@@ -1708,9 +1701,7 @@ class DecisionTreeClassifierOperation(ClassifierOperation):
             ['impurity', self.IMPURITY_PARAM, str],
 
         ]
-        for spark_name, lemonade_name, f in params_name:
-            if lemonade_name in param_grid and param_grid.get(lemonade_name):
-                ctor_params[spark_name] = f(param_grid.get(lemonade_name))
+        ctor_params = build_ctor_params(param_grid, params_name)
 
         self.name = 'classification.DecisionTreeClassifier(**{kwargs})'.format(
             kwargs=ctor_params)
