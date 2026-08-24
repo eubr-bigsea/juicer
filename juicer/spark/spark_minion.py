@@ -968,7 +968,7 @@ class SparkMinion(Minion):
         self.state_control.push_app_queue(
                 self.app_id,
                 json.dumps(msg_processed,
-                    cls=dataframe_util.CustomEncoder))
+                    default=dataframe_util.custom_json_default))
 
     # noinspection PyUnusedLocal
     def _terminate(self, _signal, _frame):

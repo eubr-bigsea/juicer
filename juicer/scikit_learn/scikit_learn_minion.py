@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from juicer.runner import configuration
 from juicer.runner import protocol as juicer_protocol
 
-from juicer.util.dataframe_util import CustomEncoder
+from juicer.util.dataframe_util import custom_json_default
 from juicer.runner.minion_base import Minion
 from juicer.scikit_learn.transpiler import ScikitLearnTranspiler
 from juicer.util import dataframe_util
@@ -406,7 +406,7 @@ class ScikitLearnMinion(Minion):
 
     def _send_to_output(self, data):
         self.state_control.push_app_output_queue(
-            self.app_id, json.dumps(data, cls=CustomEncoder))
+            self.app_id, json.dumps(data, default=custom_json_default))
 
     def _read_dataframe_data(self, task_id, output, port):
         success = True
@@ -485,7 +485,7 @@ class ScikitLearnMinion(Minion):
 
         }
         self.state_control.push_app_queue(
-            self.app_id, json.dumps(msg_processed, cls=CustomEncoder))
+            self.app_id, json.dumps(msg_processed, default=custom_json_default))
         log.info('Sending message processed message. Workflow: %s', workflow['id'])
 
     # noinspection PyUnusedLocal
