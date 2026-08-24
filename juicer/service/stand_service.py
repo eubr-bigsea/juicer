@@ -11,6 +11,8 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+_TIMEOUT = 30  # seconds
+
 # FIXME: Does not work when the line has type hinting
 handle_protected = re.compile(
     r'(.+?\s*[=:]\s*)([\'"])?(.+?)([\'"])?\s*([,])?\s*#\s*@HIDE_INFO@\s*$',
@@ -30,7 +32,7 @@ def save_job_source_code(base_url, token, job_id, source):
     r = requests.patch(url,
                        data=json.dumps({'secret': token, 'source': final_source},
                                        sort_keys=True),
-                       headers=headers)
+                       headers=headers, timeout=_TIMEOUT)
     if r.status_code == 200:
         return json.loads(r.text)
     else:
@@ -56,6 +58,7 @@ def set_pipeline_run_variable_data(
             }
         ),
         headers=headers,
+        timeout=_TIMEOUT,
     )
     if r.status_code == 200:
         return json.loads(r.text)
@@ -81,7 +84,7 @@ def get_cluster_info(base_url, token, cluster_id):
 
     url = '{}/clusters/{}'.format(base_url, cluster_id)
 
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, timeout=_TIMEOUT)
     if r.status_code == 200:
         return json.loads(r.text)
     else:

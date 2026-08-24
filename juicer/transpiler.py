@@ -1,4 +1,5 @@
 import datetime
+import functools
 import hashlib
 import inspect
 import json
@@ -30,6 +31,46 @@ from .util.template_util import HandleExceptionExtension
 
 AUDITING_QUEUE_NAME = 'auditing'
 AUDITING_JOB_NAME = 'seed.jobs.auditing'
+
+
+@functools.lru_cache(maxsize=None)
+def _build_template_env(template_dir):
+    """
+    Build the Jinja2 Environment (with gettext translations installed) for a
+    given template directory. Fully determined by template_dir - translations
+    always load the same fixed locales - so it's built once per template_dir
+    and reused, instead of on every generate_code() call.
+    """
+    compiled_tmpl_dir = os.path.join(tempfile.gettempdir(), 'juicer')
+    os.makedirs(compiled_tmpl_dir, exist_ok=True)
+    template_loader = jinja2.FileSystemLoader(searchpath=template_dir)
+    precompiled_loader = jinja2.ModuleLoader(compiled_tmpl_dir)
+    loader = jinja2.ChoiceLoader([precompiled_loader, template_loader])
+
+    template_env = jinja2.Environment(loader=template_loader,
+                                      extensions=[AutoPep8Extension,
+                                                  HandleExceptionExtension,
+                                                  'jinja2.ext.i18n',
+                                                  'jinja2.ext.do'])
+
+    locales_path = os.path.join(os.path.dirname(__file__), 'i18n', 'locales')
+    translations = Translations.load(locales_path, locales=['pt', 'en'])
+    template_env.install_gettext_translations(translations)
+    template_env.loader = loader
+    template_env.globals.update(zip=zip)
+    return template_env
+
+
+@functools.lru_cache(maxsize=None)
+def _get_audit_queue(redis_url):
+    """
+    rq Queue (and its Redis connection) for enqueuing audit jobs, built once
+    per redis_url and reused instead of opening a fresh connection on every
+    generate_code() call that has audit events.
+    """
+    parsed = urlparse(redis_url)
+    redis_conn = redis.Redis(host=parsed.hostname, port=parsed.port)
+    return Queue(AUDITING_QUEUE_NAME, connection=redis_conn)
 
 log = logging.getLogger(__name__)
 
@@ -321,10 +362,7 @@ class Transpiler(object):
         if audit_events:
 
             redis_url = self.configuration['juicer']['servers']['redis_url']
-            parsed = urlparse(redis_url)
-            redis_conn = redis.Redis(host=parsed.hostname,
-                                     port=parsed.port)
-            q = Queue(AUDITING_QUEUE_NAME, connection=redis_conn)
+            q = _get_audit_queue(redis_url)
             for event in audit_events:
                 event['date'] = event['date'].isoformat()
             q.enqueue(AUDITING_JOB_NAME, json.dumps(audit_events))
@@ -368,36 +406,7 @@ class Transpiler(object):
 
         #import pdb; pdb.set_trace()
 
-        compiled_tmpl_dir = os.path.join(tempfile.gettempdir(), 'juicer')
-        os.makedirs(compiled_tmpl_dir, exist_ok=True)
-        template_loader = jinja2.FileSystemLoader(
-            searchpath=self.template_dir)
-        precompiled_loader = jinja2.ModuleLoader(compiled_tmpl_dir)
-        loader = jinja2.ChoiceLoader([
-            precompiled_loader,
-            template_loader
-        ])
-        template_env = jinja2.Environment(loader=template_loader,
-                                          extensions=[AutoPep8Extension,
-                                                      HandleExceptionExtension,
-                                                      'jinja2.ext.i18n',
-                                                      'jinja2.ext.do'])
-
-        locales_path = os.path.join(os.path.dirname(__file__),
-                                    'i18n', 'locales')
-        translations = Translations.load(
-            locales_path, locales=['pt', 'en'])
-        template_env.install_gettext_translations(translations)
-        # import pdb; pdb.set_trace()
-        # if (os.path.getmtime(self.template_dir) >
-        #                 os.path.getmtime(compiled_tmpl_dir)):
-        #     template_env.compile_templates(compiled_tmpl_dir,
-        #         filter_func=lambda name: name.endswith('.tmpl'), zip=None,
-        #         ignore_errors=False)
-
-        template_env.loader = loader
-
-        template_env.globals.update(zip=zip)
+        template_env = _build_template_env(self.template_dir)
 
         if opt.deploy:
             env_setup['slug_to_op_id'] = self.slug_to_op_id

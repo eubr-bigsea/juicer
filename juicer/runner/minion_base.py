@@ -119,5 +119,11 @@ class Minion:
         """ Pings redis to inform master this minion is online """
         log.info(gettext('Start ping'))
         while q.empty():
-            self._perform_ping()
+            try:
+                self._perform_ping()
+            except Exception:
+                # A transient Redis error must not kill this heartbeat loop:
+                # that would silently orphan the minion (ghost minion, no
+                # reconciliation), since this runs as its own daemon process.
+                log.exception(gettext('Error pinging redis, will retry'))
             time.sleep(5)

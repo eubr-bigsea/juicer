@@ -8,6 +8,8 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+_TIMEOUT = 30  # seconds
+
 
 def _update_caipirinha(base_url, item_path, token, item_id, data):
     headers = {'X-Auth-Token': str(token), 'Content-Type': 'application/json'}
@@ -19,7 +21,7 @@ def _update_caipirinha(base_url, item_path, token, item_id, data):
 
     log.debug(_('Querying Caipirinha URL: %s'), url)
 
-    r = requests.post(url, headers=headers, data=data)
+    r = requests.post(url, headers=headers, data=data, timeout=_TIMEOUT)
     if r.status_code == 200:
         return json.loads(r.text)
     else:
