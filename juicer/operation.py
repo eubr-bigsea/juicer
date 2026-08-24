@@ -3,7 +3,9 @@
 
 import logging
 from collections import namedtuple
+from dataclasses import dataclass, field
 from gettext import gettext
+from typing import List
 
 from juicer.transpiler import TranspilerUtils
 
@@ -29,16 +31,18 @@ class ResultType:
     VISUALIZATION = 'VISUALIZATION'
     MODEL = 'MODEL'
 
-class SampleConfiguration(object):
+@dataclass
+class SampleConfiguration:
     """ Allow to set configuration options for operation sampling. """
-    __slots__ = ('size', 'infer', 'use_types', 'describe', 'page')
-    def __init__(self, size=50, infer=False, describe=False, use_types=None, page=1):
-        if use_types is None:
+    size: int = 50
+    infer: bool = False
+    describe: bool = False
+    use_types: List = None
+    page: int = 1
+
+    def __post_init__(self):
+        if self.use_types is None:
             self.use_types = []
-        self.size = size
-        self.infer = infer
-        self.describe = describe
-        self.page = page
 
     def get_config(self):
         return repr([self.size, self.infer, self.describe, self.use_types])
