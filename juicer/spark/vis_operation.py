@@ -30,8 +30,10 @@ SHAPES = ['diamond', 'point', 'circle']
 
 
 def get_caipirinha_config(config, indentation=0):
-    limonero_conf = config['juicer']['services']['limonero']
-    caipirinha_conf = config['juicer']['services']['caipirinha']
+    config = config or {}
+    juicer_services = config.get('juicer', {}).get('services', {})
+    limonero_conf = juicer_services.get('limonero', {})
+    caipirinha_conf = juicer_services.get('caipirinha', {})
     result = dedent("""
     # Basic information to connect to other services
     config = {{
@@ -49,11 +51,11 @@ def get_caipirinha_config(config, indentation=0):
             }}
         }}
     }}""".format(
-        limonero_url=limonero_conf['url'],
-        limonero_token=limonero_conf['auth_token'],
-        caipirinha_url=caipirinha_conf['url'],
-        caipirinha_token=caipirinha_conf['auth_token'],
-        storage_id=caipirinha_conf['storage_id'], )
+        limonero_url=limonero_conf.get('url', ''),
+        limonero_token=limonero_conf.get('auth_token', ''),
+        caipirinha_url=caipirinha_conf.get('url', ''),
+        caipirinha_token=caipirinha_conf.get('auth_token', ''),
+        storage_id=caipirinha_conf.get('storage_id', 0), )
     )
     if indentation:
         return '\n'.join(

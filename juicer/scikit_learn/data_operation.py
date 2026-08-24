@@ -210,7 +210,7 @@ class DataReaderOperation(Operation):
         infer_from_data = self.infer_schema == self.INFER_FROM_DATA
         infer_from_limonero = self.infer_schema == self.INFER_FROM_LIMONERO
         do_not_infer = self.infer_schema == self.DO_NOT_INFER
-        mode_failfast = self.mode == self.OPT_MODE_FAILFAST
+        mode_failfast = "error" if self.mode == self.OPT_MODE_FAILFAST else "skip"
         protect = (
             self.parameters.get("export_notebook", False)
             or self.parameters.get("plain", False)
@@ -313,7 +313,7 @@ class DataReaderOperation(Operation):
         {%- elif parsed.scheme == 'hdfs'  %}
         file_system = fs.HadoopFileSystem(
             host='{{parsed.hostname}}', #@HIDE_INFO@
-            port={{parsed.port}}, #@HIDE_INFO@
+            port={{parsed.port or 0}}, #@HIDE_INFO@
             user='{{extra_params.get('user', parsed.username) or 'hadoop'}}'  #@HIDE_INFO@
         )
         f = file_system.open_input_file('{{parsed.path}}')
@@ -350,7 +350,7 @@ class DataReaderOperation(Operation):
                                  dtype='str',
                                  {%-   endif %}
                                  na_values={{na_values}},
-                                 error_bad_lines={{mode_failfast}})
+                                 on_bad_lines='{{mode_failfast}}')
         f.close()
         {%-   if header == 'infer' %}
         {{output}}.columns = ['attr{{i}}'.format(i=i)
@@ -362,7 +362,7 @@ class DataReaderOperation(Operation):
             encoding='{{encoding}}',
             compression='infer',
             names = ['value'],
-            error_bad_lines={{mode_failfast}})
+            on_bad_lines='{{mode_failfast}}')
         f.close()
         {%- elif format == 'PARQUET' %}
         {{output}} = pd.read_parquet(f, engine='pyarrow')
@@ -546,7 +546,7 @@ class SaveOperation(Operation):
             path = '{{path}}'
             from pyarrow import fs as hdfs
             fs = hdfs.HadoopFileSystem(host='{{hdfs_server}}',
-                                 port={{hdfs_port}},
+                                 port={{hdfs_port or 0}},
                                  user='{{hdfs_user}}')
             file_info = fs.get_file_info(path)
             exists = file_info.type != hdfs.FileType.NotFound
@@ -715,7 +715,7 @@ class SaveOperation(Operation):
             protect=protect,
             path=path if not protect else os.path.basename(path),
             hdfs_server=parsed.hostname,
-            hdfs_port=parsed.port,
+            hdfs_port=parsed.port or 0,
             hdfs_user=hdfs_user,
             scheme=parsed.scheme,
             name=self.name,

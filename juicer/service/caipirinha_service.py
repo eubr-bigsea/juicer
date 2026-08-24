@@ -39,7 +39,7 @@ def _emit_saving_visualization(emit_event_fn, task_id):  # pragma: no cover
 
 
 def _emit_saved_visualization(_type, emit_event_fn,
-                              visualization):  # pragma: no cover
+                               visualization):  # pragma: no cover
     if emit_event_fn is not None:
         if 'model' in visualization:
             type_id = visualization['model'].type_id
@@ -95,9 +95,9 @@ def new_visualization(config, user, workflow_id, job_id,
                       _type='VISUALIZATION'):
 
     if 'juicer' in config:
-        caipirinha_config = config['juicer']['services']['caipirinha']
+        caipirinha_config = config.get('juicer', {}).get('services', {}).get('caipirinha', {})
     else:
-        caipirinha_config = config
+        caipirinha_config = config or {}
 
     _emit_saving_visualization(emit_event_fn, task_id)
     _emit_saved_visualization(_type, emit_event_fn, visualization)
@@ -105,8 +105,8 @@ def new_visualization(config, user, workflow_id, job_id,
     if 'model' in visualization:
         del visualization['model']
     r = _update_caipirinha(
-        caipirinha_config['url'], 'visualizations',
-        caipirinha_config['auth_token'], '', json.dumps(visualization))
+        caipirinha_config.get('url', ''), 'visualizations',
+        caipirinha_config.get('auth_token', ''), '', json.dumps(visualization))
 
     _emit_completed(emit_event_fn, task_id)
     return r
