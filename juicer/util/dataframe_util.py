@@ -78,19 +78,19 @@ def default_encoder(obj):
         return str(obj)
 
 
-class NpEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            if math.isnan(obj):
-                return None
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, pd.Timestamp):
-            return obj.strftime('%Y-%m-%dT%H:%M:%S')
-        return super(NpEncoder, self).default(obj)
+def np_json_default(obj):
+    """json.dumps(..., default=np_json_default): numpy/pandas-aware fallback."""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        if math.isnan(obj):
+            return None
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, pd.Timestamp):
+        return obj.strftime('%Y-%m-%dT%H:%M:%S')
+    return json.JSONEncoder().default(obj)
 
 
 class SimpleJsonEncoder(simplejson.JSONEncoder):
@@ -107,32 +107,32 @@ class SimpleJsonEncoderSklearn(simplejson.JSONEncoder):
         return default_encoder_sklearn(obj)
 
 
-class CustomEncoderSkLearn(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, decimal.Decimal):
-            return str(obj)
-        elif isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        elif isinstance(obj, set):
-            return default_encoder(list(obj))
-        return default_encoder_sklearn(obj)
+def custom_json_default_sklearn(obj):
+    """json.dumps(..., default=custom_json_default_sklearn)."""
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, set):
+        return default_encoder(list(obj))
+    return default_encoder_sklearn(obj)
 
 
-class CustomEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, decimal.Decimal):
-            return str(obj)
-        elif isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        elif isinstance(obj, set):
-            return default_encoder(list(obj))
-        else:
-            try:
-                if np.isnan(obj):
-                    return None
-            except Exception:
-                return f'{type(obj)} {str(obj)}'
-        return default_encoder(obj)
+def custom_json_default(obj):
+    """json.dumps(..., default=custom_json_default)."""
+    if isinstance(obj, decimal.Decimal):
+        return str(obj)
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, set):
+        return default_encoder(list(obj))
+    else:
+        try:
+            if np.isnan(obj):
+                return None
+        except Exception:
+            return f'{type(obj)} {str(obj)}'
+    return default_encoder(obj)
 
 
 def get_csv_schema(df, only_name=False):
@@ -301,7 +301,7 @@ def emit_sample(task_id, df, emit_event, name, size=50, notebook=False,
             elif isinstance(col, number_types):
                 value = str(col)
             else:
-                value = json.dumps(col, cls=CustomEncoder)
+                value = json.dumps(col, default=custom_json_default)
             # truncate column if size is bigger than 200 chars.
             if len(value) > 200:
                 value = value[:150] + ' ... ' + value[-50:]
@@ -404,7 +404,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                     [str(x) if isinstance(x, number_types)
                      else "'{}'".format(x) for x in col]) + ']'
             else:
-                value = json.dumps(col, cls=CustomEncoderSkLearn)
+                value = json.dumps(col, default=custom_json_default_sklearn)
             # truncate column if size is bigger than 200 chars.
             if len(value) > 200:
                 value = value[:150] + ' ... ' + value[-50:]
@@ -519,7 +519,7 @@ def emit_sample_sklearn_explorer(task_id, df, emit_event, name, size=50, noteboo
                     value = value[:60] + ' (trunc.)'
                     truncated.add(col)
             else:
-                value = json.dumps(row[col], cls=CustomEncoder)
+                value = json.dumps(row[col], default=custom_json_default)
 
             new_row.append(value)
         rows.append(new_row)
@@ -592,7 +592,7 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False,
                     [str(x) if isinstance(x, number_types)
                      else "'{}'".format(x) for x in col]) + ']'
             else:
-                value = json.dumps(col, cls=CustomEncoderSkLearn)
+                value = json.dumps(col, default=custom_json_default_sklearn)
             # truncate column if size is bigger than 200 chars.
             if len(value) > 200:
                 value = value[:150] + ' ... ' + value[-50:]
@@ -699,7 +699,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
             # plt.close()
 
-            result = json.dumps(info, cls=NpEncoder)
+            result = json.dumps(info, default=np_json_default)
             analysis_type = 'attribute'
     elif isinstance(df, pl.DataFrame):
         # Utility function to cast attributes and avoid type conflict
@@ -771,7 +771,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
                 'correlation': final_corr,
                 'attributes': list(zip(df.columns, numeric)),
                 'numeric': [s.name for s in df if s.is_numeric()]
-            }, cls=CustomEncoder)
+            }, default=custom_json_default)
 
 
         elif msg.get('cluster'):
@@ -895,7 +895,7 @@ def analyse_attribute(task_id: str, df: Any, emit_event: Any, attribute: str,
             # info['box_plot'] = base64.b64encode(box_plot.read()).decode('utf8')
             # plt.close()
 
-            result = json.dumps(info, cls=NpEncoder)
+            result = json.dumps(info, default=np_json_default)
             analysis_type = 'attribute'
 
     emit_event('analysis', status='COMPLETED',
