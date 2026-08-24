@@ -51,6 +51,7 @@ Configuration lives in a YAML file, default `conf/juicer-config.yaml` (see
 
 - Always write commit messages in English.
 - Keep them succinct — a short summary line, no long explanations.
+- Do not add "Co-Authored-By" (or similar) lines crediting an AI agent or model as author.
 
 ## Architecture
 
