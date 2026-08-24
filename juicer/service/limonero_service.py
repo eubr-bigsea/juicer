@@ -9,6 +9,8 @@ from gettext import gettext
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+_TIMEOUT = 30  # seconds
+
 def remove_initial_final_path_separator(path):
     if path.endswith('/'):
         path = path[:-1]
@@ -36,7 +38,7 @@ def query_limonero(base_url, item_path, token, item_id):
 
     # log.debug(gettext('Querying Limonero URL: %s'), url)
 
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, timeout=_TIMEOUT)
     if r.status_code == 200:
         return json.loads(r.text)
     else:

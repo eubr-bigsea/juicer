@@ -9,6 +9,8 @@ import requests
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
+_TIMEOUT = 30  # seconds
+
 
 def get_platform(base_url, token, platform_id):
     return query_tahiti(base_url, '/platforms', token, platform_id)
@@ -28,7 +30,7 @@ def query_tahiti(base_url, item_path, token, item_id, qs=None):
         url += '?' + qs
     log.debug(_('Querying Tahiti URL: %s'), url)
 
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, timeout=_TIMEOUT)
     if r.status_code == 200:
         return json.loads(r.text)
     else:
@@ -44,7 +46,7 @@ def save_workflow(base_url: str, token: str, workflow: str) -> int:
         'Content-type': 'application/json'
     }
 
-    r = requests.post(url, data=workflow, headers=headers)
+    r = requests.post(url, data=workflow, headers=headers, timeout=_TIMEOUT)
     if r.status_code == 200:
         return r.json().get('id')
     else:
