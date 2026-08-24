@@ -7,7 +7,9 @@ from random import random
 from textwrap import dedent, indent
 from gettext import gettext
 
-from juicer.operation import Operation
+from juicer.operation import (
+    Operation, parse_cast_params, parse_execute_python_params,
+    parse_filter_params, parse_transformation_expression)
 from juicer.spark.expression import Expression
 from juicer.util import dataframe_util
 
@@ -547,14 +549,9 @@ class TransformationOperation(Operation):
         self.has_code = any(
             [len(self.named_inputs) > 0, self.contains_results()])
         if self.has_code:
-            if 'expression' in parameters:
-                self.expressions = parameters['expression']
-            else:
-                msg = _("Parameter must be informed for task {}.")
-                raise ValueError(
-                    msg.format(self.EXPRESSION_PARAM, self.__class__))
-            self.output = self.named_outputs.get(
-                'output data', 'sampled_data_{}'.format(self.order))
+            self.expressions, self.output = parse_transformation_expression(
+                parameters, self.named_outputs, self.order, self.__class__,
+                self.EXPRESSION_PARAM)
 
     def supports_pipeline(self):
         return True
@@ -885,19 +882,12 @@ class FilterOperation(Operation):
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
-        if self.FILTER_PARAM not in parameters and self.ADVANCED_FILTER_PARAM \
-                not in parameters:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}".format(
-                    self.FILTER_PARAM, self.__class__)))
-
-        self.advanced_filter = parameters.get(self.ADVANCED_FILTER_PARAM) or []
-        self.filter = parameters.get(self.FILTER_PARAM) or []
+        self.filter, self.advanced_filter, self.output = parse_filter_params(
+            parameters, self.named_outputs, self.order, self.__class__,
+            self.FILTER_PARAM, self.ADVANCED_FILTER_PARAM)
 
         self.has_code = any(
             [len(self.named_inputs) == 1, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         input_data = self.named_inputs['input data']
@@ -1259,18 +1249,12 @@ class ExecutePythonOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        if not all([self.PYTHON_CODE_PARAM in parameters]):
-            msg = _("Required parameter {} must be informed for task {}")
-            raise ValueError(msg.format(self.PYTHON_CODE_PARAM, self.__class__))
-
-        self.code = parameters.get(self.PYTHON_CODE_PARAM)
+        self.code, self.out1, self.out2 = parse_execute_python_params(
+            parameters, self.named_outputs, self.order, self.__class__,
+            self.PYTHON_CODE_PARAM)
 
         # Always execute
         self.has_code = True
-        self.out1 = self.named_outputs.get('output data 1',
-                                           'out_1_{}'.format(self.order))
-        self.out2 = self.named_outputs.get('output data 2',
-                                           'out_2_{}'.format(self.order))
 
     def get_output_names(self, sep=", "):
         return sep.join([self.out1, self.out2])
@@ -1899,28 +1883,15 @@ class CastOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
-
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
-        self.input = self.named_inputs.get('input data')
-
-        self.errors = parameters.get(self.ERROR_PARAM, 'coerce') or 'coerce'
-        self.panda_errors = 'coerce' if self.errors == 'move' else self.errors
-        self.invalid_values = parameters.get(
-            self.INVALID_VALUES_PARAM, '_invalid') or '_invalid'
-
+        (self.has_code, self.output, self.input, self.errors,
+         self.panda_errors, self.invalid_values,
+         attributes) = parse_cast_params(
+            parameters, self.named_inputs, self.named_outputs, self.order,
+            self.contains_results(), self.__class__, self.ATTRIBUTES_PARAM,
+            self.ERROR_PARAM, self.INVALID_VALUES_PARAM,
+            self.parse_date_format)
         if self.has_code:
-            if self.ATTRIBUTES_PARAM in parameters:
-                self.attributes = parameters[self.ATTRIBUTES_PARAM]
-                for attr in self.attributes:
-                    if 'formats' in attr:
-                        attr['formats'] = self.parse_date_format(attr['formats'])
-            else:
-                raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format
-                    ('attributes', self.__class__))
+            self.attributes = attributes
 
     @property
     def get_data_out_names(self, sep=','):

@@ -4,7 +4,9 @@ import re
 from gettext import gettext
 from textwrap import dedent
 
-from juicer.operation import Operation
+from juicer.operation import (
+    Operation, parse_cast_params, parse_execute_python_params,
+    parse_filter_params, parse_transformation_expression)
 from juicer.scikit_learn.expression import Expression, \
     JAVA_2_PYTHON_DATE_FORMAT
 
@@ -442,14 +444,12 @@ class ExecutePythonOperation(Operation):
             raise ValueError(msg.format(
                 self.PYTHON_CODE_PARAM, self.__class__))
 
-        self.code = parameters.get(self.PYTHON_CODE_PARAM)
+        self.code, self.out1, self.out2 = parse_execute_python_params(
+            parameters, self.named_outputs, self.order, self.__class__,
+            self.PYTHON_CODE_PARAM)
 
         # Always execute
         self.has_code = True
-        self.out1 = self.named_outputs.get('output data 1',
-                                           'out_1_{}'.format(self.order))
-        self.out2 = self.named_outputs.get('output data 2',
-                                           'out_2_{}'.format(self.order))
 
         self.plain = parameters.get('plain', False)
         self.export_notebook = parameters.get('export_notebook', False)
@@ -635,19 +635,12 @@ class FilterOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        if self.FILTER_PARAM not in parameters and self.ADVANCED_FILTER_PARAM \
-                not in parameters:
-            raise ValueError(
-                _("Parameter '{}' must be informed for task {}".format(
-                    self.FILTER_PARAM, self.__class__)))
-
-        self.advanced_filter = parameters.get(self.ADVANCED_FILTER_PARAM) or []
-        self.filter = parameters.get(self.FILTER_PARAM) or []
+        self.filter, self.advanced_filter, self.output = parse_filter_params(
+            parameters, self.named_outputs, self.order, self.__class__,
+            self.FILTER_PARAM, self.ADVANCED_FILTER_PARAM)
 
         self.has_code = len(named_inputs) > 0 and any(
             [len(self.named_outputs) > 0, self.contains_results()])
-        self.output = self.named_outputs.get('output data',
-                                             'out_{}'.format(self.order))
 
     def generate_code(self):
         if self.has_code:
@@ -1151,25 +1144,20 @@ class TransformationOperation(Operation):
                              self.contains_results()])
         self.imports = set()
         if self.has_code:
-            if self.EXPRESSION_PARAM in parameters:
-                self.expressions = parameters[self.EXPRESSION_PARAM]
-                self.positions = parameters.get(self.POSITION_PARAM)
-                num_expressions = len(self.expressions)
-                if self.positions is None or len(self.positions) == 0:
-                    self.positions = [-1] * num_expressions
-                elif len(self.positions) > num_expressions:
-                    self.positions = [int(x)
-                                      for x in self.positions[:num_expressions]]
-                else:
-                    complement = num_expressions - len(self.positions)
-                    self.positions = [int(x) for x in self.positions] + (
-                        [-1] * complement)
+            self.expressions, self.output = parse_transformation_expression(
+                parameters, self.named_outputs, self.order, self.__class__,
+                self.EXPRESSION_PARAM)
+            self.positions = parameters.get(self.POSITION_PARAM)
+            num_expressions = len(self.expressions)
+            if self.positions is None or len(self.positions) == 0:
+                self.positions = [-1] * num_expressions
+            elif len(self.positions) > num_expressions:
+                self.positions = [int(x)
+                                  for x in self.positions[:num_expressions]]
             else:
-                msg = _("Parameter must be informed for task {}.")
-                raise ValueError(
-                    msg.format(self.EXPRESSION_PARAM, self.__class__))
-            self.output = self.named_outputs.get(
-                'output data', 'sampled_data_{}'.format(self.order))
+                complement = num_expressions - len(self.positions)
+                self.positions = [int(x) for x in self.positions] + (
+                    [-1] * complement)
 
     def generate_code(self):
         # Builds the expression and identify the target column
@@ -1397,29 +1385,15 @@ class CastOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(self.named_inputs) == 1 and any(
-            [len(self.named_outputs) >= 1, self.contains_results()])
-
-        self.output = self.named_outputs.get(
-            'output data', 'output_data_{}'.format(self.order))
-        self.input = self.named_inputs.get('input data')
-
-        self.errors = parameters.get(self.ERROR_PARAM, 'coerce') or 'coerce'
-        self.panda_errors = 'coerce' if self.errors == 'move' else self.errors
-        self.invalid_values = parameters.get(
-            self.INVALID_VALUES_PARAM, '_invalid') or '_invalid'
-
+        (self.has_code, self.output, self.input, self.errors,
+         self.panda_errors, self.invalid_values,
+         attributes) = parse_cast_params(
+            parameters, self.named_inputs, self.named_outputs, self.order,
+            self.contains_results(), self.__class__, self.ATTRIBUTES_PARAM,
+            self.ERROR_PARAM, self.INVALID_VALUES_PARAM,
+            self.parse_date_format)
         if self.has_code:
-            if self.ATTRIBUTES_PARAM in parameters:
-                self.attributes = parameters[self.ATTRIBUTES_PARAM]
-                for attr in self.attributes:
-                    if 'formats' in attr:
-                        attr['formats'] = self.parse_date_format(
-                            attr['formats'])
-            else:
-                raise ValueError(
-                    _("Parameter '{}' must be informed for task {}").format
-                    ('attributes', self.__class__))
+            self.attributes = attributes
 
     @property
     def get_data_out_names(self, sep=','):
