@@ -47,6 +47,11 @@ Configuration lives in a YAML file, default `conf/juicer-config.yaml` (see
 `conf/juicer-config.yaml.template` for the expected shape: `juicer.servers.database_url`,
 `juicer.servers.redis_url`, `juicer.services.tahiti.{url,auth_token}`, `juicer.config.tmp_dir`).
 
+## Commit messages
+
+- Always write commit messages in English.
+- Keep them succinct — a short summary line, no long explanations.
+
 ## Architecture
 
 ### Two entry points, one shared transpile core
