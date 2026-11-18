@@ -533,15 +533,15 @@ class Workflow(object):
 
         topological_sort = self.get_topological_sorted_tasks()
 
-        for node_obj in topological_sort:
-            print(nx.ancestors(self.graph, node_obj),
-                  self.graph.predecessors(node_obj),
-                  node_obj,
-                  self.graph.nodes[node_obj]['in_degree_required'],
-                  self.graph.nodes[node_obj]['in_degree'],
-                  self.graph.nodes[node_obj]['out_degree_required'],
-                  self.graph.nodes[node_obj]['out_degree']
-                  )
+        # for node_obj in topological_sort:
+        #     print(nx.ancestors(self.graph, node_obj),
+        #           self.graph.predecessors(node_obj),
+        #           node_obj,
+        #           self.graph.nodes[node_obj]['in_degree_required'],
+        #           self.graph.nodes[node_obj]['in_degree'],
+        #           self.graph.nodes[node_obj]['out_degree_required'],
+        #           self.graph.nodes[node_obj]['out_degree']
+        #           )
         return True
 
         # # only to debug
@@ -626,9 +626,6 @@ class Workflow(object):
         self.workflow['expanded_variables'] = all_vars
 
     def prepare_variables(self, custom_vars):
-        print('*' * 20)
-        print(self.workflow)
-        print('*' * 20)
         now = datetime.datetime.now()
         # date_at_min = datetime.datetime.combine(datetime.datetime.now(),
         #                                         datetime.time.min)

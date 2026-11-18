@@ -478,8 +478,6 @@ class SparkMinion(Minion):
         if self.spark_dir:
             py4j_dir = f'{self.spark_dir.rstrip("/")}/python/lib/py4j-*.zip'
             files = glob.glob(py4j_dir)
-            print(py4j_dir, files)
-            print('*' * 20)
 
     def _execute_future(self, job_id, workflow, app_configs, code=None, job_type='NORMAL'):
         return self.executor.submit(self.perform_execute,
